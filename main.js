@@ -1,7 +1,7 @@
 main();
 
 function main() {
-    const canvas = document.querySelector("#glCanvas");
+    const canvas = document.getElementById("glCanvas");
 
     const gl = canvas.getContext("webgl");
 
@@ -75,27 +75,41 @@ function main() {
 
     gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(positions), gl.STATIC_DRAW);
 
-    gl.clearColor(0.0, 0.0, 0.0, 1.0);
-    gl.clearDepth(1.0);
-    gl.enable(gl.DEPTH_TEST);
-    gl.depthFunc(gl.LEQUAL);
+    function drawMe() {
+        gl.clearColor(0.0, 0.0, 0.0, 1.0);
+        gl.clearDepth(1.0);
+        gl.enable(gl.DEPTH_TEST);
+        gl.depthFunc(gl.LEQUAL);
 
-    gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+        gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
-    { // Binding vertices
-        const numComponents = 2;
-        const type = gl.FLOAT;
-        const normalise = false;
-        const stride = 0;
+        { // Binding vertices
+            const numComponents = 2;
+            const type = gl.FLOAT;
+            const normalise = false;
+            const stride = 0;
+            const offset = 0;
+            gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
+            gl.vertexAttribPointer(programInfo.attribLocations.vertexPosition, numComponents, type, normalise, stride, offset);
+            gl.enableVertexAttribArray(programInfo.attribLocations.vertexPositions);
+        }
+
+        gl.useProgram(programInfo.program);
+
         const offset = 0;
-        gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
-        gl.vertexAttribPointer(programInfo.attribLocations.vertexPosition, numComponents, type, normalise, stride, offset);
-        gl.enableVertexAttribArray(programInfo.attribLocations.vertexPositions);
+        const vertexCount = 4;
+        gl.drawArrays(gl.TRIANGLE_STRIP, offset, vertexCount);
     }
 
-    gl.useProgram(programInfo.program);
+    // https://stackoverflow.com/questions/4288253/html5-canvas-100-width-height-of-viewport#8486324
+    function resizeCanvas() {
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
 
-    const offset = 0;
-    const vertexCount = 4;
-    gl.drawArrays(gl.TRIANGLE_STRIP, offset, vertexCount);
+        gl.viewport(0, 0, gl.drawingBufferWidth, gl.drawingBufferHeight);
+        drawMe();
+    }
+
+    window.addEventListener('resize', resizeCanvas, false);
+    resizeCanvas();
 }
