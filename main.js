@@ -15,7 +15,7 @@ function main() {
         varying lowp vec2 vVertexPosition;
 
         void main() {
-            vVertexPosition = aVertexPosition;
+            vVertexPosition = (aVertexPosition + 1.0)/2.0;
             gl_Position = vec4(aVertexPosition.x, aVertexPosition.y, 0.0, 1.0);
         }
     `;
@@ -23,11 +23,10 @@ function main() {
     const fsSource = `
         varying lowp vec2 vVertexPosition;
 
+        uniform sampler2D uSampler;
+
         void main() {
-            lowp float x = (vVertexPosition.x + 1.0)/2.0;
-            lowp float y = (vVertexPosition.y + 1.0)/2.0;
-            gl_FragColor = vec4(x, y, mod(x + y, 0.5), 1.0);
-            //gl_FragColor = vec4(1.0, 0.0, 1.0, 1.0);
+            gl_FragColor = vec4(texture2D(uSampler, vVertexPosition).a, 0.0, 0.0, 1.0);
         }
     `;
 
@@ -62,6 +61,9 @@ function main() {
         attribLocations: {
             vertexPosition: gl.getAttribLocation(shaderProgram, 'aVertexPosition'),
         },
+        uniformLocation: {
+            sampler: gl.getUniformLocation(shaderProgram, 'uShader'),
+        },
     };
 
     const positionBuffer = gl.createBuffer();
@@ -75,26 +77,66 @@ function main() {
 
     gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(positions), gl.STATIC_DRAW);
 
+
+    const width = 4;
+    const height = 5;
+    const field = new Uint8Array(width*height);
+    for (var i = 0; i < height; i += 1) {
+        for (var j = 0; j < width; j += 1) {
+            // Each bin is the same size when +1
+            // 0.1, 0.9, 1.0, ..., 255.0, 255.9, 256.0
+            // |------|,         ,|-----------|, |--RNG stops here--|
+            field[i*width + j] = Math.floor(Math.random() * (255 + 1));
+        }
+    }
+    console.log(field);
+
+    const texture = gl.createTexture();
+    {
+        gl.bindTexture(gl.TEXTURE_2D, texture);
+        const level = 0;
+        const internalFormat = gl.ALPHA;
+        const border = 0;
+        const srcFormat = gl.ALPHA;
+        const srcType = gl.UNSIGNED_BYTE;
+        gl.texImage2D(gl.TEXTURE_2D, level, internalFormat, width, height, border, srcFormat, srcType, field);
+    }
+
+    // GL state functions, must be moved to loop if changing
+    gl.clearColor(1.0, 0.753, 0.796, 1.0);
+    gl.clearDepth(1.0);
+    gl.enable(gl.DEPTH_TEST);
+    gl.depthFunc(gl.LEQUAL);
+    gl.disable(gl.CULL_FACE);
+
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+
+    gl.useProgram(programInfo.program);
+
+    { // Binding vertices
+        const numComponents = 2;
+        const type = gl.FLOAT;
+        const normalise = false;
+        const stride = 0;
+        const offset = 0;
+        gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
+        gl.vertexAttribPointer(programInfo.attribLocations.vertexPosition, numComponents, type, normalise, stride, offset);
+        gl.enableVertexAttribArray(programInfo.attribLocations.vertexPositions);
+    }
+
     function drawMe() {
-        gl.clearColor(0.0, 0.0, 0.0, 1.0);
-        gl.clearDepth(1.0);
-        gl.enable(gl.DEPTH_TEST);
-        gl.depthFunc(gl.LEQUAL);
 
         gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
-        { // Binding vertices
-            const numComponents = 2;
-            const type = gl.FLOAT;
-            const normalise = false;
-            const stride = 0;
-            const offset = 0;
-            gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
-            gl.vertexAttribPointer(programInfo.attribLocations.vertexPosition, numComponents, type, normalise, stride, offset);
-            gl.enableVertexAttribArray(programInfo.attribLocations.vertexPositions);
+        { // Binding uniforms
+            gl.activeTexture(gl.TEXTURE0);
+            gl.bindTexture(gl.TEXTURE_2D, texture);
+            gl.uniform1i(programInfo.uniformLocation.sampler, 0);
         }
 
-        gl.useProgram(programInfo.program);
 
         const offset = 0;
         const vertexCount = 4;
