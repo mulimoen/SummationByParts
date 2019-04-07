@@ -1,3 +1,5 @@
+"use strict";
+
 main();
 
 function main() {
@@ -81,15 +83,14 @@ function main() {
     const width = 4;
     const height = 5;
     const field = new Uint8Array(width*height);
-    for (var i = 0; i < height; i += 1) {
-        for (var j = 0; j < width; j += 1) {
+    for (let i = 0; i < height; i += 1) {
+        for (let j = 0; j < width; j += 1) {
             // Each bin is the same size when +1
             // 0.1, 0.9, 1.0, ..., 255.0, 255.9, 256.0
             // |------|,         ,|-----------|, |--RNG stops here--|
             field[i*width + j] = Math.floor(Math.random() * (255 + 1));
         }
     }
-    console.log(field);
 
     const texture = gl.createTexture();
     {
