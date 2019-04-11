@@ -1,8 +1,8 @@
-"use strict";
+import { Universe, default as init } from "./webgl.js";
 
-main();
+async function run() {
+    let wasm = await init("./webgl_bg.wasm");
 
-function main() {
     const canvas = document.getElementById("glCanvas");
 
     const gl = canvas.getContext("webgl");
@@ -82,6 +82,8 @@ function main() {
 
     const width = 4;
     const height = 5;
+    let universe = Universe.new(width, height);
+    /*
     const field = new Uint8Array(width*height);
     for (let i = 0; i < height; i += 1) {
         for (let j = 0; j < width; j += 1) {
@@ -91,6 +93,12 @@ function main() {
             field[i*width + j] = Math.floor(Math.random() * (255 + 1));
         }
     }
+    */
+    universe.set_something();
+    const field = new Uint8Array(wasm.memory.buffer, universe.get_field(), width*height);
+    console.log(field);
+    console.log(wasm.memory.buffer);
+    console.log(universe.get_field());
 
     const texture = gl.createTexture();
     {
@@ -156,3 +164,5 @@ function main() {
     window.addEventListener('resize', resizeCanvas, false);
     resizeCanvas();
 }
+
+run();
