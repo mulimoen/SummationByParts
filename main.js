@@ -80,25 +80,18 @@ async function run() {
     gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(positions), gl.STATIC_DRAW);
 
 
-    const width = 4;
-    const height = 5;
+    const width = 40;
+    const height = 50;
     let universe = Universe.new(width, height);
-    /*
-    const field = new Uint8Array(width*height);
-    for (let i = 0; i < height; i += 1) {
-        for (let j = 0; j < width; j += 1) {
-            // Each bin is the same size when +1
-            // 0.1, 0.9, 1.0, ..., 255.0, 255.9, 256.0
-            // |------|,         ,|-----------|, |--RNG stops here--|
-            field[i*width + j] = Math.floor(Math.random() * (255 + 1));
-        }
-    }
-    */
-    universe.set_something();
-    const field = new Uint8Array(wasm.memory.buffer, universe.get_field(), width*height);
-    console.log(field);
-    console.log(wasm.memory.buffer);
-    console.log(universe.get_field());
+
+    let t = performance.now();
+    universe.set_initial(t/1000.0);
+
+    let drawable = universe.get_drawable();
+
+    const field = new Uint8Array(wasm.memory.buffer,
+            drawable.get_pointer(),
+            drawable.width()*drawable.height());
 
     const texture = gl.createTexture();
     {
@@ -136,7 +129,7 @@ async function run() {
         gl.enableVertexAttribArray(programInfo.attribLocations.vertexPositions);
     }
 
-    function drawMe() {
+    function drawMe(t) {
 
         gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
@@ -146,10 +139,28 @@ async function run() {
             gl.uniform1i(programInfo.uniformLocation.sampler, 0);
         }
 
+        universe.set_initial(t/1000.0);
+
+        let drawable = universe.get_drawable();
+
+        const field = new Uint8Array(wasm.memory.buffer,
+                drawable.get_pointer(),
+                drawable.width()*drawable.height());
+        {
+            gl.bindTexture(gl.TEXTURE_2D, texture);
+            const level = 0;
+            const internalFormat = gl.ALPHA;
+            const border = 0;
+            const srcFormat = gl.ALPHA;
+            const srcType = gl.UNSIGNED_BYTE;
+            gl.texImage2D(gl.TEXTURE_2D, level, internalFormat, width, height, border, srcFormat, srcType, field);
+        }
 
         const offset = 0;
         const vertexCount = 4;
         gl.drawArrays(gl.TRIANGLE_STRIP, offset, vertexCount);
+
+        window.requestAnimationFrame(drawMe);
     }
 
     // https://stackoverflow.com/questions/4288253/html5-canvas-100-width-height-of-viewport#8486324
@@ -158,11 +169,11 @@ async function run() {
         canvas.height = window.innerHeight;
 
         gl.viewport(0, 0, gl.drawingBufferWidth, gl.drawingBufferHeight);
-        drawMe();
     }
 
     window.addEventListener('resize', resizeCanvas, false);
     resizeCanvas();
+    window.requestAnimationFrame(drawMe);
 }
 
 run();
