@@ -160,6 +160,8 @@ async function run() {
         const vertexCount = 4;
         gl.drawArrays(gl.TRIANGLE_STRIP, offset, vertexCount);
 
+        drawable.free();
+
         window.requestAnimationFrame(drawMe);
     }
 
