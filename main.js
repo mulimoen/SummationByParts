@@ -143,9 +143,8 @@ async function run() {
         gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
         let dt = t_draw/1000.0 - t;
-        if (dt > 1.0) {
-            dt = 0.01;
-        }
+        dt = Math.min(t_draw, 0.01)
+
         t += dt;
         universes[0].advance(universes[1], dt);
 

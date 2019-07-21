@@ -14,8 +14,6 @@ pub struct Universe {
     // h_z: Array2<f32>,
 }
 
-const WAVESPEED: f32 = 1.0;
-
 #[wasm_bindgen]
 pub fn set_panic_hook() {
     #[cfg(feature = "console_error_panic_hook")]
@@ -24,7 +22,7 @@ pub fn set_panic_hook() {
 
 fn func(x: f32, y: f32, t: f32) -> f32 {
     use std::f32;
-    (2.0 * f32::consts::PI * (x + y) - WAVESPEED * t).sin()
+    (2.0 * f32::consts::PI * (x + y) - t).sin()
 }
 
 #[wasm_bindgen]
@@ -60,10 +58,40 @@ impl Universe {
         assert_eq!(self.width, fut.width);
         assert_eq!(self.height, fut.height);
 
-        fut.e_x.assign(&self.e_x);
+        let mut y = self.e_x.clone();
+        let mut k0 = Array2::zeros((self.height as usize, self.width as usize));
+        diffx(y.view(), k0.view_mut());
+        diffy(y.view(), k0.view_mut());
 
-        diffx(self.e_x.view(), fut.e_x.view_mut(), dt);
-        diffy(self.e_x.view(), fut.e_x.view_mut(), dt);
+        // y.assign(&self.e_x);
+        y.scaled_add(-1.0 / 2.0 * dt, &k0);
+        let mut k1 = Array2::zeros((self.height as usize, self.width as usize));
+        diffx(y.view(), k1.view_mut());
+        diffy(y.view(), k1.view_mut());
+
+        y.assign(&self.e_x);
+        y.scaled_add(-1.0 / 2.0 * dt, &k1);
+        let mut k2 = Array2::zeros((self.height as usize, self.width as usize));
+        diffx(y.view(), k2.view_mut());
+        diffy(y.view(), k2.view_mut());
+
+        y.assign(&self.e_x);
+        y.scaled_add(-1.0 / 2.0 * dt, &k2);
+        let mut k3 = Array2::zeros((self.height as usize, self.width as usize));
+        diffx(y.view(), k3.view_mut());
+        diffy(y.view(), k3.view_mut());
+
+        y.assign(&self.e_x);
+        y.scaled_add(-dt, &k2);
+        let mut k4 = Array2::zeros((self.height as usize, self.width as usize));
+        diffx(y.view(), k4.view_mut());
+        diffy(y.view(), k4.view_mut());
+
+        fut.e_x.assign(&self.e_x);
+        fut.e_x.scaled_add(-dt / 6.0, &k1);
+        fut.e_x.scaled_add(-2.0 * dt / 6.0, &k2);
+        fut.e_x.scaled_add(-2.0 * dt / 6.0, &k3);
+        fut.e_x.scaled_add(-dt / 6.0, &k4);
     }
 
     pub fn get_ptr(&mut self) -> *mut u8 {
@@ -71,19 +99,19 @@ impl Universe {
     }
 }
 
-fn diffx(prev: ArrayView2<f32>, mut fut: ArrayViewMut2<f32>, dt: f32) {
+fn diffx(prev: ArrayView2<f32>, mut fut: ArrayViewMut2<f32>) {
     for j in 0..prev.shape()[0] {
-        trad4(prev.slice(s!(j, ..)), fut.slice_mut(s!(j, ..)), dt);
+        trad4(prev.slice(s!(j, ..)), fut.slice_mut(s!(j, ..)));
     }
 }
 
-fn diffy(prev: ArrayView2<f32>, mut fut: ArrayViewMut2<f32>, dt: f32) {
+fn diffy(prev: ArrayView2<f32>, mut fut: ArrayViewMut2<f32>) {
     for i in 0..prev.shape()[1] {
-        trad4(prev.slice(s!(.., i)), fut.slice_mut(s!(.., i)), dt);
+        trad4(prev.slice(s!(.., i)), fut.slice_mut(s!(.., i)));
     }
 }
 
-fn trad4(prev: ArrayView1<f32>, mut fut: ArrayViewMut1<f32>, dt: f32) {
+fn trad4(prev: ArrayView1<f32>, mut fut: ArrayViewMut1<f32>) {
     assert_eq!(prev.shape(), fut.shape());
     let nx = prev.shape()[0];
 
@@ -96,31 +124,31 @@ fn trad4(prev: ArrayView1<f32>, mut fut: ArrayViewMut1<f32>, dt: f32) {
         + diag[2] * prev[(0)]
         + diag[3] * prev[(1)]
         + diag[4] * prev[(2)];
-    fut[(0)] += dt / dx * diff;
+    fut[(0)] += diff / dx;
     let diff = diag[0] * prev[(nx - 1)]
         + diag[1] * prev[(0)]
         + diag[2] * prev[(1)]
         + diag[3] * prev[(2)]
         + diag[4] * prev[(3)];
-    fut[(1)] += dt / dx * diff;
+    fut[(1)] += diff / dx;
     for i in 2..nx - 2 {
         let diff = diag[0] * prev[(i - 2)]
             + diag[1] * prev[(i - 1)]
             + diag[2] * prev[(i)]
             + diag[3] * prev[(i + 1)]
             + diag[4] * prev[(i + 2)];
-        fut[(i)] += dt / dx * diff;
+        fut[(i)] += diff / dx;
     }
     let diff = diag[0] * prev[(nx - 4)]
         + diag[1] * prev[(nx - 3)]
         + diag[2] * prev[(nx - 2)]
         + diag[3] * prev[(nx - 1)]
         + diag[4] * prev[(0)];
-    fut[(nx - 2)] += dt / dx * diff;
+    fut[(nx - 2)] += diff / dx;
     let diff = diag[0] * prev[(nx - 3)]
         + diag[1] * prev[(nx - 2)]
         + diag[2] * prev[(nx - 1)]
         + diag[3] * prev[(0)]
         + diag[4] * prev[(1)];
-    fut[(nx - 1)] += dt / dx * diff;
+    fut[(nx - 1)] += diff / dx;
 }
