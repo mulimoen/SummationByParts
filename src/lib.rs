@@ -1,3 +1,4 @@
+use ndarray::Array2;
 use wasm_bindgen::prelude::*;
 
 #[cfg(feature = "wee_alloc")]
@@ -13,7 +14,7 @@ pub fn set_panic_hook() {
 pub struct Universe {
     width: u32,
     height: u32,
-    field: Vec<f32>,
+    field: Array2<f32>,
 }
 
 const WAVESPEED: f32 = 1.0;
@@ -28,10 +29,12 @@ impl Universe {
     pub fn new(width: u32, height: u32) -> Self {
         set_panic_hook();
 
+        let field = Array2::zeros((height as usize, width as usize));
+
         Universe {
             width,
             height,
-            field: vec![0.0; width as usize * height as usize],
+            field,
         }
     }
 
@@ -40,7 +43,7 @@ impl Universe {
             for i in 0..self.width {
                 let x = i as f32 / self.width as f32;
                 let y = j as f32 / self.height as f32;
-                self.field[(self.width * j + i) as usize] = func(x, y, t);
+                self.field[(j as usize, i as usize)] = func(x, y, t);
             }
         }
     }

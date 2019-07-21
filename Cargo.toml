@@ -14,6 +14,7 @@ default = ["console_error_panic_hook", "wee_alloc"]
 wasm-bindgen = "*"
 console_error_panic_hook = { version = "*", optional = true }
 wee_alloc = { version = "*", optional = true }
+ndarray = "0.12.1"
 
 [profile.release]
 opt-level = "s"
