@@ -1,4 +1,4 @@
-import { Universe, default as init } from "./webgl.js";
+import { Universe, set_panic_hook, default as init } from "./webgl.js";
 
 async function run() {
     let wasm = await init("./webgl_bg.wasm");
@@ -84,21 +84,22 @@ async function run() {
 
     gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(positions), gl.STATIC_DRAW);
 
-
+    set_panic_hook();
     const width = 40;
     const height = 50;
-    const universe = Universe.new(width, height);
+    let universes = [Universe.new(width, height), Universe.new(width, height)];
 
-    const t = performance.now();
-    universe.set_initial(t/1000.0);
+    let t = performance.now()/1000.0;
+    universes[0].set_initial(t);
 
 
     const field = new Float32Array(wasm.memory.buffer,
-            universe.get_ptr(),
+            universes[0].get_ptr(),
             width*height);
 
     const texture = gl.createTexture();
     {
+        gl.activeTexture(gl.TEXTURE0);
         gl.bindTexture(gl.TEXTURE_2D, texture);
         const level = 0;
         const internalFormat = gl.ALPHA;
@@ -132,15 +133,24 @@ async function run() {
         gl.vertexAttribPointer(programInfo.attribLocations.vertexPosition, numComponents, type, normalise, stride, offset);
         gl.enableVertexAttribArray(programInfo.attribLocations.vertexPositions);
     }
+    { // Binding uniforms
+        gl.uniform1i(programInfo.uniformLocation.sampler, 0);
+    }
 
-    function drawMe(t) {
+
+    function drawMe(t_draw) {
 
         gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
-        universe.set_initial(t/1000.0);
+        let dt = t_draw/1000.0 - t;
+        if (dt > 1.0) {
+            dt = 0.01;
+        }
+        t += dt;
+        universes[0].advance(universes[1], dt);
 
         const field = new Float32Array(wasm.memory.buffer,
-                universe.get_ptr(),
+                universes[0].get_ptr(),
                 width*height);
         {
             const level = 0;
@@ -155,6 +165,7 @@ async function run() {
         const vertexCount = 4;
         gl.drawArrays(gl.TRIANGLE_STRIP, offset, vertexCount);
 
+        universes = [universes[1], universes[0]];
         window.requestAnimationFrame(drawMe);
     }
 
