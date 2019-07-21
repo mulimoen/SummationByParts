@@ -16,13 +16,6 @@ pub struct Universe {
     field: Vec<f32>,
 }
 
-#[wasm_bindgen]
-pub struct Drawable {
-    width: u32,
-    height: u32,
-    field: Vec<u8>,
-}
-
 const WAVESPEED: f32 = 1.0;
 
 fn func(x: f32, y: f32, t: f32) -> f32 {
@@ -52,37 +45,7 @@ impl Universe {
         }
     }
 
-    pub fn get_drawable(&self) -> Drawable {
-        // let fmin = self.field.iter().fold(0.0f32, |acc, x| acc.min(*x));
-        let fmin = -1.0;
-        // let fmax = self.field.iter().fold(0.0f32, |acc, x| acc.max(*x));
-        let fmax = 1.0;
-
-        let field = self
-            .field
-            .iter()
-            .map(|x| (u8::max_value() as f32 * (x - fmin) / (fmax - fmin)) as u8)
-            .collect::<Vec<_>>();
-
-        Drawable {
-            width: self.width,
-            height: self.height,
-            field,
-        }
-    }
-}
-
-#[wasm_bindgen]
-impl Drawable {
-    pub fn get_pointer(&mut self) -> *mut u8 {
-        self.field.as_mut_ptr()
-    }
-
-    pub fn width(&self) -> u32 {
-        self.width
-    }
-
-    pub fn height(&self) -> u32 {
-        self.height
+    pub fn get_ptr(&mut self) -> *mut u8 {
+        self.field.as_mut_ptr() as *mut u8
     }
 }

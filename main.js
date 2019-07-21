@@ -6,6 +6,10 @@ async function run() {
     const canvas = document.getElementById("glCanvas");
 
     const gl = canvas.getContext("webgl");
+    const float_in_image = gl.getExtension("OES_texture_float");
+    if (!float_in_image) {
+        console.warn("Floats are not supported in images for your device, please warn the author about this incompatability");
+    }
 
     if (gl === null) {
         alert("Unable to initialise WebGL");
@@ -28,7 +32,8 @@ async function run() {
         uniform sampler2D uSampler;
 
         void main() {
-            gl_FragColor = vec4(texture2D(uSampler, vVertexPosition).a, 0.0, 0.0, 1.0);
+            mediump float c = texture2D(uSampler, vVertexPosition).a;
+            gl_FragColor = vec4((c + 1.0)/2.0, 0.0, 0.0, 1.0);
         }
     `;
 
@@ -82,16 +87,15 @@ async function run() {
 
     const width = 40;
     const height = 50;
-    let universe = Universe.new(width, height);
+    const universe = Universe.new(width, height);
 
-    let t = performance.now();
+    const t = performance.now();
     universe.set_initial(t/1000.0);
 
-    let drawable = universe.get_drawable();
 
-    const field = new Uint8Array(wasm.memory.buffer,
-            drawable.get_pointer(),
-            drawable.width()*drawable.height());
+    const field = new Float32Array(wasm.memory.buffer,
+            universe.get_ptr(),
+            width*height);
 
     const texture = gl.createTexture();
     {
@@ -100,7 +104,7 @@ async function run() {
         const internalFormat = gl.ALPHA;
         const border = 0;
         const srcFormat = gl.ALPHA;
-        const srcType = gl.UNSIGNED_BYTE;
+        const srcType = gl.FLOAT;
         gl.texImage2D(gl.TEXTURE_2D, level, internalFormat, width, height, border, srcFormat, srcType, field);
     }
 
@@ -113,7 +117,7 @@ async function run() {
 
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
 
     gl.useProgram(programInfo.program);
@@ -133,34 +137,23 @@ async function run() {
 
         gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
-        { // Binding uniforms
-            gl.activeTexture(gl.TEXTURE0);
-            gl.bindTexture(gl.TEXTURE_2D, texture);
-            gl.uniform1i(programInfo.uniformLocation.sampler, 0);
-        }
-
         universe.set_initial(t/1000.0);
 
-        let drawable = universe.get_drawable();
-
-        const field = new Uint8Array(wasm.memory.buffer,
-                drawable.get_pointer(),
-                drawable.width()*drawable.height());
+        const field = new Float32Array(wasm.memory.buffer,
+                universe.get_ptr(),
+                width*height);
         {
-            gl.bindTexture(gl.TEXTURE_2D, texture);
             const level = 0;
             const internalFormat = gl.ALPHA;
             const border = 0;
-            const srcFormat = gl.ALPHA;
-            const srcType = gl.UNSIGNED_BYTE;
+            const srcFormat = internalFormat;
+            const srcType = gl.FLOAT;
             gl.texImage2D(gl.TEXTURE_2D, level, internalFormat, width, height, border, srcFormat, srcType, field);
         }
 
         const offset = 0;
         const vertexCount = 4;
         gl.drawArrays(gl.TRIANGLE_STRIP, offset, vertexCount);
-
-        drawable.free();
 
         window.requestAnimationFrame(drawMe);
     }
