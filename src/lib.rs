@@ -7,8 +7,6 @@ static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
 
 #[wasm_bindgen]
 pub struct Universe {
-    width: u32,
-    height: u32,
     e_x: Array2<f32>,
     // e_y: Array2<f32>,
     // h_z: Array2<f32>,
@@ -44,8 +42,6 @@ impl Universe {
         // let h_z = field.clone();
 
         Universe {
-            width,
-            height,
             e_x,
             // e_y,
             // h_z,
@@ -58,48 +54,51 @@ impl Universe {
             "exp" => exponential,
             _ => |_x: f32, _y: f32, _t: f32| 0.0,
         };
-        for j in 0..self.height {
-            for i in 0..self.width {
-                let x = i as f32 / self.width as f32;
-                let y = j as f32 / self.height as f32;
-                self.e_x[(j as usize, i as usize)] = func(x, y, t);
+        let nx = self.e_x.shape()[1];
+        let ny = self.e_x.shape()[0];
+        for j in 0..ny {
+            for i in 0..nx {
+                // Must divice interval on nx/ny instead of nx - 1/ny-1
+                // due to periodic conditions [0, 1)
+                let x = i as f32 / nx as f32;
+                let y = j as f32 / ny as f32;
+                self.e_x[(j, i)] = func(x, y, t);
                 // self.e_y[(j as usize, i as usize)] = func(x, y, t);
                 // self.h_z[(j as usize, i as usize)] = func(x, y, t);
             }
         }
     }
     pub fn advance(&self, fut: &mut Universe, dt: f32) {
-        assert_eq!(self.width, fut.width);
-        assert_eq!(self.height, fut.height);
+        assert_eq!(self.e_x.shape(), fut.e_x.shape());
 
         let mut y = self.e_x.clone();
 
         // y.assign(&self.e_x)
-        let mut k0 = Array2::zeros((self.height as usize, self.width as usize));
+        let mut k0 = Array2::zeros(self.e_x.dim());
         diffx(y.view(), k0.view_mut());
         diffy(y.view(), k0.view_mut());
 
         // y.assign(&self.e_x);
         y.scaled_add(-1.0 / 2.0 * dt, &k0);
-        let mut k1 = Array2::zeros((self.height as usize, self.width as usize));
+        let mut k1 = Array2::zeros(self.e_x.dim());
         diffx(y.view(), k1.view_mut());
         diffy(y.view(), k1.view_mut());
 
         y.assign(&self.e_x);
         y.scaled_add(-1.0 / 2.0 * dt, &k1);
-        let mut k2 = Array2::zeros((self.height as usize, self.width as usize));
+        let mut k2 = Array2::zeros(self.e_x.dim());
         diffx(y.view(), k2.view_mut());
         diffy(y.view(), k2.view_mut());
 
         y.assign(&self.e_x);
         y.scaled_add(-1.0 / 2.0 * dt, &k2);
-        let mut k3 = Array2::zeros((self.height as usize, self.width as usize));
+        let mut k3 = Array2::zeros(self.e_x.dim());
         diffx(y.view(), k3.view_mut());
         diffy(y.view(), k3.view_mut());
 
         y.assign(&self.e_x);
         y.scaled_add(-dt, &k2);
-        let mut k4 = Array2::zeros((self.height as usize, self.width as usize));
+        let mut k4 = Array2::zeros(self.e_x.dim());
         diffx(y.view(), k4.view_mut());
         diffy(y.view(), k4.view_mut());
 
@@ -115,15 +114,14 @@ impl Universe {
     }
 
     pub fn advance_upwind(&self, fut: &mut Universe, dt: f32) {
-        assert_eq!(self.width, fut.width);
-        assert_eq!(self.height, fut.height);
+        assert_eq!(self.e_x.dim(), fut.e_x.dim());
 
         let mut ad = Array2::zeros(fut.e_x.dim());
         let mut y = self.e_x.clone();
 
         // y.assign(&self.e_x)
         // ad.fill(0.0);
-        let mut k0 = Array2::zeros((self.height as usize, self.width as usize));
+        let mut k0 = Array2::zeros(self.e_x.dim());
         diffx(y.view(), k0.view_mut());
         diffy(y.view(), k0.view_mut());
         dissx(y.view(), ad.view_mut());
@@ -133,7 +131,7 @@ impl Universe {
         // y.assign(&self.e_x);
         ad.fill(0.0);
         y.scaled_add(-1.0 / 2.0 * dt, &k0);
-        let mut k1 = Array2::zeros((self.height as usize, self.width as usize));
+        let mut k1 = Array2::zeros(self.e_x.dim());
         diffx(y.view(), k1.view_mut());
         diffy(y.view(), k1.view_mut());
         dissx(y.view(), ad.view_mut());
@@ -143,7 +141,7 @@ impl Universe {
         y.assign(&self.e_x);
         ad.fill(0.0);
         y.scaled_add(-1.0 / 2.0 * dt, &k1);
-        let mut k2 = Array2::zeros((self.height as usize, self.width as usize));
+        let mut k2 = Array2::zeros(self.e_x.dim());
         diffx(y.view(), k2.view_mut());
         diffy(y.view(), k2.view_mut());
         dissx(y.view(), ad.view_mut());
@@ -153,7 +151,7 @@ impl Universe {
         y.assign(&self.e_x);
         ad.fill(0.0);
         y.scaled_add(-1.0 / 2.0 * dt, &k2);
-        let mut k3 = Array2::zeros((self.height as usize, self.width as usize));
+        let mut k3 = Array2::zeros(self.e_x.dim());
         diffx(y.view(), k3.view_mut());
         diffy(y.view(), k3.view_mut());
         dissx(y.view(), ad.view_mut());
@@ -163,7 +161,7 @@ impl Universe {
         y.assign(&self.e_x);
         ad.fill(0.0);
         y.scaled_add(-dt, &k2);
-        let mut k4 = Array2::zeros((self.height as usize, self.width as usize));
+        let mut k4 = Array2::zeros(self.e_x.dim());
         diffx(y.view(), k4.view_mut());
         diffy(y.view(), k4.view_mut());
         dissx(y.view(), ad.view_mut());
