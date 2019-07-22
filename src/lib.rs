@@ -68,37 +68,46 @@ impl Universe {
             }
         }
     }
-    pub fn advance(&self, fut: &mut Universe, dt: f32) {
+
+    pub fn advance(&self, fut: &mut Universe, dt: f32, work_buffers: Option<WorkBuffers>) {
         assert_eq!(self.e_x.shape(), fut.e_x.shape());
 
         let mut y = self.e_x.clone();
 
+        let mut buffers = work_buffers
+            .unwrap_or_else(|| WorkBuffers::new(self.e_x.shape()[1], self.e_x.shape()[0]));
+
         // y.assign(&self.e_x)
-        let mut k0 = Array2::zeros(self.e_x.dim());
+        let mut k0 = &mut buffers.k1; // Only need k0 for first step in RK
+        k0.fill(0.0);
         diffx(y.view(), k0.view_mut());
         diffy(y.view(), k0.view_mut());
 
         // y.assign(&self.e_x);
         y.scaled_add(-1.0 / 2.0 * dt, &k0);
-        let mut k1 = Array2::zeros(self.e_x.dim());
+        let mut k1 = buffers.k1;
+        k1.fill(0.0);
         diffx(y.view(), k1.view_mut());
         diffy(y.view(), k1.view_mut());
 
         y.assign(&self.e_x);
         y.scaled_add(-1.0 / 2.0 * dt, &k1);
-        let mut k2 = Array2::zeros(self.e_x.dim());
+        let mut k2 = buffers.k2;
+        k2.fill(0.0);
         diffx(y.view(), k2.view_mut());
         diffy(y.view(), k2.view_mut());
 
         y.assign(&self.e_x);
         y.scaled_add(-1.0 / 2.0 * dt, &k2);
-        let mut k3 = Array2::zeros(self.e_x.dim());
+        let mut k3 = buffers.k3;
+        k3.fill(0.0);
         diffx(y.view(), k3.view_mut());
         diffy(y.view(), k3.view_mut());
 
         y.assign(&self.e_x);
         y.scaled_add(-dt, &k2);
-        let mut k4 = Array2::zeros(self.e_x.dim());
+        let mut k4 = buffers.k4;
+        k4.fill(0.0);
         diffx(y.view(), k4.view_mut());
         diffy(y.view(), k4.view_mut());
 
@@ -401,4 +410,24 @@ fn upwind4_diss(prev: ArrayView1<f32>, mut fut: ArrayViewMut1<f32>) {
         + diag[5] * prev[(1)]
         + diag[6] * prev[(2)];
     fut[(nx - 1)] += diff / dx;
+}
+
+#[wasm_bindgen]
+pub struct WorkBuffers {
+    k1: Array2<f32>,
+    k2: Array2<f32>,
+    k3: Array2<f32>,
+    k4: Array2<f32>,
+}
+
+#[wasm_bindgen]
+impl WorkBuffers {
+    pub fn new(nx: usize, ny: usize) -> Self {
+        Self {
+            k1: Array2::zeros((ny, nx)),
+            k2: Array2::zeros((ny, nx)),
+            k3: Array2::zeros((ny, nx)),
+            k4: Array2::zeros((ny, nx)),
+        }
+    }
 }

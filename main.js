@@ -1,22 +1,25 @@
-import { Universe, set_panic_hook, default as init } from "./webgl.js";
+import { Universe, WorkBuffers, set_panic_hook, default as init } from "./webgl.js";
 
 async function run() {
     let wasm = await init("./webgl_bg.wasm");
+    set_panic_hook();
 
     const canvas = document.getElementById("glCanvas");
 
     const gl = canvas.getContext("webgl");
-    const float_in_image = gl.getExtension("OES_texture_float");
-    if (!float_in_image) {
-        console.warn("Floats are not supported in images for your device, please warn the author about this incompatability");
-    }
-
     if (gl === null) {
-        alert("Unable to initialise WebGL");
+        console.error("Unable to initialise WebGL");
         return;
     }
 
-    const vsSource = `
+    const supports_floats_in_textures = gl.getExtension("OES_texture_float");
+    if (!supports_floats_in_textures) {
+        console.error("Floats are not supported in textures for your device, please warn the author about this incompatability");
+        return;
+    }
+
+
+    const vsSource = String.raw`
         attribute vec2 aVertexPosition;
         varying lowp vec2 vVertexPosition;
 
@@ -26,7 +29,7 @@ async function run() {
         }
     `;
 
-    const fsSource = `
+    const fsSource = String.raw`
         varying lowp vec2 vVertexPosition;
 
         uniform sampler2D uSampler;
@@ -41,7 +44,7 @@ async function run() {
     gl.shaderSource(vsShader, vsSource);
     gl.compileShader(vsShader);
     if (!gl.getShaderParameter(vsShader, gl.COMPILE_STATUS)) {
-        alert('Could not compile shader: ' + gl.getShaderInfoLog(vsShader));
+        console.error('Could not compile shader: ' + gl.getShaderInfoLog(vsShader));
         return;
     }
 
@@ -49,7 +52,7 @@ async function run() {
     gl.shaderSource(fsShader, fsSource);
     gl.compileShader(fsShader);
     if (!gl.getShaderParameter(fsShader, gl.COMPILE_STATUS)) {
-        alert('Could not compile shader: ' + gl.getShaderInfoLog(fsShader));
+        console.error('Could not compile shader: ' + gl.getShaderInfoLog(fsShader));
         return;
     }
 
@@ -57,21 +60,13 @@ async function run() {
     gl.attachShader(shaderProgram, vsShader);
     gl.attachShader(shaderProgram, fsShader);
     gl.linkProgram(shaderProgram);
-
+    gl.validateProgram(shaderProgram);
     if (!gl.getProgramParameter(shaderProgram, gl.LINK_STATUS)) {
-        alert('Unable to link shader program: ' + gl.getProgramInfoLog(shaderProgram))
+        console.error('Unable to link shader program: ' + gl.getProgramInfoLog(shaderProgram))
         return;
     }
+    gl.useProgram(shaderProgram);
 
-    const programInfo = {
-        program: shaderProgram,
-        attribLocations: {
-            vertexPosition: gl.getAttribLocation(shaderProgram, 'aVertexPosition'),
-        },
-        uniformLocation: {
-            sampler: gl.getUniformLocation(shaderProgram, 'uShader'),
-        },
-    };
 
     const positionBuffer = gl.createBuffer();
     gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
@@ -81,72 +76,61 @@ async function run() {
         -1.0, -1.0,
         1.0, -1.0,
     ];
-
     gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(positions), gl.STATIC_DRAW);
-
-    set_panic_hook();
-    const width = 40;
-    const height = 50;
-    let universes = [Universe.new(width, height), Universe.new(width, height)];
-
-    let t = performance.now()/1000.0;
-    universes[0].set_initial(t, "sin+cos");
-
-
-    const field = new Float32Array(wasm.memory.buffer,
-            universes[0].get_ptr(),
-            width*height);
-
-    const texture = gl.createTexture();
     {
-        gl.activeTexture(gl.TEXTURE0);
-        gl.bindTexture(gl.TEXTURE_2D, texture);
-        const level = 0;
-        const internalFormat = gl.ALPHA;
-        const border = 0;
-        const srcFormat = gl.ALPHA;
-        const srcType = gl.FLOAT;
-        gl.texImage2D(gl.TEXTURE_2D, level, internalFormat, width, height, border, srcFormat, srcType, field);
+        const numComponents = 2;
+        const type = gl.FLOAT;
+        const normalise = false;
+        const stride = 0;
+        const offset = 0;
+        const attrib_vertex_location = gl.getAttribLocation(shaderProgram, 'aVertexPosition');
+        gl.vertexAttribPointer(attrib_vertex_location, numComponents, type, normalise, stride, offset);
+        gl.enableVertexAttribArray(attrib_vertex_location);
     }
 
-    // GL state functions, must be moved to loop if changing
+    const texture = gl.createTexture();
+    gl.activeTexture(gl.TEXTURE0);
+    gl.bindTexture(gl.TEXTURE_2D, texture);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+
+
+    const uniform_sampler = gl.getUniformLocation(shaderProgram, 'uSampler');
+    gl.uniform1i(uniform_sampler, 0);
+
+
     gl.clearColor(1.0, 0.753, 0.796, 1.0);
     gl.clearDepth(1.0);
     gl.enable(gl.DEPTH_TEST);
     gl.depthFunc(gl.LEQUAL);
     gl.disable(gl.CULL_FACE);
 
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+    console.info("Successfully set OpenGL state");
 
-    gl.useProgram(programInfo.program);
 
-    { // Binding vertices
-        const numComponents = 2;
-        const type = gl.FLOAT;
-        const normalise = false;
-        const stride = 0;
-        const offset = 0;
-        gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
-        gl.vertexAttribPointer(programInfo.attribLocations.vertexPosition, numComponents, type, normalise, stride, offset);
-        gl.enableVertexAttribArray(programInfo.attribLocations.vertexPositions);
-    }
-    { // Binding uniforms
-        gl.uniform1i(programInfo.uniformLocation.sampler, 0);
-    }
+    const width = 40;
+    const height = 50;
+    let universes = [Universe.new(width, height), Universe.new(width, height)];
+    const workbuffer = WorkBuffers.new(width, height);
 
+    const TIMEFACTOR = 1.0/7000;
+    let t = performance.now()*TIMEFACTOR;
+    universes[0].set_initial(t, "sin+cos");
 
     function drawMe(t_draw) {
-
         gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
-        let dt = t_draw/1000.0 - t;
-        dt = Math.min(t_draw, 0.01)
-
-        t += dt;
-        universes[0].advance(universes[1], dt);
+        let dt = t_draw*TIMEFACTOR - t;
+        if (dt >= 0.01) {
+            console.warn("Can not keep up with framerate");
+            t = t_draw*TIMEFACTOR;
+            dt = 0.01;
+        } else {
+            t += dt;
+        }
+        universes[0].advance(universes[1], dt, workbuffer);
 
         const field = new Float32Array(wasm.memory.buffer,
                 universes[0].get_ptr(),
@@ -160,9 +144,11 @@ async function run() {
             gl.texImage2D(gl.TEXTURE_2D, level, internalFormat, width, height, border, srcFormat, srcType, field);
         }
 
-        const offset = 0;
-        const vertexCount = 4;
-        gl.drawArrays(gl.TRIANGLE_STRIP, offset, vertexCount);
+        {
+            const offset = 0;
+            const vertexCount = 4;
+            gl.drawArrays(gl.TRIANGLE_STRIP, offset, vertexCount);
+        }
 
         universes = [universes[1], universes[0]];
         window.requestAnimationFrame(drawMe);
