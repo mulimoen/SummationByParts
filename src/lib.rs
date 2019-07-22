@@ -1,4 +1,4 @@
-use ndarray::{s, Array2, ArrayView1, ArrayView2, ArrayViewMut1, ArrayViewMut2};
+use ndarray::{s, Array2, ArrayView1, ArrayView2, ArrayViewMut1, ArrayViewMut2, Zip};
 use wasm_bindgen::prelude::*;
 
 #[cfg(feature = "wee_alloc")]
@@ -20,9 +20,19 @@ pub fn set_panic_hook() {
     console_error_panic_hook::set_once();
 }
 
-fn func(x: f32, y: f32, t: f32) -> f32 {
+fn sin_plus_cos(x: f32, y: f32, t: f32) -> f32 {
     use std::f32;
     (2.0 * f32::consts::PI * (x + y) - t).sin()
+}
+
+fn exponential(x: f32, y: f32, _t: f32) -> f32 {
+    use std::f32;
+    let x = x - 0.5;
+    let y = y - 0.5;
+
+    let sigma = 0.05;
+
+    1.0 / (2.0 * f32::consts::PI * sigma * sigma) * (-(x * x + y * y) / (2.0 * sigma * sigma)).exp()
 }
 
 #[wasm_bindgen]
@@ -42,7 +52,12 @@ impl Universe {
         }
     }
 
-    pub fn set_initial(&mut self, t: f32) {
+    pub fn set_initial(&mut self, t: f32, selected_function: &str) {
+        let func = match selected_function {
+            "sin+cos" => sin_plus_cos,
+            "exp" => exponential,
+            _ => |_x: f32, _y: f32, _t: f32| 0.0,
+        };
         for j in 0..self.height {
             for i in 0..self.width {
                 let x = i as f32 / self.width as f32;
@@ -53,12 +68,13 @@ impl Universe {
             }
         }
     }
-
     pub fn advance(&self, fut: &mut Universe, dt: f32) {
         assert_eq!(self.width, fut.width);
         assert_eq!(self.height, fut.height);
 
         let mut y = self.e_x.clone();
+
+        // y.assign(&self.e_x)
         let mut k0 = Array2::zeros((self.height as usize, self.width as usize));
         diffx(y.view(), k0.view_mut());
         diffy(y.view(), k0.view_mut());
@@ -87,11 +103,82 @@ impl Universe {
         diffx(y.view(), k4.view_mut());
         diffy(y.view(), k4.view_mut());
 
-        fut.e_x.assign(&self.e_x);
-        fut.e_x.scaled_add(-dt / 6.0, &k1);
-        fut.e_x.scaled_add(-2.0 * dt / 6.0, &k2);
-        fut.e_x.scaled_add(-2.0 * dt / 6.0, &k3);
-        fut.e_x.scaled_add(-dt / 6.0, &k4);
+        Zip::from(&mut fut.e_x)
+            .and(&self.e_x)
+            .and(&k1)
+            .and(&k2)
+            .and(&k3)
+            .and(&k4)
+            .apply(|y1, &y0, &k1, &k2, &k3, &k4| {
+                *y1 = y0 + -dt / 6.0 * (k1 + 2.0 * k2 + 2.0 * k3 + k4)
+            });
+    }
+
+    pub fn advance_upwind(&self, fut: &mut Universe, dt: f32) {
+        assert_eq!(self.width, fut.width);
+        assert_eq!(self.height, fut.height);
+
+        let mut ad = Array2::zeros(fut.e_x.dim());
+        let mut y = self.e_x.clone();
+
+        // y.assign(&self.e_x)
+        // ad.fill(0.0);
+        let mut k0 = Array2::zeros((self.height as usize, self.width as usize));
+        diffx(y.view(), k0.view_mut());
+        diffy(y.view(), k0.view_mut());
+        dissx(y.view(), ad.view_mut());
+        dissy(y.view(), ad.view_mut());
+        k0.scaled_add(-0.5, &ad);
+
+        // y.assign(&self.e_x);
+        ad.fill(0.0);
+        y.scaled_add(-1.0 / 2.0 * dt, &k0);
+        let mut k1 = Array2::zeros((self.height as usize, self.width as usize));
+        diffx(y.view(), k1.view_mut());
+        diffy(y.view(), k1.view_mut());
+        dissx(y.view(), ad.view_mut());
+        dissy(y.view(), ad.view_mut());
+        k1.scaled_add(-0.5, &ad);
+
+        y.assign(&self.e_x);
+        ad.fill(0.0);
+        y.scaled_add(-1.0 / 2.0 * dt, &k1);
+        let mut k2 = Array2::zeros((self.height as usize, self.width as usize));
+        diffx(y.view(), k2.view_mut());
+        diffy(y.view(), k2.view_mut());
+        dissx(y.view(), ad.view_mut());
+        dissy(y.view(), ad.view_mut());
+        k2.scaled_add(-0.5, &ad);
+
+        y.assign(&self.e_x);
+        ad.fill(0.0);
+        y.scaled_add(-1.0 / 2.0 * dt, &k2);
+        let mut k3 = Array2::zeros((self.height as usize, self.width as usize));
+        diffx(y.view(), k3.view_mut());
+        diffy(y.view(), k3.view_mut());
+        dissx(y.view(), ad.view_mut());
+        dissy(y.view(), ad.view_mut());
+        k3.scaled_add(-0.5, &ad);
+
+        y.assign(&self.e_x);
+        ad.fill(0.0);
+        y.scaled_add(-dt, &k2);
+        let mut k4 = Array2::zeros((self.height as usize, self.width as usize));
+        diffx(y.view(), k4.view_mut());
+        diffy(y.view(), k4.view_mut());
+        dissx(y.view(), ad.view_mut());
+        dissy(y.view(), ad.view_mut());
+        k4.scaled_add(-0.5, &ad);
+
+        Zip::from(&mut fut.e_x)
+            .and(&self.e_x)
+            .and(&k1)
+            .and(&k2)
+            .and(&k3)
+            .and(&k4)
+            .apply(|y1, &y0, &k1, &k2, &k3, &k4| {
+                *y1 = y0 + -dt / 6.0 * (k1 + 2.0 * k2 + 2.0 * k3 + k4)
+            });
     }
 
     pub fn get_ptr(&mut self) -> *mut u8 {

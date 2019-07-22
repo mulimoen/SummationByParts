@@ -90,7 +90,7 @@ async function run() {
     let universes = [Universe.new(width, height), Universe.new(width, height)];
 
     let t = performance.now()/1000.0;
-    universes[0].set_initial(t);
+    universes[0].set_initial(t, "sin+cos");
 
 
     const field = new Float32Array(wasm.memory.buffer,
