@@ -195,13 +195,13 @@ impl Universe {
 
 fn diffx(prev: ArrayView2<f32>, mut fut: ArrayViewMut2<f32>) {
     for j in 0..prev.shape()[0] {
-        upwind4(prev.slice(s!(j, ..)), fut.slice_mut(s!(j, ..)));
+        upwind4_periodic(prev.slice(s!(j, ..)), fut.slice_mut(s!(j, ..)));
     }
 }
 
 fn diffy(prev: ArrayView2<f32>, mut fut: ArrayViewMut2<f32>) {
     for i in 0..prev.shape()[1] {
-        upwind4(prev.slice(s!(.., i)), fut.slice_mut(s!(.., i)));
+        upwind4_periodic(prev.slice(s!(.., i)), fut.slice_mut(s!(.., i)));
     }
 }
 
@@ -216,7 +216,7 @@ fn dissy(prev: ArrayView2<f32>, mut fut: ArrayViewMut2<f32>) {
     }
 }
 
-fn trad4(prev: ArrayView1<f32>, mut fut: ArrayViewMut1<f32>) {
+fn trad4_periodic(prev: ArrayView1<f32>, mut fut: ArrayViewMut1<f32>) {
     assert_eq!(prev.shape(), fut.shape());
     let nx = prev.shape()[0];
 
@@ -258,7 +258,7 @@ fn trad4(prev: ArrayView1<f32>, mut fut: ArrayViewMut1<f32>) {
     fut[(nx - 1)] += diff / dx;
 }
 
-fn upwind4(prev: ArrayView1<f32>, mut fut: ArrayViewMut1<f32>) {
+fn upwind4_periodic(prev: ArrayView1<f32>, mut fut: ArrayViewMut1<f32>) {
     assert_eq!(prev.shape(), fut.shape());
     let nx = prev.shape()[0];
 
