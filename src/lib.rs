@@ -143,8 +143,12 @@ impl Universe {
             });
     }
 
-    pub fn get_ptr(&mut self) -> *mut u8 {
+    pub fn get_ex_ptr(&mut self) -> *mut u8 {
         self.ex.as_mut_ptr() as *mut u8
+    }
+
+    pub fn get_hz_ptr(&mut self) -> *mut u8 {
+        self.hz.as_mut_ptr() as *mut u8
     }
 }
 

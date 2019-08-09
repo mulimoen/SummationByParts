@@ -32,11 +32,22 @@ async function run() {
     const fsSource = String.raw`
         varying lowp vec2 vVertexPosition;
 
-        uniform sampler2D uSampler;
+        uniform sampler2D uSamplerEX;
+        uniform sampler2D uSamplerHZ;
+        uniform int uChosenField;
 
         void main() {
-            mediump float c = texture2D(uSampler, vVertexPosition).a;
-            gl_FragColor = vec4((c + 1.0)/2.0, 0.0, 0.0, 1.0);
+            mediump float r = 0.0;
+            mediump float g = 0.0;
+            mediump float b = 0.0;
+            if (uChosenField == 1) {
+                r = texture2D(uSamplerEX, vVertexPosition).a;
+                r = (r + 1.0)/2.0;
+            } else if (uChosenField == 2) {
+                g = texture2D(uSamplerHZ, vVertexPosition).a;
+                g = (g + 1.0)/2.0;
+            }
+            gl_FragColor = vec4(r, g, b, 1.0);
         }
     `;
 
@@ -88,17 +99,39 @@ async function run() {
         gl.enableVertexAttribArray(attrib_vertex_location);
     }
 
-    const texture = gl.createTexture();
+    const texture_ex = gl.createTexture();
     gl.activeTexture(gl.TEXTURE0);
-    gl.bindTexture(gl.TEXTURE_2D, texture);
+    gl.bindTexture(gl.TEXTURE_2D, texture_ex);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+    const uniform_sampler_ex = gl.getUniformLocation(shaderProgram, 'uSamplerEX');
+    gl.uniform1i(uniform_sampler_ex, 0);
 
+    const texture_hz = gl.createTexture();
+    gl.activeTexture(gl.TEXTURE1);
+    gl.bindTexture(gl.TEXTURE_2D, texture_hz);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+    const uniform_sampler_hz = gl.getUniformLocation(shaderProgram, 'uSamplerHZ');
+    gl.uniform1i(uniform_sampler_hz, 1);
 
-    const uniform_sampler = gl.getUniformLocation(shaderProgram, 'uSampler');
-    gl.uniform1i(uniform_sampler, 0);
+    const chosen_field = {
+        uLocation: gl.getUniformLocation(shaderProgram, 'uChosenField'),
+        value: 2,
+        cycle: function() {
+            if (this.value == 1) {
+                this.value = 2;
+            } else {
+                this.value = 1;
+            }
+            gl.uniform1i(this.uLocation, this.value);
+        },
+    };
+    chosen_field.cycle();
 
 
     gl.clearColor(1.0, 0.753, 0.796, 1.0);
@@ -132,8 +165,11 @@ async function run() {
         }
         universes[0].advance(universes[1], dt, workbuffer);
 
-        const field = new Float32Array(wasm.memory.buffer,
-                universes[0].get_ptr(),
+        const field_ex = new Float32Array(wasm.memory.buffer,
+                universes[0].get_ex_ptr(),
+                width*height);
+        const field_hz = new Float32Array(wasm.memory.buffer,
+                universes[0].get_hz_ptr(),
                 width*height);
         {
             const level = 0;
@@ -141,7 +177,10 @@ async function run() {
             const border = 0;
             const srcFormat = internalFormat;
             const srcType = gl.FLOAT;
-            gl.texImage2D(gl.TEXTURE_2D, level, internalFormat, width, height, border, srcFormat, srcType, field);
+            gl.activeTexture(gl.TEXTURE0);
+            gl.texImage2D(gl.TEXTURE_2D, level, internalFormat, width, height, border, srcFormat, srcType, field_ex);
+            gl.activeTexture(gl.TEXTURE1);
+            gl.texImage2D(gl.TEXTURE_2D, level, internalFormat, width, height, border, srcFormat, srcType, field_hz);
         }
 
         {
@@ -163,6 +202,11 @@ async function run() {
     }
 
     window.addEventListener('resize', resizeCanvas, false);
+    window.addEventListener('keyup', event => {
+        if (event.key == 'c') {
+            chosen_field.cycle();
+        }
+    }, {passive: true});
     resizeCanvas();
     window.requestAnimationFrame(drawMe);
 }
