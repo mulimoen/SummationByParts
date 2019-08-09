@@ -33,6 +33,7 @@ async function run() {
         varying lowp vec2 vVertexPosition;
 
         uniform sampler2D uSamplerEX;
+        uniform sampler2D uSamplerEY;
         uniform sampler2D uSamplerHZ;
         uniform int uChosenField;
 
@@ -43,6 +44,9 @@ async function run() {
             if (uChosenField == 1) {
                 r = texture2D(uSamplerEX, vVertexPosition).a;
                 r = (r + 1.0)/2.0;
+            } else if (uChosenField == 3) {
+                b = texture2D(uSamplerEY, vVertexPosition).a;
+                b = (b + 1.0)/2.0;
             } else if (uChosenField == 2) {
                 g = texture2D(uSamplerHZ, vVertexPosition).a;
                 g = (g + 1.0)/2.0;
@@ -99,32 +103,31 @@ async function run() {
         gl.enableVertexAttribArray(attrib_vertex_location);
     }
 
-    const texture_ex = gl.createTexture();
-    gl.activeTexture(gl.TEXTURE0);
-    gl.bindTexture(gl.TEXTURE_2D, texture_ex);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
-    const uniform_sampler_ex = gl.getUniformLocation(shaderProgram, 'uSamplerEX');
-    gl.uniform1i(uniform_sampler_ex, 0);
+    const create_2D_texture = function(loc, name) {
+        const texture = gl.createTexture();
+        gl.activeTexture(gl.TEXTURE0 + loc);
+        gl.bindTexture(gl.TEXTURE_2D, texture);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+        const uniform_sampler = gl.getUniformLocation(shaderProgram, name);
+        gl.uniform1i(uniform_sampler, loc);
 
-    const texture_hz = gl.createTexture();
-    gl.activeTexture(gl.TEXTURE1);
-    gl.bindTexture(gl.TEXTURE_2D, texture_hz);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
-    const uniform_sampler_hz = gl.getUniformLocation(shaderProgram, 'uSamplerHZ');
-    gl.uniform1i(uniform_sampler_hz, 1);
+        return texture;
+    }
+    const texture_ex = create_2D_texture(0, 'uSamplerEX');
+    const texture_ey = create_2D_texture(2, 'uSamplerEY');
+    const texture_hz = create_2D_texture(1, 'uSamplerHZ');
 
     const chosen_field = {
         uLocation: gl.getUniformLocation(shaderProgram, 'uChosenField'),
-        value: 2,
+        value: 3,
         cycle: function() {
             if (this.value == 1) {
                 this.value = 2;
+            } else if (this.value == 2) {
+                this.value = 3;
             } else {
                 this.value = 1;
             }
@@ -134,7 +137,7 @@ async function run() {
     chosen_field.cycle();
 
 
-    gl.clearColor(1.0, 0.753, 0.796, 1.0);
+    gl.clearColor(1.0, 0.753, 0.796, 1.0); // A nice pink
     gl.clearDepth(1.0);
     gl.enable(gl.DEPTH_TEST);
     gl.depthFunc(gl.LEQUAL);
@@ -150,7 +153,7 @@ async function run() {
 
     const TIMEFACTOR = 1.0/7000;
     let t = performance.now()*TIMEFACTOR;
-    universes[0].set_initial(t, "sin+cos");
+    universes[0].set_initial(t, "exp");
 
     function drawMe(t_draw) {
         gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
@@ -168,6 +171,9 @@ async function run() {
         const field_ex = new Float32Array(wasm.memory.buffer,
                 universes[0].get_ex_ptr(),
                 width*height);
+        const field_ey = new Float32Array(wasm.memory.buffer,
+                universes[0].get_ey_ptr(),
+                width*height);
         const field_hz = new Float32Array(wasm.memory.buffer,
                 universes[0].get_hz_ptr(),
                 width*height);
@@ -179,6 +185,8 @@ async function run() {
             const srcType = gl.FLOAT;
             gl.activeTexture(gl.TEXTURE0);
             gl.texImage2D(gl.TEXTURE_2D, level, internalFormat, width, height, border, srcFormat, srcType, field_ex);
+            gl.activeTexture(gl.TEXTURE2);
+            gl.texImage2D(gl.TEXTURE_2D, level, internalFormat, width, height, border, srcFormat, srcType, field_ey);
             gl.activeTexture(gl.TEXTURE1);
             gl.texImage2D(gl.TEXTURE_2D, level, internalFormat, width, height, border, srcFormat, srcType, field_hz);
         }
