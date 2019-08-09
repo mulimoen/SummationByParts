@@ -21,15 +21,10 @@ pub fn set_panic_hook() {
     console_error_panic_hook::set_once();
 }
 
-fn sin_plus_cos(x: f32, y: f32, t: f32) -> f32 {
+fn gaussian(x: f32, x0: f32, y: f32, y0: f32) -> f32 {
     use std::f32;
-    (2.0 * f32::consts::PI * (x + y) - t).sin()
-}
-
-fn exponential(x: f32, y: f32, _t: f32) -> f32 {
-    use std::f32;
-    let x = x - 0.5;
-    let y = y - 0.5;
+    let x = x - x0;
+    let y = y - y0;
 
     let sigma = 0.05;
 
@@ -47,12 +42,7 @@ impl Universe {
         Universe { ex, ey, hz }
     }
 
-    pub fn set_initial(&mut self, t: f32, selected_function: &str) {
-        let func = match selected_function {
-            "sin+cos" => sin_plus_cos,
-            "exp" => exponential,
-            _ => |_x: f32, _y: f32, _t: f32| 0.0,
-        };
+    pub fn set_initial(&mut self, x0: f32, y0: f32) {
         let nx = self.ex.shape()[1];
         let ny = self.ex.shape()[0];
         for j in 0..ny {
@@ -63,7 +53,7 @@ impl Universe {
                 let y = j as f32 / ny as f32;
                 self.ex[(j, i)] = 0.0;
                 self.ey[(j, i)] = 0.0;
-                self.hz[(j, i)] = func(x, y, t);
+                self.hz[(j, i)] = gaussian(x, x0, y, y0) / 32.0;
             }
         }
     }

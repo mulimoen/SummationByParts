@@ -43,10 +43,10 @@ async function run() {
             mediump float b = 0.0;
             if (uChosenField == 1) {
                 r = texture2D(uSamplerEX, vVertexPosition).a;
-                r = (r + 1.0)/2.0;
+                r += 0.5;
             } else if (uChosenField == 3) {
                 b = texture2D(uSamplerEY, vVertexPosition).a;
-                b = (b + 1.0)/2.0;
+                b += 0.5;
             } else if (uChosenField == 2) {
                 g = texture2D(uSamplerHZ, vVertexPosition).a;
                 g = (g + 1.0)/2.0;
@@ -122,7 +122,7 @@ async function run() {
 
     const chosen_field = {
         uLocation: gl.getUniformLocation(shaderProgram, 'uChosenField'),
-        value: 3,
+        value: 1,
         cycle: function() {
             if (this.value == 1) {
                 this.value = 2;
@@ -153,7 +153,7 @@ async function run() {
 
     const TIMEFACTOR = 1.0/7000;
     let t = performance.now()*TIMEFACTOR;
-    universes[0].set_initial(t, "exp");
+    universes[0].set_initial(0.5, 0.5);
 
     function drawMe(t_draw) {
         gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
@@ -215,6 +215,12 @@ async function run() {
             chosen_field.cycle();
         }
     }, {passive: true});
+    window.addEventListener('click', event => {
+        const mousex = event.clientX / window.innerWidth;
+        const mousey = event.clientY / window.innerHeight;
+        universes[0].set_initial(mousex, 1.0 - mousey);
+    }, {passive: true});
+
     resizeCanvas();
     window.requestAnimationFrame(drawMe);
 }
