@@ -2,7 +2,7 @@ use ndarray::{Array2, Zip};
 use wasm_bindgen::prelude::*;
 
 mod operators;
-use operators::{diffx, diffx_periodic, diffy, diffy_periodic, dissx, dissy};
+use operators::diffx_periodic;
 
 #[cfg(feature = "wee_alloc")]
 #[global_allocator]
@@ -87,147 +87,59 @@ impl Universe {
     pub fn advance(&self, fut: &mut Universe, dt: f32, work_buffers: Option<WorkBuffers>) {
         assert_eq!(self.ex.shape(), fut.ex.shape());
 
-        let mut y_ex = self.ex.clone();
-        let mut y_hz = self.hz.clone();
-
         let mut buffers = work_buffers
             .unwrap_or_else(|| WorkBuffers::new(self.ex.shape()[1], self.ex.shape()[0]));
 
-        let mut k0_ex = &mut buffers.k1_ex;
-        let mut k0_hz = &mut buffers.k1_hz;
-        k0_ex.fill(0.0);
-        k0_hz.fill(0.0);
-        // u_x
-        diffx_periodic(y_ex.view(), k0_ex.view_mut());
-        diffx_periodic(y_hz.view(), k0_hz.view_mut());
+        let mut y = buffers.y;
+        let mut k = buffers.buf;
 
-        // y = y + 1/2*dt Au_x
-        y_ex.scaled_add(1.0 / 2.0 * dt, &k0_hz);
-        y_hz.scaled_add(1.0 / 2.0 * dt, &k0_ex);
-        let mut k1_ex = buffers.k1_ex;
-        let mut k1_hz = buffers.k1_hz;
-        k1_ex.fill(0.0);
-        k1_hz.fill(0.0);
-        diffx_periodic(y_ex.view(), k1_ex.view_mut());
-        diffx_periodic(y_hz.view(), k1_hz.view_mut());
+        for i in 0..4 {
+            // y = y0 + c*kn
+            y.0.assign(&self.ex);
+            y.1.assign(&self.hz);
+            match i {
+                0 => {}
+                1 => {
+                    y.0.scaled_add(1.0 / 2.0 * dt, &k[i - 1].0);
+                    y.1.scaled_add(1.0 / 2.0 * dt, &k[i - 1].1);
+                }
+                2 => {
+                    y.0.scaled_add(1.0 / 2.0 * dt, &k[i - 1].0);
+                    y.1.scaled_add(1.0 / 2.0 * dt, &k[i - 1].1);
+                }
+                3 => {
+                    y.0.scaled_add(dt, &k[i - 1].0);
+                    y.1.scaled_add(dt, &k[i - 1].1);
+                }
+                _ => {
+                    unreachable!();
+                }
+            };
 
-        y_ex.assign(&self.ex);
-        y_hz.assign(&self.hz);
-        y_ex.scaled_add(1.0 / 2.0 * dt, &k1_hz);
-        y_hz.scaled_add(1.0 / 2.0 * dt, &k1_ex);
-        let mut k2_ex = buffers.k2_ex;
-        let mut k2_hz = buffers.k2_hz;
-        k2_ex.fill(0.0);
-        k2_hz.fill(0.0);
-        diffx_periodic(y_ex.view(), k2_ex.view_mut());
-        diffx_periodic(y_hz.view(), k2_hz.view_mut());
+            k[i].0.fill(0.0);
+            k[i].1.fill(0.0);
 
-        // y = y0
-        y_ex.assign(&self.ex);
-        y_hz.assign(&self.hz);
-        y_ex.scaled_add(1.0 / 2.0 * dt, &k2_hz);
-        y_hz.scaled_add(1.0 / 2.0 * dt, &k2_ex);
-        let mut k3_ex = buffers.k3_ex;
-        let mut k3_hz = buffers.k3_hz;
-        k3_ex.fill(0.0);
-        k3_hz.fill(0.0);
-        diffx_periodic(y_ex.view(), k3_ex.view_mut());
-        diffx_periodic(y_hz.view(), k3_hz.view_mut());
-
-        y_ex.assign(&self.ex);
-        y_hz.assign(&self.hz);
-        y_ex.scaled_add(dt, &k2_hz);
-        y_hz.scaled_add(dt, &k2_ex);
-        let mut k4_ex = buffers.k4_ex;
-        let mut k4_hz = buffers.k4_hz;
-        k4_ex.fill(0.0);
-        k4_hz.fill(0.0);
-        diffx_periodic(y_ex.view(), k4_ex.view_mut());
-        diffx_periodic(y_hz.view(), k4_hz.view_mut());
+            diffx_periodic(y.0.view(), k[i].1.view_mut());
+            diffx_periodic(y.1.view(), k[i].0.view_mut());
+        }
 
         Zip::from(&mut fut.ex)
             .and(&self.ex)
-            .and(&k1_hz)
-            .and(&k2_hz)
-            .and(&k3_hz)
-            .and(&k4_hz)
+            .and(&k[0].0)
+            .and(&k[1].0)
+            .and(&k[2].0)
+            .and(&k[3].0)
             .apply(|y1, &y0, &k1, &k2, &k3, &k4| {
                 *y1 = y0 + dt / 6.0 * (k1 + 2.0 * k2 + 2.0 * k3 + k4)
             });
         Zip::from(&mut fut.hz)
             .and(&self.hz)
-            .and(&k1_ex)
-            .and(&k2_ex)
-            .and(&k3_ex)
-            .and(&k4_ex)
+            .and(&k[0].1)
+            .and(&k[1].1)
+            .and(&k[2].1)
+            .and(&k[3].1)
             .apply(|y1, &y0, &k1, &k2, &k3, &k4| {
                 *y1 = y0 + dt / 6.0 * (k1 + 2.0 * k2 + 2.0 * k3 + k4)
-            });
-    }
-
-    pub fn advance_upwind(&self, fut: &mut Universe, dt: f32) {
-        assert_eq!(self.ex.dim(), fut.ex.dim());
-
-        let mut ad = Array2::zeros(fut.ex.dim());
-        let mut y = self.ex.clone();
-
-        // y.assign(&self.ex)
-        // ad.fill(0.0);
-        let mut k0 = Array2::zeros(self.ex.dim());
-        diffx(y.view(), k0.view_mut());
-        diffy(y.view(), k0.view_mut());
-        dissx(y.view(), ad.view_mut());
-        dissy(y.view(), ad.view_mut());
-        k0.scaled_add(-0.5, &ad);
-
-        // y.assign(&self.ex);
-        ad.fill(0.0);
-        y.scaled_add(-1.0 / 2.0 * dt, &k0);
-        let mut k1 = Array2::zeros(self.ex.dim());
-        diffx(y.view(), k1.view_mut());
-        diffy(y.view(), k1.view_mut());
-        dissx(y.view(), ad.view_mut());
-        dissy(y.view(), ad.view_mut());
-        k1.scaled_add(-0.5, &ad);
-
-        y.assign(&self.ex);
-        ad.fill(0.0);
-        y.scaled_add(-1.0 / 2.0 * dt, &k1);
-        let mut k2 = Array2::zeros(self.ex.dim());
-        diffx(y.view(), k2.view_mut());
-        diffy(y.view(), k2.view_mut());
-        dissx(y.view(), ad.view_mut());
-        dissy(y.view(), ad.view_mut());
-        k2.scaled_add(-0.5, &ad);
-
-        y.assign(&self.ex);
-        ad.fill(0.0);
-        y.scaled_add(-1.0 / 2.0 * dt, &k2);
-        let mut k3 = Array2::zeros(self.ex.dim());
-        diffx(y.view(), k3.view_mut());
-        diffy(y.view(), k3.view_mut());
-        dissx(y.view(), ad.view_mut());
-        dissy(y.view(), ad.view_mut());
-        k3.scaled_add(-0.5, &ad);
-
-        y.assign(&self.ex);
-        ad.fill(0.0);
-        y.scaled_add(-dt, &k2);
-        let mut k4 = Array2::zeros(self.ex.dim());
-        diffx(y.view(), k4.view_mut());
-        diffy(y.view(), k4.view_mut());
-        dissx(y.view(), ad.view_mut());
-        dissy(y.view(), ad.view_mut());
-        k4.scaled_add(-0.5, &ad);
-
-        Zip::from(&mut fut.ex)
-            .and(&self.ex)
-            .and(&k1)
-            .and(&k2)
-            .and(&k3)
-            .and(&k4)
-            .apply(|y1, &y0, &k1, &k2, &k3, &k4| {
-                *y1 = y0 + -dt / 6.0 * (k1 + 2.0 * k2 + 2.0 * k3 + k4)
             });
     }
 
@@ -238,28 +150,22 @@ impl Universe {
 
 #[wasm_bindgen]
 pub struct WorkBuffers {
-    k1_ex: Array2<f32>,
-    k1_hz: Array2<f32>,
-    k2_ex: Array2<f32>,
-    k2_hz: Array2<f32>,
-    k3_ex: Array2<f32>,
-    k3_hz: Array2<f32>,
-    k4_ex: Array2<f32>,
-    k4_hz: Array2<f32>,
+    y: (Array2<f32>, Array2<f32>),
+    buf: [(Array2<f32>, Array2<f32>); 4],
 }
 
 #[wasm_bindgen]
 impl WorkBuffers {
     pub fn new(nx: usize, ny: usize) -> Self {
+        let arr = Array2::zeros((ny, nx));
         Self {
-            k1_ex: Array2::zeros((ny, nx)),
-            k1_hz: Array2::zeros((ny, nx)),
-            k2_ex: Array2::zeros((ny, nx)),
-            k2_hz: Array2::zeros((ny, nx)),
-            k3_ex: Array2::zeros((ny, nx)),
-            k3_hz: Array2::zeros((ny, nx)),
-            k4_ex: Array2::zeros((ny, nx)),
-            k4_hz: Array2::zeros((ny, nx)),
+            y: (arr.clone(), arr.clone()),
+            buf: [
+                (arr.clone(), arr.clone()),
+                (arr.clone(), arr.clone()),
+                (arr.clone(), arr.clone()),
+                (arr.clone(), arr),
+            ],
         }
     }
 }
