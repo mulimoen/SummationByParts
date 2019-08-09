@@ -1,5 +1,8 @@
-use ndarray::{s, Array2, ArrayView1, ArrayView2, ArrayViewMut1, ArrayViewMut2, Zip};
+use ndarray::{Array2, Zip};
 use wasm_bindgen::prelude::*;
+
+mod operators;
+use operators::{diffx, diffx_periodic, diffy, diffy_periodic, dissx, dissy};
 
 #[cfg(feature = "wee_alloc")]
 #[global_allocator]
@@ -80,36 +83,36 @@ impl Universe {
         // y.assign(&self.e_x)
         let mut k0 = &mut buffers.k1; // Only need k0 for first step in RK
         k0.fill(0.0);
-        diffx(y.view(), k0.view_mut());
-        diffy(y.view(), k0.view_mut());
+        diffx_periodic(y.view(), k0.view_mut());
+        diffy_periodic(y.view(), k0.view_mut());
 
         // y.assign(&self.e_x);
         y.scaled_add(-1.0 / 2.0 * dt, &k0);
         let mut k1 = buffers.k1;
         k1.fill(0.0);
-        diffx(y.view(), k1.view_mut());
-        diffy(y.view(), k1.view_mut());
+        diffx_periodic(y.view(), k1.view_mut());
+        diffy_periodic(y.view(), k1.view_mut());
 
         y.assign(&self.e_x);
         y.scaled_add(-1.0 / 2.0 * dt, &k1);
         let mut k2 = buffers.k2;
         k2.fill(0.0);
-        diffx(y.view(), k2.view_mut());
-        diffy(y.view(), k2.view_mut());
+        diffx_periodic(y.view(), k2.view_mut());
+        diffy_periodic(y.view(), k2.view_mut());
 
         y.assign(&self.e_x);
         y.scaled_add(-1.0 / 2.0 * dt, &k2);
         let mut k3 = buffers.k3;
         k3.fill(0.0);
-        diffx(y.view(), k3.view_mut());
-        diffy(y.view(), k3.view_mut());
+        diffx_periodic(y.view(), k3.view_mut());
+        diffy_periodic(y.view(), k3.view_mut());
 
         y.assign(&self.e_x);
         y.scaled_add(-dt, &k2);
         let mut k4 = buffers.k4;
         k4.fill(0.0);
-        diffx(y.view(), k4.view_mut());
-        diffy(y.view(), k4.view_mut());
+        diffx_periodic(y.view(), k4.view_mut());
+        diffy_periodic(y.view(), k4.view_mut());
 
         Zip::from(&mut fut.e_x)
             .and(&self.e_x)
@@ -191,225 +194,6 @@ impl Universe {
     pub fn get_ptr(&mut self) -> *mut u8 {
         self.e_x.as_mut_ptr() as *mut u8
     }
-}
-
-fn diffx(prev: ArrayView2<f32>, mut fut: ArrayViewMut2<f32>) {
-    for j in 0..prev.shape()[0] {
-        upwind4_periodic(prev.slice(s!(j, ..)), fut.slice_mut(s!(j, ..)));
-    }
-}
-
-fn diffy(prev: ArrayView2<f32>, mut fut: ArrayViewMut2<f32>) {
-    for i in 0..prev.shape()[1] {
-        upwind4_periodic(prev.slice(s!(.., i)), fut.slice_mut(s!(.., i)));
-    }
-}
-
-fn dissx(prev: ArrayView2<f32>, mut fut: ArrayViewMut2<f32>) {
-    for j in 0..prev.shape()[0] {
-        upwind4_diss(prev.slice(s!(j, ..)), fut.slice_mut(s!(j, ..)));
-    }
-}
-fn dissy(prev: ArrayView2<f32>, mut fut: ArrayViewMut2<f32>) {
-    for i in 0..prev.shape()[1] {
-        upwind4_diss(prev.slice(s!(.., i)), fut.slice_mut(s!(.., i)));
-    }
-}
-
-fn trad4_periodic(prev: ArrayView1<f32>, mut fut: ArrayViewMut1<f32>) {
-    assert_eq!(prev.shape(), fut.shape());
-    let nx = prev.shape()[0];
-
-    let dx = 1.0 / (nx - 1) as f32;
-
-    let diag = [1.0 / 12.0, -2.0 / 3.0, 0.0, 2.0 / 3.0, -1.0 / 12.0];
-
-    let diff = diag[0] * prev[(nx - 2)]
-        + diag[1] * prev[(nx - 1)]
-        + diag[2] * prev[(0)]
-        + diag[3] * prev[(1)]
-        + diag[4] * prev[(2)];
-    fut[(0)] += diff / dx;
-    let diff = diag[0] * prev[(nx - 1)]
-        + diag[1] * prev[(0)]
-        + diag[2] * prev[(1)]
-        + diag[3] * prev[(2)]
-        + diag[4] * prev[(3)];
-    fut[(1)] += diff / dx;
-    for i in 2..nx - 2 {
-        let diff = diag[0] * prev[(i - 2)]
-            + diag[1] * prev[(i - 1)]
-            + diag[2] * prev[(i)]
-            + diag[3] * prev[(i + 1)]
-            + diag[4] * prev[(i + 2)];
-        fut[(i)] += diff / dx;
-    }
-    let diff = diag[0] * prev[(nx - 4)]
-        + diag[1] * prev[(nx - 3)]
-        + diag[2] * prev[(nx - 2)]
-        + diag[3] * prev[(nx - 1)]
-        + diag[4] * prev[(0)];
-    fut[(nx - 2)] += diff / dx;
-    let diff = diag[0] * prev[(nx - 3)]
-        + diag[1] * prev[(nx - 2)]
-        + diag[2] * prev[(nx - 1)]
-        + diag[3] * prev[(0)]
-        + diag[4] * prev[(1)];
-    fut[(nx - 1)] += diff / dx;
-}
-
-fn upwind4_periodic(prev: ArrayView1<f32>, mut fut: ArrayViewMut1<f32>) {
-    assert_eq!(prev.shape(), fut.shape());
-    let nx = prev.shape()[0];
-
-    let dx = 1.0 / (nx - 1) as f32;
-
-    let diag = [
-        -1.0 / 24.0,
-        1.0 / 4.0,
-        -7.0 / 8.0,
-        0.0,
-        7.0 / 8.0,
-        -1.0 / 4.0,
-        1.0 / 24.0,
-    ];
-
-    let diff = diag[0] * prev[(nx - 3)]
-        + diag[1] * prev[(nx - 2)]
-        + diag[2] * prev[(nx - 1)]
-        + diag[3] * prev[(0)]
-        + diag[4] * prev[(1)]
-        + diag[5] * prev[(2)]
-        + diag[6] * prev[(3)];
-    fut[0] += diff / dx;
-    let diff = diag[0] * prev[(nx - 2)]
-        + diag[1] * prev[(nx - 1)]
-        + diag[2] * prev[(0)]
-        + diag[3] * prev[(1)]
-        + diag[4] * prev[(2)]
-        + diag[5] * prev[(3)]
-        + diag[6] * prev[(4)];
-    fut[1] += diff / dx;
-    let diff = diag[0] * prev[(nx - 1)]
-        + diag[1] * prev[(0)]
-        + diag[2] * prev[(1)]
-        + diag[3] * prev[(2)]
-        + diag[4] * prev[(3)]
-        + diag[5] * prev[(4)]
-        + diag[6] * prev[(5)];
-    fut[2] += diff / dx;
-
-    for i in 3..nx - 3 {
-        let diff = diag[0] * prev[(i - 3)]
-            + diag[1] * prev[(i - 2)]
-            + diag[2] * prev[(i - 1)]
-            + diag[3] * prev[(i)]
-            + diag[4] * prev[(i + 1)]
-            + diag[5] * prev[(i + 2)]
-            + diag[6] * prev[(i + 3)];
-        fut[(i)] += diff / dx;
-    }
-    let diff = diag[0] * prev[(nx - 6)]
-        + diag[1] * prev[(nx - 5)]
-        + diag[2] * prev[(nx - 4)]
-        + diag[3] * prev[(nx - 3)]
-        + diag[4] * prev[(nx - 2)]
-        + diag[5] * prev[(nx - 1)]
-        + diag[6] * prev[(0)];
-    fut[(nx - 3)] += diff / dx;
-    let diff = diag[0] * prev[(nx - 5)]
-        + diag[1] * prev[(nx - 4)]
-        + diag[2] * prev[(nx - 3)]
-        + diag[3] * prev[(nx - 2)]
-        + diag[4] * prev[(nx - 1)]
-        + diag[5] * prev[(0)]
-        + diag[6] * prev[(1)];
-    fut[(nx - 2)] += diff / dx;
-    let diff = diag[0] * prev[(nx - 4)]
-        + diag[1] * prev[(nx - 3)]
-        + diag[2] * prev[(nx - 2)]
-        + diag[3] * prev[(nx - 1)]
-        + diag[4] * prev[(0)]
-        + diag[5] * prev[(1)]
-        + diag[6] * prev[(2)];
-    fut[(nx - 1)] += diff / dx;
-}
-
-fn upwind4_diss(prev: ArrayView1<f32>, mut fut: ArrayViewMut1<f32>) {
-    assert_eq!(prev.shape(), fut.shape());
-    let nx = prev.shape()[0];
-
-    let dx = 1.0 / (nx - 1) as f32;
-
-    let diag = [
-        1.0 / 24.0,
-        -1.0 / 4.0,
-        5.0 / 8.0,
-        -5.0 / 6.0,
-        5.0 / 8.0,
-        -1.0 / 4.0,
-        1.0 / 24.0,
-    ];
-
-    let diff = diag[0] * prev[(nx - 3)]
-        + diag[1] * prev[(nx - 2)]
-        + diag[2] * prev[(nx - 1)]
-        + diag[3] * prev[(0)]
-        + diag[4] * prev[(1)]
-        + diag[5] * prev[(2)]
-        + diag[6] * prev[(3)];
-    fut[0] += diff / dx;
-    let diff = diag[0] * prev[(nx - 2)]
-        + diag[1] * prev[(nx - 1)]
-        + diag[2] * prev[(0)]
-        + diag[3] * prev[(1)]
-        + diag[4] * prev[(2)]
-        + diag[5] * prev[(3)]
-        + diag[6] * prev[(4)];
-    fut[1] += diff / dx;
-    let diff = diag[0] * prev[(nx - 1)]
-        + diag[1] * prev[(0)]
-        + diag[2] * prev[(1)]
-        + diag[3] * prev[(2)]
-        + diag[4] * prev[(3)]
-        + diag[5] * prev[(4)]
-        + diag[6] * prev[(5)];
-    fut[2] += diff / dx;
-
-    for i in 3..nx - 3 {
-        let diff = diag[0] * prev[(i - 3)]
-            + diag[1] * prev[(i - 2)]
-            + diag[2] * prev[(i - 1)]
-            + diag[3] * prev[(i)]
-            + diag[4] * prev[(i + 1)]
-            + diag[5] * prev[(i + 2)]
-            + diag[6] * prev[(i + 3)];
-        fut[(i)] += diff / dx;
-    }
-    let diff = diag[0] * prev[(nx - 6)]
-        + diag[1] * prev[(nx - 5)]
-        + diag[2] * prev[(nx - 4)]
-        + diag[3] * prev[(nx - 3)]
-        + diag[4] * prev[(nx - 2)]
-        + diag[5] * prev[(nx - 1)]
-        + diag[6] * prev[(0)];
-    fut[(nx - 3)] += diff / dx;
-    let diff = diag[0] * prev[(nx - 5)]
-        + diag[1] * prev[(nx - 4)]
-        + diag[2] * prev[(nx - 3)]
-        + diag[3] * prev[(nx - 2)]
-        + diag[4] * prev[(nx - 1)]
-        + diag[5] * prev[(0)]
-        + diag[6] * prev[(1)];
-    fut[(nx - 2)] += diff / dx;
-    let diff = diag[0] * prev[(nx - 4)]
-        + diag[1] * prev[(nx - 3)]
-        + diag[2] * prev[(nx - 2)]
-        + diag[3] * prev[(nx - 1)]
-        + diag[4] * prev[(0)]
-        + diag[5] * prev[(1)]
-        + diag[6] * prev[(2)];
-    fut[(nx - 1)] += diff / dx;
 }
 
 #[wasm_bindgen]
