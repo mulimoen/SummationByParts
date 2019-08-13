@@ -1,4 +1,4 @@
-import { Universe, WorkBuffers, set_panic_hook, default as init } from "./webgl.js";
+import { Universe, set_panic_hook, default as init } from "./webgl.js";
 
 async function run() {
     let wasm = await init("./webgl_bg.wasm");
@@ -148,12 +148,11 @@ async function run() {
 
     const width = 40;
     const height = 50;
-    let universes = [Universe.new(width, height), Universe.new(width, height)];
-    const workbuffer = WorkBuffers.new(width, height);
+    const universe = Universe.new(width, height);
 
     const TIMEFACTOR = 1.0/7000;
     let t = performance.now()*TIMEFACTOR;
-    universes[0].set_initial(0.5, 0.5);
+    universe.init(0.5, 0.5);
 
     function drawMe(t_draw) {
         gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
@@ -166,16 +165,16 @@ async function run() {
         } else {
             t += dt;
         }
-        universes[0].advance(universes[1], dt, workbuffer);
+        universe.advance(dt);
 
         const field_ex = new Float32Array(wasm.memory.buffer,
-                universes[0].get_ex_ptr(),
+                universe.get_ex_ptr(),
                 width*height);
         const field_ey = new Float32Array(wasm.memory.buffer,
-                universes[0].get_ey_ptr(),
+                universe.get_ey_ptr(),
                 width*height);
         const field_hz = new Float32Array(wasm.memory.buffer,
-                universes[0].get_hz_ptr(),
+                universe.get_hz_ptr(),
                 width*height);
         {
             const level = 0;
@@ -197,7 +196,6 @@ async function run() {
             gl.drawArrays(gl.TRIANGLE_STRIP, offset, vertexCount);
         }
 
-        universes = [universes[1], universes[0]];
         window.requestAnimationFrame(drawMe);
     }
 
@@ -218,7 +216,7 @@ async function run() {
     window.addEventListener('click', event => {
         const mousex = event.clientX / window.innerWidth;
         const mousey = event.clientY / window.innerHeight;
-        universes[0].set_initial(mousex, 1.0 - mousey);
+        universe.init(mousex, 1.0 - mousey);
     }, {passive: true});
 
     resizeCanvas();
