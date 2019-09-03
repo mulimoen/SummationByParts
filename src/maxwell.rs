@@ -1,4 +1,4 @@
-use super::operators::{diffx, diffy, diffy_periodic};
+use super::operators::{diffx, diffy};
 use ndarray::{Array2, Zip};
 
 pub struct System {
@@ -84,7 +84,7 @@ impl System {
 
             // ex = hz_y
             k[i].0.fill(0.0);
-            diffy_periodic(y.1.view(), k[i].0.view_mut());
+            diffy(y.1.view(), k[i].0.view_mut());
 
             // ey = -hz_x
             k[i].2.fill(0.0);
@@ -95,11 +95,12 @@ impl System {
             k[i].1.fill(0.0);
             diffx(y.2.view(), k[i].1.view_mut());
             k[i].1.mapv_inplace(|v| -v);
-            diffy_periodic(y.0.view(), k[i].1.view_mut());
+            diffy(y.0.view(), k[i].1.view_mut());
 
             // Boundary conditions (SAT)
             let ny = y.0.shape()[0];
             let nx = y.0.shape()[1];
+
             let h = 49.0 / 144.0 / (nx - 1) as f32; // TODO: Get from schema
             let hinv = 1.0 / h;
 
@@ -124,6 +125,33 @@ impl System {
                 k[i].0[(j, 0)] += 0.0;
                 k[i].1[(j, 0)] += tau * hinv * (-0.5 * (v.1 - g.1) - 0.5 * (v.2 - g.2));
                 k[i].2[(j, 0)] += tau * hinv * (-0.5 * (v.1 - g.1) - 0.5 * (v.2 - g.2));
+            }
+
+            let h = 49.0 / 144.0 / (ny - 1) as f32; // TODO: same as above
+            let hinv = 1.0 / h;
+
+            // North boundary
+            for j in 0..nx {
+                let tau = -1.0;
+                let g = (y.0[(0, j)], y.1[(0, j)], y.2[(0, j)]);
+                let v = (y.0[(ny - 1, j)], y.1[(ny - 1, j)], y.2[(ny - 1, j)]);
+
+                // B+ = (1/2, 1/2, 0; 1/2, 1/2, 0; 0, 0, 0)
+                k[i].0[(ny - 1, j)] += tau * hinv * (0.5 * (v.0 - g.0) + 0.5 * (v.1 - g.1));
+                k[i].1[(ny - 1, j)] += tau * hinv * (0.5 * (v.0 - g.0) + 0.5 * (v.1 - g.1));
+                k[i].2[(ny - 1, j)] += 0.0;
+            }
+
+            // South boundary
+            for j in 0..nx {
+                let tau = 1.0;
+                let g = (y.0[(ny - 1, j)], y.1[(ny - 1, j)], y.2[(ny - 1, j)]);
+                let v = (y.0[(0, j)], y.1[(0, j)], y.2[(0, j)]);
+
+                // B- = (-1/2, 1/2, 0; 1/2, -1/2, 0; 0, 0, 0);
+                k[i].0[(0, j)] += tau * hinv * (-0.5 * (v.0 - g.0) + 0.5 * (v.1 - g.1));
+                k[i].1[(0, j)] += tau * hinv * (0.5 * (v.0 - g.0) - 0.5 * (v.1 - g.1));
+                k[i].2[(0, j)] += 0.0;
             }
         }
 

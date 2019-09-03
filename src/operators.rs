@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 use ndarray::{arr1, arr2, s, ArrayView1, ArrayView2, ArrayViewMut1, ArrayViewMut2};
 
 pub(crate) fn diffx(prev: ArrayView2<f32>, mut fut: ArrayViewMut2<f32>) {
