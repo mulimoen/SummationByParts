@@ -35,15 +35,6 @@ pub(crate) fn dissy(prev: ArrayView2<f32>, mut fut: ArrayViewMut2<f32>) {
     }
 }
 
-enum Border {
-    N,
-    S,
-    E,
-    W,
-}
-
-fn apply_periodic_SAT(prev: ArrayView2<f32>, mut fut: ArrayViewMut2<f32>, border: Border) {}
-
 fn trad4_periodic(prev: ArrayView1<f32>, mut fut: ArrayViewMut1<f32>) {
     assert_eq!(prev.shape(), fut.shape());
     let nx = prev.shape()[0];

@@ -1,4 +1,4 @@
-use super::operators::{diffx_periodic, diffy_periodic};
+use super::operators::{diffx, diffy, diffy_periodic};
 use ndarray::{Array2, Zip};
 
 pub struct System {
@@ -82,20 +82,49 @@ impl System {
                 }
             };
 
-            k[i].0.fill(0.0);
             // ex = hz_y
+            k[i].0.fill(0.0);
             diffy_periodic(y.1.view(), k[i].0.view_mut());
 
             // ey = -hz_x
             k[i].2.fill(0.0);
-            diffx_periodic(y.1.view(), k[i].2.view_mut());
+            diffx(y.1.view(), k[i].2.view_mut());
             k[i].2.mapv_inplace(|v| -v);
 
             // hz = -ey_x + ex_y
             k[i].1.fill(0.0);
-            diffx_periodic(y.2.view(), k[i].1.view_mut());
+            diffx(y.2.view(), k[i].1.view_mut());
             k[i].1.mapv_inplace(|v| -v);
             diffy_periodic(y.0.view(), k[i].1.view_mut());
+
+            // Boundary conditions (SAT)
+            let ny = y.1.shape()[0];
+            let nx = y.1.shape()[1];
+            let h = 0.3; // Get from schema
+            let hinv = 1.0 / h / (nx - 1) as f32;
+
+            // East boundary
+            for j in 0..ny {
+                let tau = (0.0, -1.0, -1.0);
+                let g = (y.0[(j, 0)], y.1[(j, 0)], y.2[(j, 0)]);
+                let v = (y.0[(j, nx - 1)], y.1[(j, nx - 1)], y.2[(j, nx - 1)]);
+
+                // A+ = (0, 0, 0; 0, 1/2, -1/2; 0, -1/2, 1/2);
+                k[i].0[(j, nx - 1)] += 0.0;
+                k[i].1[(j, nx - 1)] += tau.1 * hinv * (0.5 * (v.1 - g.1) - 0.5 * (v.2 - g.2));
+                k[i].2[(j, nx - 1)] += tau.2 * hinv * (-0.5 * (v.1 - g.1) + 0.5 * (v.2 - g.2));
+            }
+            // West boundary
+            for j in 0..ny {
+                let tau = (0.0, 1.0, -1.0);
+                let g = (y.0[(j, nx - 1)], y.1[(j, nx - 1)], y.2[(j, nx - 1)]);
+                let v = (y.0[(j, 0)], y.1[(j, 0)], y.2[(j, 0)]);
+
+                // A- = (0, 0, 0; 0, -1/2, -1/2; 0, -1/2, -1/2);
+                k[i].0[(j, 0)] += 0.0;
+                k[i].1[(j, 0)] += tau.1 * hinv * (-0.5 * (v.1 - g.1) - 0.5 * (v.2 - g.2));
+                k[i].2[(j, 0)] += tau.2 * hinv * (-0.5 * (v.1 - g.1) - 0.5 * (v.2 - g.2));
+            }
         }
 
         Zip::from(&mut fut.ex)
