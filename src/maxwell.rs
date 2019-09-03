@@ -1,4 +1,4 @@
-use super::operators::{diffx, diffy};
+use super::operators::SbpOperator;
 use ndarray::{Array2, Zip};
 
 pub struct System {
@@ -43,7 +43,10 @@ impl System {
         }
     }
 
-    pub fn advance(&self, fut: &mut System, dt: f32, work_buffers: Option<&mut WorkBuffers>) {
+    pub fn advance<SBP>(&self, fut: &mut System, dt: f32, work_buffers: Option<&mut WorkBuffers>)
+    where
+        SBP: SbpOperator,
+    {
         assert_eq!(self.ex.shape(), fut.ex.shape());
 
         let mut wb: WorkBuffers;
@@ -84,18 +87,18 @@ impl System {
 
             // ex = hz_y
             k[i].0.fill(0.0);
-            diffy(y.1.view(), k[i].0.view_mut());
+            SBP::diffy(y.1.view(), k[i].0.view_mut());
 
             // ey = -hz_x
             k[i].2.fill(0.0);
-            diffx(y.1.view(), k[i].2.view_mut());
+            SBP::diffx(y.1.view(), k[i].2.view_mut());
             k[i].2.mapv_inplace(|v| -v);
 
             // hz = -ey_x + ex_y
             k[i].1.fill(0.0);
-            diffx(y.2.view(), k[i].1.view_mut());
+            SBP::diffx(y.2.view(), k[i].1.view_mut());
             k[i].1.mapv_inplace(|v| -v);
-            diffy(y.0.view(), k[i].1.view_mut());
+            SBP::diffy(y.0.view(), k[i].1.view_mut());
 
             // Boundary conditions (SAT)
             let ny = y.0.shape()[0];
