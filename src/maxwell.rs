@@ -106,33 +106,30 @@ impl System {
 
             let hinv = 1.0 / (SBP::h()[0] / (nx - 1) as f32);
 
-            // East boundary
             for j in 0..ny {
+                // East boundary
                 let tau = -1.0;
                 let g = (y.0[(j, 0)], y.1[(j, 0)], y.2[(j, 0)]);
                 let v = (y.0[(j, nx - 1)], y.1[(j, nx - 1)], y.2[(j, nx - 1)]);
 
                 // A+ = (0, 0, 0; 0, 1/2, -1/2; 0, -1/2, 1/2);
-                k[i].0[(j, nx - 1)] += 0.0;
+                // k[i].0[(j, nx - 1)] += 0.0;
                 k[i].1[(j, nx - 1)] += tau * hinv * (0.5 * (v.1 - g.1) - 0.5 * (v.2 - g.2));
                 k[i].2[(j, nx - 1)] += tau * hinv * (-0.5 * (v.1 - g.1) + 0.5 * (v.2 - g.2));
-            }
-            // West boundary
-            for j in 0..ny {
-                let tau = 1.0;
-                let g = (y.0[(j, nx - 1)], y.1[(j, nx - 1)], y.2[(j, nx - 1)]);
-                let v = (y.0[(j, 0)], y.1[(j, 0)], y.2[(j, 0)]);
 
+                // West boundary
+                let tau = 1.0;
+                let (v, g) = (g, v);
                 // A- = (0, 0, 0; 0, -1/2, -1/2; 0, -1/2, -1/2);
-                k[i].0[(j, 0)] += 0.0;
+                // k[i].0[(j, 0)] += 0.0;
                 k[i].1[(j, 0)] += tau * hinv * (-0.5 * (v.1 - g.1) - 0.5 * (v.2 - g.2));
                 k[i].2[(j, 0)] += tau * hinv * (-0.5 * (v.1 - g.1) - 0.5 * (v.2 - g.2));
             }
 
             let hinv = 1.0 / (SBP::h()[0] / (ny - 1) as f32);
 
-            // North boundary
             for j in 0..nx {
+                // North boundary
                 let tau = -1.0;
                 let g = (y.0[(0, j)], y.1[(0, j)], y.2[(0, j)]);
                 let v = (y.0[(ny - 1, j)], y.1[(ny - 1, j)], y.2[(ny - 1, j)]);
@@ -140,19 +137,16 @@ impl System {
                 // B+ = (1/2, 1/2, 0; 1/2, 1/2, 0; 0, 0, 0)
                 k[i].0[(ny - 1, j)] += tau * hinv * (0.5 * (v.0 - g.0) + 0.5 * (v.1 - g.1));
                 k[i].1[(ny - 1, j)] += tau * hinv * (0.5 * (v.0 - g.0) + 0.5 * (v.1 - g.1));
-                k[i].2[(ny - 1, j)] += 0.0;
-            }
+                // k[i].2[(ny - 1, j)] += 0.0;
 
-            // South boundary
-            for j in 0..nx {
+                // South boundary
                 let tau = 1.0;
-                let g = (y.0[(ny - 1, j)], y.1[(ny - 1, j)], y.2[(ny - 1, j)]);
-                let v = (y.0[(0, j)], y.1[(0, j)], y.2[(0, j)]);
+                let (g, v) = (v, g);
 
                 // B- = (-1/2, 1/2, 0; 1/2, -1/2, 0; 0, 0, 0);
                 k[i].0[(0, j)] += tau * hinv * (-0.5 * (v.0 - g.0) + 0.5 * (v.1 - g.1));
                 k[i].1[(0, j)] += tau * hinv * (0.5 * (v.0 - g.0) - 0.5 * (v.1 - g.1));
-                k[i].2[(0, j)] += 0.0;
+                // k[i].2[(0, j)] += 0.0;
             }
         }
 
