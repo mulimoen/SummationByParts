@@ -132,25 +132,24 @@ fn upwind4(prev: ArrayView1<f32>, mut fut: ArrayViewMut1<f32>) {
         ],
     ]);
 
-    let h_block = [49.0 / 144.0, 61.0 / 48.0, 41.0 / 48.0, 149.0 / 144.0];
+    // let h_block = [49.0 / 144.0, 61.0 / 48.0, 41.0 / 48.0, 149.0 / 144.0];
 
     let first_elems = prev.slice(s!(..7));
     for i in 0..4 {
         let diff = first_elems.dot(&block.slice(s!(i, ..)));
-        fut[i] += diff / dx * h_block[i];
+        fut[i] += diff / dx;
     }
 
     for i in 4..nx - 4 {
         let diff = diag.dot(&prev.slice(s!(i - 3..i + 3 + 1)));
         fut[(i)] += diff / dx;
     }
-
     let last_elems = prev.slice(s!(nx - 7..));
     for i in 0..4 {
         let ii = nx - 4 + i;
         let block = block.slice(s!(3 - i, ..;-1));
         let diff = last_elems.dot(&block);
-        fut[ii] += diff / dx * h_block[3 - i];
+        fut[ii] += -diff / dx;
     }
 }
 
@@ -229,6 +228,41 @@ fn upwind4_periodic(prev: ArrayView1<f32>, mut fut: ArrayViewMut1<f32>) {
         + diag[5] * prev[(1)]
         + diag[6] * prev[(2)];
     fut[(nx - 1)] += diff / dx;
+}
+
+#[test]
+fn upwind4_test() {
+    let nx = 20;
+    let dx = 1.0 / (nx - 1) as f32;
+    let mut source: ndarray::Array1<f32> = ndarray::Array1::zeros((nx));
+    let mut res = ndarray::Array1::zeros((nx));
+    let mut target = ndarray::Array1::zeros((nx));
+
+    for i in 0..nx {
+        source[i] = i as f32 * dx;
+        target[i] = 1.0;
+    }
+    res.fill(0.0);
+    upwind4(source.view(), res.view_mut());
+    assert!(res.all_close(&target, 1e-4));
+
+    for i in 0..nx {
+        let x = i as f32 * dx;
+        source[i] = x * x;
+        target[i] = 2.0 * x;
+    }
+    res.fill(0.0);
+    upwind4(source.view(), res.view_mut());
+    assert!(res.all_close(&target, 1e-4));
+
+    for i in 0..nx {
+        let x = i as f32 * dx;
+        source[i] = x * x * x;
+        target[i] = 3.0 * x * x;
+    }
+    res.fill(0.0);
+    upwind4(source.view(), res.view_mut());
+    assert!(res.all_close(&target, 1e-2));
 }
 
 fn upwind4_diss(prev: ArrayView1<f32>, mut fut: ArrayViewMut1<f32>) {
