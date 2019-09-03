@@ -150,20 +150,31 @@ async function run() {
     const height = 50;
     const universe = Universe.new(width, height);
 
-    const TIMEFACTOR = 1.0/7000;
-    let t = performance.now()*TIMEFACTOR;
+    const TIMEFACTOR = 20000.0;
+    const MAX_DT = 1.0/Math.max(width, height)/2.0;
+
+    let t = 0;
+    let first_draw = true;
+    let warn_time = -1;
+
     universe.init(0.5, 0.5);
 
     function drawMe(t_draw) {
         gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
-        let dt = t_draw*TIMEFACTOR - t;
-        if (dt >= 0.01) {
-            console.warn("Can not keep up with framerate");
-            t = t_draw*TIMEFACTOR;
-            dt = 0.01;
+        let dt = (t_draw - t) / TIMEFACTOR;
+        t = t_draw;
+        if (first_draw || dt <= 0.0) {
+            first_draw = false;
+            dt = MAX_DT;
         } else {
-            t += dt;
+            if (dt >= MAX_DT) {
+                warn_time += 1;
+                if (warn_time != -2) {
+                    console.warn("Can not keep up with framerate");
+                }
+                dt = MAX_DT;
+            }
         }
         universe.advance(dt);
 
