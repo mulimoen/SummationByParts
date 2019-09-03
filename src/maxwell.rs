@@ -104,8 +104,7 @@ impl System {
             let ny = y.0.shape()[0];
             let nx = y.0.shape()[1];
 
-            let h = SBP::h()[0] / (nx - 1) as f32;
-            let hinv = 1.0 / h;
+            let hinv = 1.0 / (SBP::h()[0] / (nx - 1) as f32);
 
             // East boundary
             for j in 0..ny {
@@ -130,8 +129,7 @@ impl System {
                 k[i].2[(j, 0)] += tau * hinv * (-0.5 * (v.1 - g.1) - 0.5 * (v.2 - g.2));
             }
 
-            let h = SBP::h()[0] / (ny - 1) as f32;
-            let hinv = 1.0 / h;
+            let hinv = 1.0 / (SBP::h()[0] / (ny - 1) as f32);
 
             // North boundary
             for j in 0..nx {

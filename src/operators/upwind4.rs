@@ -69,7 +69,7 @@ impl Upwind4 {
         }
 
         for i in 4..nx - 4 {
-            let diff = diag.dot(&prev.slice(s!(i - 3..i + 3 + 1)));
+            let diff = diag.dot(&prev.slice(s!(i - 3..=i + 3)));
             fut[(i)] += diff / dx;
         }
         let last_elems = prev.slice(s!(nx - 7..));
