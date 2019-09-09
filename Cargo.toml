@@ -19,3 +19,11 @@ ndarray = "0.12.1"
 [profile.release]
 opt-level = 3
 lto = "thin"
+
+[dev-dependencies]
+criterion = "0.3"
+
+[[bench]]
+name = "system"
+path = "src/benches/bench.rs"
+harness = false
