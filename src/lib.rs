@@ -2,8 +2,7 @@ use wasm_bindgen::prelude::*;
 
 mod maxwell;
 mod operators;
-use maxwell::{System, WorkBuffers};
-use operators::Upwind4;
+pub use crate::maxwell::{System, WorkBuffers};
 
 #[cfg(feature = "wee_alloc")]
 #[global_allocator]
@@ -35,7 +34,7 @@ impl Universe {
     }
 
     pub fn advance(&mut self, dt: f32) {
-        System::advance::<Upwind4>(&self.sys.0, &mut self.sys.1, dt, Some(&mut self.wb));
+        System::advance::<operators::Upwind4>(&self.sys.0, &mut self.sys.1, dt, Some(&mut self.wb));
         std::mem::swap(&mut self.sys.0, &mut self.sys.1);
     }
 

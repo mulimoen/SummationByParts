@@ -1,11 +1,11 @@
 [package]
-name = "webgl"
-version = "0.1.0"
+name = "maxwell"
+version = "0.1.1"
 authors = ["Magnus Ulimoen <flymagnus@gmail.com>"]
 edition = "2018"
 
 [lib]
-crate-type = ["cdylib"]
+crate-type = ["cdylib", "rlib"]
 
 [features]
 default = ["console_error_panic_hook", "wee_alloc"]

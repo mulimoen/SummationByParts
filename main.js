@@ -1,7 +1,7 @@
-import { Universe, set_panic_hook, default as init } from "./webgl.js";
+import { Universe, set_panic_hook, default as init } from "./maxwell.js";
 
 async function run() {
-    let wasm = await init("./webgl_bg.wasm");
+    let wasm = await init("./maxwell_bg.wasm");
     set_panic_hook();
 
     const canvas = document.getElementById("glCanvas");
