@@ -43,19 +43,18 @@ impl System {
         }
     }
 
-    pub fn advance<SBP>(&self, fut: &mut System, dt: f32, work_buffers: Option<&mut WorkBuffers>)
+    pub fn advance<SBP>(&self, fut: &mut Self, dt: f32, work_buffers: Option<&mut WorkBuffers>)
     where
         SBP: SbpOperator,
     {
         assert_eq!(self.ex.shape(), fut.ex.shape());
 
         let mut wb: WorkBuffers;
-        let (y, k) = match work_buffers {
-            Some(x) => (&mut x.y, &mut x.buf),
-            None => {
-                wb = WorkBuffers::new(self.ex.shape()[1], self.ex.shape()[0]);
-                (&mut wb.y, &mut wb.buf)
-            }
+        let (y, k) = if let Some(x) = work_buffers {
+            (&mut x.y, &mut x.buf)
+        } else {
+            wb = WorkBuffers::new(self.ex.shape()[1], self.ex.shape()[0]);
+            (&mut wb.y, &mut wb.buf)
         };
 
         for i in 0..4 {
@@ -65,12 +64,7 @@ impl System {
             y.2.assign(&self.ey);
             match i {
                 0 => {}
-                1 => {
-                    y.0.scaled_add(1.0 / 2.0 * dt, &k[i - 1].0);
-                    y.1.scaled_add(1.0 / 2.0 * dt, &k[i - 1].1);
-                    y.2.scaled_add(1.0 / 2.0 * dt, &k[i - 1].2);
-                }
-                2 => {
+                1 | 2 => {
                     y.0.scaled_add(1.0 / 2.0 * dt, &k[i - 1].0);
                     y.1.scaled_add(1.0 / 2.0 * dt, &k[i - 1].1);
                     y.2.scaled_add(1.0 / 2.0 * dt, &k[i - 1].2);

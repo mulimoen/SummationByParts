@@ -16,7 +16,7 @@ impl Upwind4 {
     ];
     const BLOCK: &'static [[f32; 7]] = &[
         [
-            -72.0 / 49.0f32,
+            -72.0 / 49.0_f32,
             187.0 / 98.0,
             -20.0 / 49.0,
             -3.0 / 98.0,
@@ -59,8 +59,8 @@ impl Upwind4 {
 
         let dx = 1.0 / (nx - 1) as f32;
 
-        let diag = arr1(Upwind4::DIAG);
-        let block = arr2(Upwind4::BLOCK);
+        let diag = arr1(Self::DIAG);
+        let block = arr2(Self::BLOCK);
 
         let first_elems = prev.slice(s!(..7));
         for i in 0..4 {
@@ -120,17 +120,17 @@ fn upwind4_test() {
 impl SbpOperator for Upwind4 {
     fn diffx(prev: ArrayView2<f32>, mut fut: ArrayViewMut2<f32>) {
         for j in 0..prev.shape()[0] {
-            Upwind4::diff(prev.slice(s!(j, ..)), fut.slice_mut(s!(j, ..)));
+            Self::diff(prev.slice(s!(j, ..)), fut.slice_mut(s!(j, ..)));
         }
     }
 
     fn diffy(prev: ArrayView2<f32>, mut fut: ArrayViewMut2<f32>) {
         for i in 0..prev.shape()[1] {
-            Upwind4::diff(prev.slice(s!(.., i)), fut.slice_mut(s!(.., i)));
+            Self::diff(prev.slice(s!(.., i)), fut.slice_mut(s!(.., i)));
         }
     }
 
     fn h() -> &'static [f32] {
-        Upwind4::HBLOCK
+        Self::HBLOCK
     }
 }
