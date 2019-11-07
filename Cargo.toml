@@ -11,17 +11,18 @@ crate-type = ["cdylib", "rlib"]
 default = ["console_error_panic_hook", "wee_alloc"]
 
 [dependencies]
-wasm-bindgen = "*"
-console_error_panic_hook = { version = "*", optional = true }
-wee_alloc = { version = "*", optional = true }
-ndarray = "0.12.1"
+wasm-bindgen = "0.2.54"
+console_error_panic_hook = { version = "0.1.6", optional = true }
+wee_alloc = { version = "0.4.5", optional = true }
+ndarray = { version = "0.13.0", features = ["approx"] }
+approx = "0.3.2"
 
 [profile.release]
 opt-level = 3
 lto = "thin"
 
 [dev-dependencies]
-criterion = "0.3"
+criterion = "0.3.0"
 
 [[bench]]
 name = "system"

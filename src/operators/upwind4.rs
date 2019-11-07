@@ -96,7 +96,7 @@ fn upwind4_test() {
     }
     res.fill(0.0);
     Upwind4::diff(source.view(), res.view_mut());
-    assert!(res.all_close(&target, 1e-4));
+    approx::assert_abs_diff_eq!(&res, &target, epsilon = 1e-4);
 
     for i in 0..nx {
         let x = i as f32 * dx;
@@ -105,7 +105,7 @@ fn upwind4_test() {
     }
     res.fill(0.0);
     Upwind4::diff(source.view(), res.view_mut());
-    assert!(res.all_close(&target, 1e-4));
+    approx::assert_abs_diff_eq!(&res, &target, epsilon = 1e-4);
 
     for i in 0..nx {
         let x = i as f32 * dx;
@@ -114,7 +114,7 @@ fn upwind4_test() {
     }
     res.fill(0.0);
     Upwind4::diff(source.view(), res.view_mut());
-    assert!(res.all_close(&target, 1e-2));
+    approx::assert_abs_diff_eq!(&res, &target, epsilon = 1e-2);
 }
 
 impl SbpOperator for Upwind4 {
