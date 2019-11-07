@@ -119,15 +119,14 @@ fn upwind4_test() {
 
 impl SbpOperator for Upwind4 {
     fn diffx(prev: ArrayView2<f32>, mut fut: ArrayViewMut2<f32>) {
-        for j in 0..prev.shape()[0] {
-            Self::diff(prev.slice(s!(j, ..)), fut.slice_mut(s!(j, ..)));
+        for (r0, r1) in prev.outer_iter().zip(fut.outer_iter_mut()) {
+            Self::diff(r0, r1)
         }
     }
 
-    fn diffy(prev: ArrayView2<f32>, mut fut: ArrayViewMut2<f32>) {
-        for i in 0..prev.shape()[1] {
-            Self::diff(prev.slice(s!(.., i)), fut.slice_mut(s!(.., i)));
-        }
+    fn diffy(prev: ArrayView2<f32>, fut: ArrayViewMut2<f32>) {
+        // diffy = transpose then use diffx
+        Self::diffx(prev.reversed_axes(), fut.reversed_axes());
     }
 
     fn h() -> &'static [f32] {
