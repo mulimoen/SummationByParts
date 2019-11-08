@@ -68,10 +68,17 @@ impl Upwind4 {
             fut[i] += diff / dx;
         }
 
-        for i in 4..nx - 4 {
-            let diff = diag.dot(&prev.slice(s!(i - 3..=i + 3)));
-            fut[(i)] += diff / dx;
+        for (window, f) in prev
+            .windows(diag.len())
+            .into_iter()
+            .skip(1)
+            .zip(fut.iter_mut().skip(4))
+            .take(nx - 8)
+        {
+            let diff = diag.dot(&window);
+            *f += diff / dx;
         }
+
         let last_elems = prev.slice(s!(nx - 7..));
         for i in 0..4 {
             let ii = nx - 4 + i;
