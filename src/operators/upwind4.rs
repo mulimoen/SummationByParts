@@ -58,14 +58,15 @@ impl Upwind4 {
         let nx = prev.shape()[0];
 
         let dx = 1.0 / (nx - 1) as f32;
+        let idx = 1.0 / dx;
 
         let diag = arr1(Self::DIAG);
         let block = arr2(Self::BLOCK);
 
         let first_elems = prev.slice(s!(..7));
-        for i in 0..4 {
-            let diff = first_elems.dot(&block.slice(s!(i, ..)));
-            fut[i] += diff / dx;
+        for (bl, f) in block.outer_iter().zip(&mut fut) {
+            let diff = first_elems.dot(&bl);
+            *f = diff * idx;
         }
 
         for (window, f) in prev
@@ -76,15 +77,13 @@ impl Upwind4 {
             .take(nx - 8)
         {
             let diff = diag.dot(&window);
-            *f += diff / dx;
+            *f += diff * idx;
         }
 
-        let last_elems = prev.slice(s!(nx - 7..));
-        for i in 0..4 {
-            let ii = nx - 4 + i;
-            let block = block.slice(s!(3 - i, ..;-1));
-            let diff = last_elems.dot(&block);
-            fut[ii] += -diff / dx;
+        let last_elems = prev.slice(s!(nx - 7..;-1));
+        for (bl, f) in block.outer_iter().zip(&mut fut.slice_mut(s![nx - 4..;-1])) {
+            let diff = bl.dot(&last_elems);
+            *f += -diff * idx;
         }
     }
 }
