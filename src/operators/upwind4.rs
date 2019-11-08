@@ -82,8 +82,8 @@ impl Upwind4 {
 
         let last_elems = prev.slice(s!(nx - 7..;-1));
         for (bl, f) in block.outer_iter().zip(&mut fut.slice_mut(s![nx - 4..;-1])) {
-            let diff = bl.dot(&last_elems);
-            *f += -diff * idx;
+            let diff = -bl.dot(&last_elems);
+            *f += diff * idx;
         }
     }
 }
