@@ -66,7 +66,7 @@ impl Upwind4 {
         let first_elems = prev.slice(s!(..7));
         for (bl, f) in block.outer_iter().zip(&mut fut) {
             let diff = first_elems.dot(&bl);
-            *f = diff * idx;
+            *f += diff * idx;
         }
 
         for (window, f) in prev
