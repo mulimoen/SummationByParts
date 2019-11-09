@@ -150,8 +150,8 @@ async function run() {
     const height = 50;
     const universe = Universe.new(width, height);
 
-    const TIMEFACTOR = 20000.0;
-    const MAX_DT = 1.0/Math.max(width, height)/2.0;
+    const TIMEFACTOR = 10000.0;
+    const MAX_DT = 2.0/Math.max(width, height);
 
     let t = 0;
     let first_draw = true;
@@ -176,7 +176,8 @@ async function run() {
                 dt = MAX_DT;
             }
         }
-        universe.advance(dt);
+        universe.advance(dt/2);
+        universe.advance(dt/2);
 
         const field_ex = new Float32Array(wasm.memory.buffer,
                 universe.get_ex_ptr(),
