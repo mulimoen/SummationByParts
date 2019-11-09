@@ -16,6 +16,7 @@ console_error_panic_hook = { version = "0.1.6", optional = true }
 wee_alloc = { version = "0.4.5", optional = true }
 ndarray = { version = "0.13.0", features = ["approx"] }
 approx = "0.3.2"
+packed_simd = "0.3.3"
 
 [profile.release]
 opt-level = 3
