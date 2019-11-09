@@ -144,6 +144,90 @@ impl Upwind4 {
         }
     }
 
+    fn diffy_simd(prev: &[f32], fut: &mut [f32], nx: usize, ny: usize) {
+        use packed_simd::f32x4;
+        assert!(ny > 8);
+        assert!(nx > 4);
+        assert!(nx % 4 == 0);
+        assert_eq!(prev.len(), fut.len());
+        assert_eq!(prev.len(), nx * ny);
+
+        let dy = 1.0 / (ny - 1) as f32;
+        let idy = 1.0 / dy;
+
+        for j in (0..nx).step_by(4) {
+            let a = [
+                f32x4::from_slice_unaligned(&prev[0 * nx + j..]),
+                f32x4::from_slice_unaligned(&prev[1 * nx + j..]),
+                f32x4::from_slice_unaligned(&prev[2 * nx + j..]),
+                f32x4::from_slice_unaligned(&prev[3 * nx + j..]),
+                f32x4::from_slice_unaligned(&prev[4 * nx + j..]),
+                f32x4::from_slice_unaligned(&prev[5 * nx + j..]),
+                f32x4::from_slice_unaligned(&prev[6 * nx + j..]),
+            ];
+
+            for (i, bl) in Self::BLOCK.iter().enumerate() {
+                let mut b = f32x4::from_slice_unaligned(&fut[i * nx + j..]);
+                b += idy
+                    * (a[0] * bl[0]
+                        + a[1] * bl[1]
+                        + a[2] * bl[2]
+                        + a[3] * bl[3]
+                        + a[4] * bl[4]
+                        + a[5] * bl[5]
+                        + a[6] * bl[6]);
+                b.write_to_slice_unaligned(&mut fut[i * nx + j..]);
+            }
+
+            let mut a = a;
+            for i in Self::BLOCK.len()..ny - Self::BLOCK.len() {
+                // Push a onto circular buffer
+                a = [
+                    a[1],
+                    a[2],
+                    a[3],
+                    a[4],
+                    a[5],
+                    a[6],
+                    f32x4::from_slice_unaligned(&prev[nx * (i + 3) + j..]),
+                ];
+                let mut b = f32x4::from_slice_unaligned(&fut[nx * i + j..]);
+                b += idy
+                    * (a[0] * Self::DIAG[0]
+                        + a[1] * Self::DIAG[1]
+                        + a[2] * Self::DIAG[2]
+                        + a[3] * Self::DIAG[3]
+                        + a[4] * Self::DIAG[4]
+                        + a[5] * Self::DIAG[5]
+                        + a[6] * Self::DIAG[6]);
+                b.write_to_slice_unaligned(&mut fut[nx * i + j..]);
+            }
+
+            let a = [
+                f32x4::from_slice_unaligned(&prev[(ny - 1) * nx + j..]),
+                f32x4::from_slice_unaligned(&prev[(ny - 2) * nx + j..]),
+                f32x4::from_slice_unaligned(&prev[(ny - 3) * nx + j..]),
+                f32x4::from_slice_unaligned(&prev[(ny - 4) * nx + j..]),
+                f32x4::from_slice_unaligned(&prev[(ny - 5) * nx + j..]),
+                f32x4::from_slice_unaligned(&prev[(ny - 6) * nx + j..]),
+                f32x4::from_slice_unaligned(&prev[(ny - 7) * nx + j..]),
+            ];
+
+            for (i, bl) in Self::BLOCK.iter().enumerate() {
+                let mut b = f32x4::from_slice_unaligned(&fut[(ny - 1 - i) * nx + j..]);
+                b += -idy
+                    * (a[0] * bl[0]
+                        + a[1] * bl[1]
+                        + a[2] * bl[2]
+                        + a[3] * bl[3]
+                        + a[4] * bl[4]
+                        + a[5] * bl[5]
+                        + a[6] * bl[6]);
+                b.write_to_slice_unaligned(&mut fut[(ny - 1 - i) * nx + j..]);
+            }
+        }
+    }
+
     fn diff(prev: ArrayView1<f32>, mut fut: ArrayViewMut1<f32>) {
         assert_eq!(prev.shape(), fut.shape());
         let nx = prev.shape()[0];
@@ -186,6 +270,7 @@ impl Upwind4 {
 
 #[test]
 fn upwind4_test() {
+    use ndarray::prelude::*;
     let nx = 20;
     let dx = 1.0 / (nx - 1) as f32;
     let mut source: ndarray::Array1<f32> = ndarray::Array1::zeros(nx);
@@ -209,12 +294,12 @@ fn upwind4_test() {
     }
 
     {
-        let source = source.to_owned().insert_axis(ndarray::Axis(1));
-        let mut res = res.to_owned().insert_axis(ndarray::Axis(1));
-        let target = target.to_owned().insert_axis(ndarray::Axis(1));
+        let source = Array2::from_shape_fn((nx, 8), |(i, _)| source[i]);
+        let target = Array2::from_shape_fn((nx, 8), |(i, _)| target[i]);
+        let mut res = Array2::zeros((nx, 8));
         res.fill(0.0);
         Upwind4::diffy(source.view(), res.view_mut());
-        approx::assert_abs_diff_eq!(&res, &target, epsilon = 1e-2);
+        approx::assert_abs_diff_eq!(&res.to_owned(), &target.to_owned(), epsilon = 1e-2);
     }
 
     for i in 0..nx {
@@ -235,12 +320,12 @@ fn upwind4_test() {
     }
 
     {
-        let source = source.to_owned().insert_axis(ndarray::Axis(1));
-        let mut res = res.to_owned().insert_axis(ndarray::Axis(1));
-        let target = target.to_owned().insert_axis(ndarray::Axis(1));
+        let source = Array2::from_shape_fn((nx, 8), |(i, _)| source[i]);
+        let target = Array2::from_shape_fn((nx, 8), |(i, _)| target[i]);
+        let mut res = Array2::zeros((nx, 8));
         res.fill(0.0);
         Upwind4::diffy(source.view(), res.view_mut());
-        approx::assert_abs_diff_eq!(&res, &target, epsilon = 1e-2);
+        approx::assert_abs_diff_eq!(&res.to_owned(), &target.to_owned(), epsilon = 1e-2);
     }
 
     for i in 0..nx {
@@ -262,12 +347,12 @@ fn upwind4_test() {
     }
 
     {
-        let source = source.to_owned().insert_axis(ndarray::Axis(1));
-        let mut res = res.to_owned().insert_axis(ndarray::Axis(1));
-        let target = target.to_owned().insert_axis(ndarray::Axis(1));
+        let source = Array2::from_shape_fn((nx, 8), |(i, _)| source[i]);
+        let target = Array2::from_shape_fn((nx, 8), |(i, _)| target[i]);
+        let mut res = Array2::zeros((nx, 8));
         res.fill(0.0);
         Upwind4::diffy(source.view(), res.view_mut());
-        approx::assert_abs_diff_eq!(&res, &target, epsilon = 1e-2);
+        approx::assert_abs_diff_eq!(&res.to_owned(), &target.to_owned(), epsilon = 1e-2);
     }
 }
 
@@ -278,7 +363,15 @@ impl SbpOperator for Upwind4 {
         }
     }
 
-    fn diffy(prev: ArrayView2<f32>, fut: ArrayViewMut2<f32>) {
+    fn diffy(prev: ArrayView2<f32>, mut fut: ArrayViewMut2<f32>) {
+        let nx = prev.shape()[1];
+        let ny = prev.shape()[0];
+        if nx >= 4 && nx % 4 == 0 {
+            if let (Some(p), Some(f)) = (prev.as_slice(), fut.as_slice_mut()) {
+                Self::diffy_simd(p, f, nx, ny);
+                return;
+            }
+        }
         // diffy = transpose then use diffx
         Self::diffx(prev.reversed_axes(), fut.reversed_axes());
     }

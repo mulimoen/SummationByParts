@@ -11,7 +11,7 @@ fn performance_benchmark(c: &mut Criterion) {
     let mut group = c.benchmark_group("System");
     group.sample_size(15);
 
-    let w = 35;
+    let w = 40;
     let h = 26;
     let mut universe = Universe::new(w, h);
 
