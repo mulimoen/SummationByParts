@@ -199,6 +199,23 @@ fn upwind4_test() {
     res.fill(0.0);
     Upwind4::diff(source.view(), res.view_mut());
     approx::assert_abs_diff_eq!(&res, &target, epsilon = 1e-4);
+    {
+        let source = source.to_owned().insert_axis(ndarray::Axis(0));
+        let mut res = res.to_owned().insert_axis(ndarray::Axis(0));
+        let target = target.to_owned().insert_axis(ndarray::Axis(0));
+        res.fill(0.0);
+        Upwind4::diffx(source.view(), res.view_mut());
+        approx::assert_abs_diff_eq!(&res, &target, epsilon = 1e-2);
+    }
+
+    {
+        let source = source.to_owned().insert_axis(ndarray::Axis(1));
+        let mut res = res.to_owned().insert_axis(ndarray::Axis(1));
+        let target = target.to_owned().insert_axis(ndarray::Axis(1));
+        res.fill(0.0);
+        Upwind4::diffy(source.view(), res.view_mut());
+        approx::assert_abs_diff_eq!(&res, &target, epsilon = 1e-2);
+    }
 
     for i in 0..nx {
         let x = i as f32 * dx;
@@ -208,6 +225,23 @@ fn upwind4_test() {
     res.fill(0.0);
     Upwind4::diff(source.view(), res.view_mut());
     approx::assert_abs_diff_eq!(&res, &target, epsilon = 1e-4);
+    {
+        let source = source.to_owned().insert_axis(ndarray::Axis(0));
+        let mut res = res.to_owned().insert_axis(ndarray::Axis(0));
+        let target = target.to_owned().insert_axis(ndarray::Axis(0));
+        res.fill(0.0);
+        Upwind4::diffx(source.view(), res.view_mut());
+        approx::assert_abs_diff_eq!(&res, &target, epsilon = 1e-2);
+    }
+
+    {
+        let source = source.to_owned().insert_axis(ndarray::Axis(1));
+        let mut res = res.to_owned().insert_axis(ndarray::Axis(1));
+        let target = target.to_owned().insert_axis(ndarray::Axis(1));
+        res.fill(0.0);
+        Upwind4::diffy(source.view(), res.view_mut());
+        approx::assert_abs_diff_eq!(&res, &target, epsilon = 1e-2);
+    }
 
     for i in 0..nx {
         let x = i as f32 * dx;
@@ -217,6 +251,24 @@ fn upwind4_test() {
     res.fill(0.0);
     Upwind4::diff(source.view(), res.view_mut());
     approx::assert_abs_diff_eq!(&res, &target, epsilon = 1e-2);
+
+    {
+        let source = source.to_owned().insert_axis(ndarray::Axis(0));
+        let mut res = res.to_owned().insert_axis(ndarray::Axis(0));
+        let target = target.to_owned().insert_axis(ndarray::Axis(0));
+        res.fill(0.0);
+        Upwind4::diffx(source.view(), res.view_mut());
+        approx::assert_abs_diff_eq!(&res, &target, epsilon = 1e-2);
+    }
+
+    {
+        let source = source.to_owned().insert_axis(ndarray::Axis(1));
+        let mut res = res.to_owned().insert_axis(ndarray::Axis(1));
+        let target = target.to_owned().insert_axis(ndarray::Axis(1));
+        res.fill(0.0);
+        Upwind4::diffy(source.view(), res.view_mut());
+        approx::assert_abs_diff_eq!(&res, &target, epsilon = 1e-2);
+    }
 }
 
 impl SbpOperator for Upwind4 {
