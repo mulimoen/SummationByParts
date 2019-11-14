@@ -270,6 +270,35 @@ impl Upwind4 {
     }
 }
 
+impl SbpOperator for Upwind4 {
+    fn diffx(prev: ArrayView2<f32>, mut fut: ArrayViewMut2<f32>) {
+        assert_eq!(prev.shape(), fut.shape());
+        assert!(prev.shape()[0] >= 8);
+        for (r0, r1) in prev.outer_iter().zip(fut.outer_iter_mut()) {
+            Self::diff(r0, r1)
+        }
+    }
+
+    fn diffy(prev: ArrayView2<f32>, mut fut: ArrayViewMut2<f32>) {
+        assert_eq!(prev.shape(), fut.shape());
+        assert!(prev.shape()[1] >= 8);
+        let nx = prev.shape()[1];
+        let ny = prev.shape()[0];
+        if nx >= 4 && nx % 4 == 0 {
+            if let (Some(p), Some(f)) = (prev.as_slice(), fut.as_slice_mut()) {
+                Self::diffy_simd(p, f, nx, ny);
+                return;
+            }
+        }
+        // diffy = transpose then use diffx
+        Self::diffx(prev.reversed_axes(), fut.reversed_axes());
+    }
+
+    fn h() -> &'static [f32] {
+        Self::HBLOCK
+    }
+}
+
 #[test]
 fn upwind4_test() {
     use ndarray::prelude::*;
@@ -355,34 +384,5 @@ fn upwind4_test() {
         res.fill(0.0);
         Upwind4::diffy(source.view(), res.view_mut());
         approx::assert_abs_diff_eq!(&res.to_owned(), &target.to_owned(), epsilon = 1e-2);
-    }
-}
-
-impl SbpOperator for Upwind4 {
-    fn diffx(prev: ArrayView2<f32>, mut fut: ArrayViewMut2<f32>) {
-        assert_eq!(prev.shape(), fut.shape());
-        assert!(prev.shape()[0] >= 8);
-        for (r0, r1) in prev.outer_iter().zip(fut.outer_iter_mut()) {
-            Self::diff(r0, r1)
-        }
-    }
-
-    fn diffy(prev: ArrayView2<f32>, mut fut: ArrayViewMut2<f32>) {
-        assert_eq!(prev.shape(), fut.shape());
-        assert!(prev.shape()[1] >= 8);
-        let nx = prev.shape()[1];
-        let ny = prev.shape()[0];
-        if nx >= 4 && nx % 4 == 0 {
-            if let (Some(p), Some(f)) = (prev.as_slice(), fut.as_slice_mut()) {
-                Self::diffy_simd(p, f, nx, ny);
-                return;
-            }
-        }
-        // diffy = transpose then use diffx
-        Self::diffx(prev.reversed_axes(), fut.reversed_axes());
-    }
-
-    fn h() -> &'static [f32] {
-        Self::HBLOCK
     }
 }
