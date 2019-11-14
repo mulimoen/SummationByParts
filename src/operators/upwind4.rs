@@ -53,10 +53,11 @@ impl Upwind4 {
         ],
     ];
 
+    #[inline(never)]
     fn diff_simd(prev: &[f32], fut: &mut [f32]) {
         use packed_simd::{f32x8, u32x8};
         assert_eq!(prev.len(), fut.len());
-        assert!(prev.len() > 8);
+        assert_eq!(prev.len() % 8, 0);
         let nx = prev.len();
         let dx = 1.0 / (nx - 1) as f32;
         let idx = 1.0 / dx;
@@ -144,9 +145,10 @@ impl Upwind4 {
         }
     }
 
+    #[inline(never)]
     fn diffy_simd(prev: &[f32], fut: &mut [f32], nx: usize, ny: usize) {
         use packed_simd::f32x4;
-        assert!(ny > 8);
+        assert!(ny >= 8);
         assert!(nx > 4);
         assert!(nx % 4 == 0);
         assert_eq!(prev.len(), fut.len());
@@ -228,10 +230,13 @@ impl Upwind4 {
     fn diff(prev: ArrayView1<f32>, mut fut: ArrayViewMut1<f32>) {
         assert_eq!(prev.shape(), fut.shape());
         let nx = prev.shape()[0];
+        assert!(nx >= 8);
 
-        if let (Some(p), Some(f)) = (prev.as_slice(), fut.as_slice_mut()) {
-            Self::diff_simd(p, f);
-            return;
+        if nx % 8 == 0 {
+            if let (Some(p), Some(f)) = (prev.as_slice(), fut.as_slice_mut()) {
+                Self::diff_simd(p, f);
+                return;
+            }
         }
 
         let dx = 1.0 / (nx - 1) as f32;
@@ -355,12 +360,16 @@ fn upwind4_test() {
 
 impl SbpOperator for Upwind4 {
     fn diffx(prev: ArrayView2<f32>, mut fut: ArrayViewMut2<f32>) {
+        assert_eq!(prev.shape(), fut.shape());
+        assert!(prev.shape()[0] >= 8);
         for (r0, r1) in prev.outer_iter().zip(fut.outer_iter_mut()) {
             Self::diff(r0, r1)
         }
     }
 
     fn diffy(prev: ArrayView2<f32>, mut fut: ArrayViewMut2<f32>) {
+        assert_eq!(prev.shape(), fut.shape());
+        assert!(prev.shape()[1] >= 8);
         let nx = prev.shape()[1];
         let ny = prev.shape()[0];
         if nx >= 4 && nx % 4 == 0 {
