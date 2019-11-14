@@ -79,20 +79,18 @@ impl System {
                 }
             };
 
+            // hz = -ey_x + ex_y
+            let tmp = &mut k[i].0;
+            SBP::diffx(y.2.view(), tmp.view_mut());
+            SBP::diffy(y.0.view(), k[i].1.view_mut());
+            k[i].1.scaled_add(-1.0, tmp);
+
             // ex = hz_y
-            k[i].0.fill(0.0);
             SBP::diffy(y.1.view(), k[i].0.view_mut());
 
             // ey = -hz_x
-            k[i].2.fill(0.0);
             SBP::diffx(y.1.view(), k[i].2.view_mut());
             k[i].2.mapv_inplace(|v| -v);
-
-            // hz = -ey_x + ex_y
-            k[i].1.fill(0.0);
-            SBP::diffx(y.2.view(), k[i].1.view_mut());
-            k[i].1.mapv_inplace(|v| -v);
-            SBP::diffy(y.0.view(), k[i].1.view_mut());
 
             // Boundary conditions (SAT)
             let ny = y.0.shape()[0];

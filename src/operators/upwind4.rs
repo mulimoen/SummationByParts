@@ -105,10 +105,10 @@ impl Upwind4 {
             ),
         ];
         unsafe {
-            *fut.get_unchecked_mut(0) += idx * (block[0] * first_elems).sum();
-            *fut.get_unchecked_mut(1) += idx * (block[1] * first_elems).sum();
-            *fut.get_unchecked_mut(2) += idx * (block[2] * first_elems).sum();
-            *fut.get_unchecked_mut(3) += idx * (block[3] * first_elems).sum()
+            *fut.get_unchecked_mut(0) = idx * (block[0] * first_elems).sum();
+            *fut.get_unchecked_mut(1) = idx * (block[1] * first_elems).sum();
+            *fut.get_unchecked_mut(2) = idx * (block[2] * first_elems).sum();
+            *fut.get_unchecked_mut(3) = idx * (block[3] * first_elems).sum()
         };
 
         let diag = f32x8::new(
@@ -131,16 +131,16 @@ impl Upwind4 {
             )
             .take(nx - 2 * block.len())
         {
-            *f += idx * (p * diag).sum();
+            *f = idx * (p * diag).sum();
         }
 
         let last_elems = unsafe { f32x8::from_slice_unaligned_unchecked(&prev[nx - 8..]) }
             .shuffle1_dyn(u32x8::new(7, 6, 5, 4, 3, 2, 1, 0));
         unsafe {
-            *fut.get_unchecked_mut(nx - 4) += -idx * (block[3] * last_elems).sum();
-            *fut.get_unchecked_mut(nx - 3) += -idx * (block[2] * last_elems).sum();
-            *fut.get_unchecked_mut(nx - 2) += -idx * (block[1] * last_elems).sum();
-            *fut.get_unchecked_mut(nx - 1) += -idx * (block[0] * last_elems).sum();
+            *fut.get_unchecked_mut(nx - 4) = -idx * (block[3] * last_elems).sum();
+            *fut.get_unchecked_mut(nx - 3) = -idx * (block[2] * last_elems).sum();
+            *fut.get_unchecked_mut(nx - 2) = -idx * (block[1] * last_elems).sum();
+            *fut.get_unchecked_mut(nx - 1) = -idx * (block[0] * last_elems).sum();
         }
     }
 
@@ -167,8 +167,7 @@ impl Upwind4 {
             ];
 
             for (i, bl) in Self::BLOCK.iter().enumerate() {
-                let mut b = f32x4::from_slice_unaligned(&fut[i * nx + j..]);
-                b += idy
+                let b = idy
                     * (a[0] * bl[0]
                         + a[1] * bl[1]
                         + a[2] * bl[2]
@@ -191,8 +190,7 @@ impl Upwind4 {
                     a[6],
                     f32x4::from_slice_unaligned(&prev[nx * (i + 3) + j..]),
                 ];
-                let mut b = f32x4::from_slice_unaligned(&fut[nx * i + j..]);
-                b += idy
+                let b = idy
                     * (a[0] * Self::DIAG[0]
                         + a[1] * Self::DIAG[1]
                         + a[2] * Self::DIAG[2]
@@ -214,8 +212,7 @@ impl Upwind4 {
             ];
 
             for (i, bl) in Self::BLOCK.iter().enumerate() {
-                let mut b = f32x4::from_slice_unaligned(&fut[(ny - 1 - i) * nx + j..]);
-                b += -idy
+                let b = -idy
                     * (a[0] * bl[0]
                         + a[1] * bl[1]
                         + a[2] * bl[2]
@@ -246,7 +243,7 @@ impl Upwind4 {
         let first_elems = prev.slice(s!(..7));
         for (bl, f) in block.outer_iter().zip(&mut fut) {
             let diff = first_elems.dot(&bl);
-            *f += diff * idx;
+            *f = diff * idx;
         }
 
         for (window, f) in prev
@@ -257,13 +254,13 @@ impl Upwind4 {
             .take(nx - 8)
         {
             let diff = diag.dot(&window);
-            *f += diff * idx;
+            *f = diff * idx;
         }
 
         let last_elems = prev.slice(s!(nx - 7..;-1));
         for (bl, f) in block.outer_iter().zip(&mut fut.slice_mut(s![nx - 4..;-1])) {
             let diff = -bl.dot(&last_elems);
-            *f += diff * idx;
+            *f = diff * idx;
         }
     }
 }
