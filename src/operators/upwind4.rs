@@ -273,7 +273,7 @@ impl Upwind4 {
 impl SbpOperator for Upwind4 {
     fn diffx(prev: ArrayView2<f32>, mut fut: ArrayViewMut2<f32>) {
         assert_eq!(prev.shape(), fut.shape());
-        assert!(prev.shape()[0] >= 8);
+        assert!(prev.shape()[1] >= 8);
         for (r0, r1) in prev.outer_iter().zip(fut.outer_iter_mut()) {
             Self::diff(r0, r1)
         }
@@ -281,7 +281,7 @@ impl SbpOperator for Upwind4 {
 
     fn diffy(prev: ArrayView2<f32>, mut fut: ArrayViewMut2<f32>) {
         assert_eq!(prev.shape(), fut.shape());
-        assert!(prev.shape()[1] >= 8);
+        assert!(prev.shape()[0] >= 8);
         let nx = prev.shape()[1];
         let ny = prev.shape()[0];
         if nx >= 4 && nx % 4 == 0 {
