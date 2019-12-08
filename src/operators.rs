@@ -1,8 +1,8 @@
 use ndarray::{ArrayView2, ArrayViewMut2};
 
 pub trait SbpOperator {
-    fn diffx(prev: ArrayView2<f32>, fut: ArrayViewMut2<f32>);
-    fn diffy(prev: ArrayView2<f32>, fut: ArrayViewMut2<f32>);
+    fn diffxi(prev: ArrayView2<f32>, fut: ArrayViewMut2<f32>);
+    fn diffeta(prev: ArrayView2<f32>, fut: ArrayViewMut2<f32>);
     fn h() -> &'static [f32];
 }
 

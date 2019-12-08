@@ -81,15 +81,15 @@ impl System {
 
             // hz = -ey_x + ex_y
             let tmp = &mut k[i].0;
-            SBP::diffx(y.2.view(), tmp.view_mut());
-            SBP::diffy(y.0.view(), k[i].1.view_mut());
+            SBP::diffxi(y.2.view(), tmp.view_mut());
+            SBP::diffeta(y.0.view(), k[i].1.view_mut());
             k[i].1.scaled_add(-1.0, tmp);
 
             // ex = hz_y
-            SBP::diffy(y.1.view(), k[i].0.view_mut());
+            SBP::diffeta(y.1.view(), k[i].0.view_mut());
 
             // ey = -hz_x
-            SBP::diffx(y.1.view(), k[i].2.view_mut());
+            SBP::diffxi(y.1.view(), k[i].2.view_mut());
             k[i].2.mapv_inplace(|v| -v);
 
             // Boundary conditions (SAT)

@@ -1,7 +1,7 @@
 use super::SbpOperator;
 use ndarray::{arr1, arr2, s, ArrayView1, ArrayView2, ArrayViewMut1, ArrayViewMut2};
 
-/// Simdtype used in diffy_simd
+/// Simdtype used in diffeta_simd
 type SimdT = packed_simd::f32x8;
 
 pub struct Upwind4 {}
@@ -149,7 +149,7 @@ impl Upwind4 {
     }
 
     #[inline(never)]
-    fn diffy_simd(prev: &[f32], fut: &mut [f32], nx: usize, ny: usize) {
+    fn diffeta_simd(prev: &[f32], fut: &mut [f32], nx: usize, ny: usize) {
         assert!(ny >= 2 * Self::BLOCK.len());
         assert!(nx >= SimdT::lanes());
         assert!(nx % SimdT::lanes() == 0);
@@ -271,7 +271,7 @@ impl Upwind4 {
 }
 
 impl SbpOperator for Upwind4 {
-    fn diffx(prev: ArrayView2<f32>, mut fut: ArrayViewMut2<f32>) {
+    fn diffxi(prev: ArrayView2<f32>, mut fut: ArrayViewMut2<f32>) {
         assert_eq!(prev.shape(), fut.shape());
         assert!(prev.shape()[1] >= 2 * Self::BLOCK.len());
         for (r0, r1) in prev.outer_iter().zip(fut.outer_iter_mut()) {
@@ -279,19 +279,19 @@ impl SbpOperator for Upwind4 {
         }
     }
 
-    fn diffy(prev: ArrayView2<f32>, mut fut: ArrayViewMut2<f32>) {
+    fn diffeta(prev: ArrayView2<f32>, mut fut: ArrayViewMut2<f32>) {
         assert_eq!(prev.shape(), fut.shape());
         assert!(prev.shape()[0] >= 2 * Self::BLOCK.len());
         let nx = prev.shape()[1];
         let ny = prev.shape()[0];
         if nx >= SimdT::lanes() && nx % SimdT::lanes() == 0 {
             if let (Some(p), Some(f)) = (prev.as_slice(), fut.as_slice_mut()) {
-                Self::diffy_simd(p, f, nx, ny);
+                Self::diffeta_simd(p, f, nx, ny);
                 return;
             }
         }
-        // diffy = transpose then use diffx
-        Self::diffx(prev.reversed_axes(), fut.reversed_axes());
+        // diffeta = transpose then use diffxi
+        Self::diffxi(prev.reversed_axes(), fut.reversed_axes());
     }
 
     fn h() -> &'static [f32] {
@@ -320,7 +320,7 @@ fn upwind4_test() {
         let mut res = res.to_owned().insert_axis(ndarray::Axis(0));
         let target = target.to_owned().insert_axis(ndarray::Axis(0));
         res.fill(0.0);
-        Upwind4::diffx(source.view(), res.view_mut());
+        Upwind4::diffxi(source.view(), res.view_mut());
         approx::assert_abs_diff_eq!(&res, &target, epsilon = 1e-2);
     }
 
@@ -329,7 +329,7 @@ fn upwind4_test() {
         let target = Array2::from_shape_fn((nx, 8), |(i, _)| target[i]);
         let mut res = Array2::zeros((nx, 8));
         res.fill(0.0);
-        Upwind4::diffy(source.view(), res.view_mut());
+        Upwind4::diffeta(source.view(), res.view_mut());
         approx::assert_abs_diff_eq!(&res.to_owned(), &target.to_owned(), epsilon = 1e-2);
     }
 
@@ -346,7 +346,7 @@ fn upwind4_test() {
         let mut res = res.to_owned().insert_axis(ndarray::Axis(0));
         let target = target.to_owned().insert_axis(ndarray::Axis(0));
         res.fill(0.0);
-        Upwind4::diffx(source.view(), res.view_mut());
+        Upwind4::diffxi(source.view(), res.view_mut());
         approx::assert_abs_diff_eq!(&res, &target, epsilon = 1e-2);
     }
 
@@ -355,7 +355,7 @@ fn upwind4_test() {
         let target = Array2::from_shape_fn((nx, 8), |(i, _)| target[i]);
         let mut res = Array2::zeros((nx, 8));
         res.fill(0.0);
-        Upwind4::diffy(source.view(), res.view_mut());
+        Upwind4::diffeta(source.view(), res.view_mut());
         approx::assert_abs_diff_eq!(&res.to_owned(), &target.to_owned(), epsilon = 1e-2);
     }
 
@@ -373,7 +373,7 @@ fn upwind4_test() {
         let mut res = res.to_owned().insert_axis(ndarray::Axis(0));
         let target = target.to_owned().insert_axis(ndarray::Axis(0));
         res.fill(0.0);
-        Upwind4::diffx(source.view(), res.view_mut());
+        Upwind4::diffxi(source.view(), res.view_mut());
         approx::assert_abs_diff_eq!(&res, &target, epsilon = 1e-2);
     }
 
@@ -382,7 +382,7 @@ fn upwind4_test() {
         let target = Array2::from_shape_fn((nx, 8), |(i, _)| target[i]);
         let mut res = Array2::zeros((nx, 8));
         res.fill(0.0);
-        Upwind4::diffy(source.view(), res.view_mut());
+        Upwind4::diffeta(source.view(), res.view_mut());
         approx::assert_abs_diff_eq!(&res.to_owned(), &target.to_owned(), epsilon = 1e-2);
     }
 }
