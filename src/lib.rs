@@ -22,6 +22,7 @@ pub struct Universe {
 
 #[wasm_bindgen]
 impl Universe {
+    #[wasm_bindgen(constructor)]
     pub fn new(width: u32, height: u32) -> Self {
         Self {
             sys: (System::new(width, height), System::new(width, height)),

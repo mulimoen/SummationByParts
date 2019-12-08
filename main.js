@@ -148,7 +148,7 @@ async function run() {
 
     const width = 40;
     const height = 50;
-    const universe = Universe.new(width, height);
+    const universe = new Universe(width, height);
 
     const TIMEFACTOR = 10000.0;
     const MAX_DT = 2.0/Math.max(width, height);
