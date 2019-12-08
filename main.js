@@ -12,44 +12,41 @@ async function run() {
         return;
     }
 
-    const supports_floats_in_textures = gl.getExtension("OES_texture_float");
-    if (!supports_floats_in_textures) {
-        console.error("Floats are not supported in textures for your device, please warn the author about this incompatability");
-        return;
-    }
-
-
     const vsSource = String.raw`
-        attribute vec2 aVertexPosition;
-        varying lowp vec2 vVertexPosition;
+        #version 100
+        attribute mediump float aX;
+        attribute mediump float aY;
+        attribute mediump float aField;
+
+        uniform vec4 uBbox;
+
+        varying mediump float vField;
 
         void main() {
-            vVertexPosition = (aVertexPosition + 1.0)/2.0;
-            gl_Position = vec4(aVertexPosition.x, aVertexPosition.y, 0.0, 1.0);
+            vField = aField;
+            mediump float x = (aX - uBbox.x)*uBbox.y;
+            mediump float y = (aY - uBbox.z)*uBbox.w;
+            gl_Position = vec4(2.0*x - 1.0, 2.0*y - 1.0, 1.0, 1.0);
         }
     `;
 
     const fsSource = String.raw`
-        varying lowp vec2 vVertexPosition;
+        #version 100
+        varying mediump float vField;
 
-        uniform sampler2D uSamplerEX;
-        uniform sampler2D uSamplerEY;
-        uniform sampler2D uSamplerHZ;
         uniform int uChosenField;
 
         void main() {
             mediump float r = 0.0;
             mediump float g = 0.0;
             mediump float b = 0.0;
-            if (uChosenField == 1) {
-                r = texture2D(uSamplerEX, vVertexPosition).a;
-                r += 0.5;
-            } else if (uChosenField == 3) {
-                b = texture2D(uSamplerEY, vVertexPosition).a;
-                b += 0.5;
-            } else if (uChosenField == 2) {
-                g = texture2D(uSamplerHZ, vVertexPosition).a;
-                g = (g + 1.0)/2.0;
+
+            if (uChosenField == 0) {
+                r = vField + 0.5;
+            } else if (uChosenField == 1) {
+                g = (vField + 1.0)/2.0;
+            } else {
+                b = vField + 0.5;
             }
             gl_FragColor = vec4(r, g, b, 1.0);
         }
@@ -82,62 +79,7 @@ async function run() {
     }
     gl.useProgram(shaderProgram);
 
-
-    const positionBuffer = gl.createBuffer();
-    gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
-    const positions = [
-        -1.0, 1.0,
-        1.0, 1.0,
-        -1.0, -1.0,
-        1.0, -1.0,
-    ];
-    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(positions), gl.STATIC_DRAW);
-    {
-        const numComponents = 2;
-        const type = gl.FLOAT;
-        const normalise = false;
-        const stride = 0;
-        const offset = 0;
-        const attrib_vertex_location = gl.getAttribLocation(shaderProgram, 'aVertexPosition');
-        gl.vertexAttribPointer(attrib_vertex_location, numComponents, type, normalise, stride, offset);
-        gl.enableVertexAttribArray(attrib_vertex_location);
-    }
-
-    const create_2D_texture = function(loc, name) {
-        const texture = gl.createTexture();
-        gl.activeTexture(gl.TEXTURE0 + loc);
-        gl.bindTexture(gl.TEXTURE_2D, texture);
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
-        const uniform_sampler = gl.getUniformLocation(shaderProgram, name);
-        gl.uniform1i(uniform_sampler, loc);
-
-        return texture;
-    }
-    const texture_ex = create_2D_texture(0, 'uSamplerEX');
-    const texture_ey = create_2D_texture(2, 'uSamplerEY');
-    const texture_hz = create_2D_texture(1, 'uSamplerHZ');
-
-    const chosen_field = {
-        uLocation: gl.getUniformLocation(shaderProgram, 'uChosenField'),
-        value: 1,
-        cycle: function() {
-            if (this.value == 1) {
-                this.value = 2;
-            } else if (this.value == 2) {
-                this.value = 3;
-            } else {
-                this.value = 1;
-            }
-            gl.uniform1i(this.uLocation, this.value);
-        },
-    };
-    chosen_field.cycle();
-
-
-    gl.clearColor(1.0, 0.753, 0.796, 1.0); // A nice pink
+    gl.clearColor(1.0, 0.753, 0.796, 1.0); // A nice pink to show missing values
     gl.clearDepth(1.0);
     gl.enable(gl.DEPTH_TEST);
     gl.depthFunc(gl.LEQUAL);
@@ -148,7 +90,80 @@ async function run() {
 
     const width = 40;
     const height = 50;
+
+
+    let x = new Float32Array(width*height);
+    let y = new Float32Array(width*height);
+    for (let j = 0; j < height; j++) {
+        for (let i = 0; i < width; i++) {
+            const n = width*j + i;
+            x[n] = i / (width - 1.0);
+            y[n] = j / (height - 1.0);
+        }
+    }
+
     const universe = new Universe(width, height);
+
+
+    // Transfer x, y to cpu, prepare fBuffer
+    const xBuffer = gl.createBuffer();
+    const yBuffer = gl.createBuffer();
+    const fBuffer = gl.createBuffer();
+    {
+        const numcomp = 1;
+        const type = gl.FLOAT;
+        const normalise = false;
+        const stride = 0;
+        const offset = 0;
+
+        let loc = gl.getAttribLocation(shaderProgram, 'aX');
+        gl.bindBuffer(gl.ARRAY_BUFFER, xBuffer);
+        gl.vertexAttribPointer(loc, numcomp, type, normalise, stride, offset);
+        gl.enableVertexAttribArray(loc);
+        gl.bufferData(gl.ARRAY_BUFFER, x, gl.STATIC_DRAW);
+
+        loc = gl.getAttribLocation(shaderProgram, 'aY');
+        gl.bindBuffer(gl.ARRAY_BUFFER, yBuffer);
+        gl.vertexAttribPointer(loc, numcomp, type, normalise, stride, offset);
+        gl.enableVertexAttribArray(loc);
+        gl.bufferData(gl.ARRAY_BUFFER, y, gl.STATIC_DRAW);
+
+        loc = gl.getAttribLocation(shaderProgram, 'aField');
+        gl.bindBuffer(gl.ARRAY_BUFFER, fBuffer);
+        gl.enableVertexAttribArray(loc);
+        gl.vertexAttribPointer(loc, numcomp, type, normalise, stride, offset);
+    }
+
+    // Create triangles covering the domain
+    let positions = new Int16Array((width-1)*(height-1)*2*3);
+    for (let j = 0; j < height - 1; j++) {
+        for (let i = 0; i < width - 1; i++) {
+            const n = 2*3*((width-1)*j + i);
+            positions[n+0] = width*j + i;
+            positions[n+1] = width*j + i+1;
+            positions[n+2] = width*(j+1) + i;
+            positions[n+3] = width*j + i+1;
+            positions[n+4] = width*(j+1) + i;
+            positions[n+5] = width*(j+1) + i+1;
+        }
+    }
+
+    const indexBuffer = gl.createBuffer();
+    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, indexBuffer);
+    gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, positions, gl.STATIC_DRAW);
+
+    let bbox = [+Infinity, -Infinity, +Infinity, -Infinity];
+    for (let i = 0; i < width*height; i++) {
+        bbox[0] = Math.min(bbox[0], x[i]);
+        bbox[1] = Math.max(bbox[1], x[i]);
+        bbox[2] = Math.min(bbox[2], y[i]);
+        bbox[3] = Math.max(bbox[3], y[i]);
+    }
+
+    {
+        const loc = gl.getUniformLocation(shaderProgram, 'uBbox');
+        gl.uniform4f(loc, bbox[0], 1.0/(bbox[1] - bbox[0]), bbox[2], 1.0/(bbox[3] - bbox[2]));
+    }
 
     const TIMEFACTOR = 10000.0;
     const MAX_DT = 2.0/Math.max(width, height);
@@ -156,6 +171,21 @@ async function run() {
     let t = 0;
     let first_draw = true;
     let warn_time = -1;
+    const chosenField = {
+        uLocation: gl.getUniformLocation(shaderProgram, 'uChosenField'),
+        value: 0,
+        cycle: function() {
+            if (this.value == 0) {
+                this.value = 1;
+            } else if (this.value == 1) {
+                this.value = 2;
+            } else {
+                this.value = 0;
+            }
+            gl.uniform1i(this.uLocation, this.value);
+        },
+    };
+    chosenField.cycle();
 
     universe.init(0.5, 0.5);
 
@@ -179,33 +209,22 @@ async function run() {
         universe.advance(dt/2);
         universe.advance(dt/2);
 
-        const field_ex = new Float32Array(wasm.memory.buffer,
-                universe.get_ex_ptr(),
-                width*height);
-        const field_ey = new Float32Array(wasm.memory.buffer,
-                universe.get_ey_ptr(),
-                width*height);
-        const field_hz = new Float32Array(wasm.memory.buffer,
-                universe.get_hz_ptr(),
-                width*height);
-        {
-            const level = 0;
-            const internalFormat = gl.ALPHA;
-            const border = 0;
-            const srcFormat = internalFormat;
-            const srcType = gl.FLOAT;
-            gl.activeTexture(gl.TEXTURE0);
-            gl.texImage2D(gl.TEXTURE_2D, level, internalFormat, width, height, border, srcFormat, srcType, field_ex);
-            gl.activeTexture(gl.TEXTURE2);
-            gl.texImage2D(gl.TEXTURE_2D, level, internalFormat, width, height, border, srcFormat, srcType, field_ey);
-            gl.activeTexture(gl.TEXTURE1);
-            gl.texImage2D(gl.TEXTURE_2D, level, internalFormat, width, height, border, srcFormat, srcType, field_hz);
+        let field_ptr;
+        if (chosenField.value == 0) {
+            field_ptr = universe.get_ex_ptr();
+        } else if (chosenField.value == 1) {
+            field_ptr = universe.get_hz_ptr();
+        } else {
+            field_ptr = universe.get_ey_ptr();
         }
+        const field = new Float32Array(wasm.memory.buffer, field_ptr, width*height);
+        gl.bufferData(gl.ARRAY_BUFFER, field, gl.DYNAMIC_DRAW);
 
         {
             const offset = 0;
-            const vertexCount = 4;
-            gl.drawArrays(gl.TRIANGLE_STRIP, offset, vertexCount);
+            const type = gl.UNSIGNED_SHORT;
+            const vertexCount = positions.length;
+            gl.drawElements(gl.TRIANGLES, vertexCount, type, offset);
         }
 
         window.requestAnimationFrame(drawMe);
@@ -219,13 +238,14 @@ async function run() {
         gl.viewport(0, 0, gl.drawingBufferWidth, gl.drawingBufferHeight);
     }
 
-    window.addEventListener('resize', resizeCanvas, false);
     window.addEventListener('keyup', event => {
         if (event.key == 'c') {
-            chosen_field.cycle();
+            chosenField.cycle();
         }
     }, {passive: true});
+    window.addEventListener('resize', resizeCanvas, false);
     window.addEventListener('click', event => {
+        // Must adjust for bbox and transformations for x/y
         const mousex = event.clientX / window.innerWidth;
         const mousey = event.clientY / window.innerHeight;
         universe.init(mousex, 1.0 - mousey);
