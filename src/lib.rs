@@ -1,8 +1,10 @@
 use wasm_bindgen::prelude::*;
 
+mod grid;
 mod maxwell;
 mod operators;
 pub use crate::maxwell::{System, WorkBuffers};
+pub(crate) use grid::Grid;
 
 #[cfg(feature = "wee_alloc")]
 #[global_allocator]
@@ -18,14 +20,22 @@ pub fn set_panic_hook() {
 pub struct Universe {
     sys: (System, System),
     wb: WorkBuffers,
+    grid: Grid<operators::Upwind4>,
 }
 
 #[wasm_bindgen]
 impl Universe {
     #[wasm_bindgen(constructor)]
-    pub fn new(width: u32, height: u32) -> Self {
+    pub fn new(width: u32, height: u32, x: &[f32], y: &[f32]) -> Self {
+        assert_eq!((width * height) as usize, x.len());
+        assert_eq!((width * height) as usize, y.len());
+
+        let grid = Grid::new(width, height, x, y).expect(
+            "Could not create grid. Different number of elements compared to width*height?",
+        );
         Self {
             sys: (System::new(width, height), System::new(width, height)),
+            grid,
             wb: WorkBuffers::new(width as usize, height as usize),
         }
     }
@@ -35,7 +45,13 @@ impl Universe {
     }
 
     pub fn advance(&mut self, dt: f32) {
-        System::advance::<operators::Upwind4>(&self.sys.0, &mut self.sys.1, dt, Some(&mut self.wb));
+        System::advance::<operators::Upwind4>(
+            &self.sys.0,
+            &mut self.sys.1,
+            dt,
+            &self.grid,
+            Some(&mut self.wb),
+        );
         std::mem::swap(&mut self.sys.0, &mut self.sys.1);
     }
 

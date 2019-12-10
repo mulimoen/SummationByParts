@@ -43,18 +43,23 @@ impl System {
         }
     }
 
-    pub fn advance<SBP>(&self, fut: &mut Self, dt: f32, work_buffers: Option<&mut WorkBuffers>)
-    where
+    pub(crate) fn advance<SBP>(
+        &self,
+        fut: &mut Self,
+        dt: f32,
+        grid: &super::Grid<SBP>,
+        work_buffers: Option<&mut WorkBuffers>,
+    ) where
         SBP: SbpOperator,
     {
         assert_eq!(self.ex.shape(), fut.ex.shape());
 
         let mut wb: WorkBuffers;
-        let (y, k) = if let Some(x) = work_buffers {
-            (&mut x.y, &mut x.buf)
+        let (y, k, tmp) = if let Some(x) = work_buffers {
+            (&mut x.y, &mut x.buf, &mut x.tmp)
         } else {
             wb = WorkBuffers::new(self.ex.shape()[1], self.ex.shape()[0]);
-            (&mut wb.y, &mut wb.buf)
+            (&mut wb.y, &mut wb.buf, &mut wb.tmp)
         };
 
         for i in 0..4 {
@@ -79,18 +84,86 @@ impl System {
                 }
             };
 
-            // hz = -ey_x + ex_y
-            let tmp = &mut k[i].0;
-            SBP::diffxi(y.2.view(), tmp.view_mut());
-            SBP::diffeta(y.0.view(), k[i].1.view_mut());
-            k[i].1.scaled_add(-1.0, tmp);
+            // Solving (Au)_x + (Bu)_y
+            // with:
+            //        A               B
+            //  [ 0,  0,  0]    [ 0,  1,  0]
+            //  [ 0,  0, -1]    [ 1,  0,  0]
+            //  [ 0, -1,  0]    [ 0,  0,  0]
+
+            // This flux is rotated by the grid metrics
+            // (Au)_x + (Bu)_y = 1/J [
+            //          (J xi_x Au)_xi + (J eta_x Au)_eta
+            //          (J xi_y Bu)_xi + (J eta_y Bu)_eta
+            //      ]
+            // where J is the grid determinant
 
             // ex = hz_y
-            SBP::diffeta(y.1.view(), k[i].0.view_mut());
+            {
+                ndarray::azip!((a in &mut tmp.0,
+                                &dxi_dy in &grid.detj_dxi_dy,
+                                &hz in &y.1)
+                    *a = dxi_dy * hz
+                );
+                SBP::diffxi(tmp.0.view(), tmp.1.view_mut());
+
+                ndarray::azip!((b in &mut tmp.2,
+                                &deta_dy in &grid.detj_deta_dy,
+                                &hz in &y.1)
+                    *b = deta_dy * hz
+                );
+                SBP::diffeta(tmp.2.view(), tmp.3.view_mut());
+
+                ndarray::azip!((flux in &mut k[i].0, &ax in &tmp.1, &by in &tmp.3)
+                    *flux = ax + by
+                );
+            }
+
+            {
+                // hz = -ey_x + ex_y
+                ndarray::azip!((a in &mut tmp.0,
+                                &dxi_dx in &grid.detj_dxi_dx,
+                                &dxi_dy in &grid.detj_dxi_dy,
+                                &ex in &y.0,
+                                &ey in &y.2)
+                    *a = dxi_dx * -ey + dxi_dy * ex
+                );
+                SBP::diffxi(tmp.0.view(), tmp.1.view_mut());
+
+                ndarray::azip!((b in &mut tmp.2,
+                                &deta_dx in &grid.detj_deta_dx,
+                                &deta_dy in &grid.detj_deta_dy,
+                                &ex in &y.0,
+                                &ey in &y.2)
+                    *b = deta_dx * -ey + deta_dy * ex
+                );
+                SBP::diffeta(tmp.2.view(), tmp.3.view_mut());
+
+                ndarray::azip!((flux in &mut k[i].1, &ax in &tmp.1, &by in &tmp.3)
+                    *flux = ax + by
+                );
+            }
 
             // ey = -hz_x
-            SBP::diffxi(y.1.view(), k[i].2.view_mut());
-            k[i].2.mapv_inplace(|v| -v);
+            {
+                ndarray::azip!((a in &mut tmp.0,
+                                &dxi_dx in &grid.detj_dxi_dx,
+                                &hz in &y.1)
+                    *a = dxi_dx * -hz
+                );
+                SBP::diffxi(tmp.0.view(), tmp.1.view_mut());
+
+                ndarray::azip!((b in &mut tmp.2,
+                                &deta_dx in &grid.detj_deta_dx,
+                                &hz in &y.1)
+                    *b = deta_dx * -hz
+                );
+                SBP::diffeta(tmp.2.view(), tmp.3.view_mut());
+
+                ndarray::azip!((flux in &mut k[i].2, &ax in &tmp.1, &by in &tmp.3)
+                    *flux = ax + by
+                );
+            }
 
             // Boundary conditions (SAT)
             let ny = y.0.shape()[0];
@@ -98,48 +171,139 @@ impl System {
 
             let hinv = 1.0 / (SBP::h()[0] / (nx - 1) as f32);
 
+            fn positive_flux(kx: f32, ky: f32) -> [[f32; 3]; 3] {
+                let r = (kx * kx + ky * ky).sqrt();
+                [
+                    [ky * ky / r / 2.0, ky / 2.0, -kx * ky / r / 2.0],
+                    [ky / 2.0, r / 2.0, -kx / 2.0],
+                    [-kx * ky / r / 2.0, -kx / 2.0, kx * kx / r / 2.0],
+                ]
+            }
+            fn negative_flux(kx: f32, ky: f32) -> [[f32; 3]; 3] {
+                let r = (kx * kx + ky * ky).sqrt();
+                [
+                    [-ky * ky / r / 2.0, ky / 2.0, kx * ky / r / 2.0],
+                    [ky / 2.0, -r / 2.0, -kx / 2.0],
+                    [kx * ky / r / 2.0, -kx / 2.0, -kx * kx / r / 2.0],
+                ]
+            }
+
             for j in 0..ny {
-                // East boundary
+                // East boundary, positive flux
                 let tau = -1.0;
                 let g = (y.0[(j, 0)], y.1[(j, 0)], y.2[(j, 0)]);
                 let v = (y.0[(j, nx - 1)], y.1[(j, nx - 1)], y.2[(j, nx - 1)]);
 
-                // A+ = (0, 0, 0; 0, 1/2, -1/2; 0, -1/2, 1/2);
-                // k[i].0[(j, nx - 1)] += 0.0;
-                k[i].1[(j, nx - 1)] += tau * hinv * (0.5 * (v.1 - g.1) - 0.5 * (v.2 - g.2));
-                k[i].2[(j, nx - 1)] += tau * hinv * (-0.5 * (v.1 - g.1) + 0.5 * (v.2 - g.2));
+                let kx = grid.detj_dxi_dx[(j, nx - 1)];
+                let ky = grid.detj_dxi_dy[(j, nx - 1)];
 
-                // West boundary
+                let plus = positive_flux(kx, ky);
+
+                k[i].0[(j, nx - 1)] += tau
+                    * hinv
+                    * (plus[0][0] * (v.0 - g.0)
+                        + plus[0][1] * (v.1 - g.1)
+                        + plus[0][2] * (v.2 - g.2));
+                k[i].1[(j, nx - 1)] += tau
+                    * hinv
+                    * (plus[1][0] * (v.0 - g.0)
+                        + plus[1][1] * (v.1 - g.1)
+                        + plus[1][2] * (v.2 - g.2));
+                k[i].2[(j, nx - 1)] += tau
+                    * hinv
+                    * (plus[2][0] * (v.0 - g.0)
+                        + plus[2][1] * (v.1 - g.1)
+                        + plus[2][2] * (v.2 - g.2));
+
+                // West boundary, negative flux
                 let tau = 1.0;
                 let (v, g) = (g, v);
-                // A- = (0, 0, 0; 0, -1/2, -1/2; 0, -1/2, -1/2);
-                // k[i].0[(j, 0)] += 0.0;
-                k[i].1[(j, 0)] += tau * hinv * (-0.5 * (v.1 - g.1) - 0.5 * (v.2 - g.2));
-                k[i].2[(j, 0)] += tau * hinv * (-0.5 * (v.1 - g.1) - 0.5 * (v.2 - g.2));
+
+                let kx = grid.detj_dxi_dx[(j, 0)];
+                let ky = grid.detj_dxi_dy[(j, 0)];
+
+                let minus = negative_flux(kx, ky);
+
+                k[i].0[(j, 0)] += tau
+                    * hinv
+                    * (minus[0][0] * (v.0 - g.0)
+                        + minus[0][1] * (v.1 - g.1)
+                        + minus[0][2] * (v.2 - g.2));
+                k[i].1[(j, 0)] += tau
+                    * hinv
+                    * (minus[1][0] * (v.0 - g.0)
+                        + minus[1][1] * (v.1 - g.1)
+                        + minus[1][2] * (v.2 - g.2));
+                k[i].2[(j, 0)] += tau
+                    * hinv
+                    * (minus[2][0] * (v.0 - g.0)
+                        + minus[2][1] * (v.1 - g.1)
+                        + minus[2][2] * (v.2 - g.2));
             }
 
             let hinv = 1.0 / (SBP::h()[0] / (ny - 1) as f32);
 
             for j in 0..nx {
-                // North boundary
+                // North boundary, positive flux
                 let tau = -1.0;
                 let g = (y.0[(0, j)], y.1[(0, j)], y.2[(0, j)]);
                 let v = (y.0[(ny - 1, j)], y.1[(ny - 1, j)], y.2[(ny - 1, j)]);
 
-                // B+ = (1/2, 1/2, 0; 1/2, 1/2, 0; 0, 0, 0)
-                k[i].0[(ny - 1, j)] += tau * hinv * (0.5 * (v.0 - g.0) + 0.5 * (v.1 - g.1));
-                k[i].1[(ny - 1, j)] += tau * hinv * (0.5 * (v.0 - g.0) + 0.5 * (v.1 - g.1));
-                // k[i].2[(ny - 1, j)] += 0.0;
+                let kx = grid.detj_deta_dx[(ny - 1, j)];
+                let ky = grid.detj_deta_dy[(ny - 1, j)];
 
-                // South boundary
+                let plus = positive_flux(kx, ky);
+
+                k[i].0[(ny - 1, j)] += tau
+                    * hinv
+                    * (plus[0][0] * (v.0 - g.0)
+                        + plus[0][1] * (v.1 - g.1)
+                        + plus[0][2] * (v.2 - g.2));
+                k[i].1[(ny - 1, j)] += tau
+                    * hinv
+                    * (plus[1][0] * (v.0 - g.0)
+                        + plus[1][1] * (v.1 - g.1)
+                        + plus[1][2] * (v.2 - g.2));
+                k[i].2[(ny - 1, j)] += tau
+                    * hinv
+                    * (plus[2][0] * (v.0 - g.0)
+                        + plus[2][1] * (v.1 - g.1)
+                        + plus[2][2] * (v.2 - g.2));
+
+                // South boundary, negative flux
                 let tau = 1.0;
                 let (g, v) = (v, g);
 
-                // B- = (-1/2, 1/2, 0; 1/2, -1/2, 0; 0, 0, 0);
-                k[i].0[(0, j)] += tau * hinv * (-0.5 * (v.0 - g.0) + 0.5 * (v.1 - g.1));
-                k[i].1[(0, j)] += tau * hinv * (0.5 * (v.0 - g.0) - 0.5 * (v.1 - g.1));
-                // k[i].2[(0, j)] += 0.0;
+                let kx = grid.detj_deta_dx[(0, j)];
+                let ky = grid.detj_deta_dy[(0, j)];
+
+                let minus = negative_flux(kx, ky);
+
+                k[i].0[(0, j)] += tau
+                    * hinv
+                    * (minus[0][0] * (v.0 - g.0)
+                        + minus[0][1] * (v.1 - g.1)
+                        + minus[0][2] * (v.2 - g.2));
+                k[i].1[(0, j)] += tau
+                    * hinv
+                    * (minus[1][0] * (v.0 - g.0)
+                        + minus[1][1] * (v.1 - g.1)
+                        + minus[1][2] * (v.2 - g.2));
+                k[i].2[(0, j)] += tau
+                    * hinv
+                    * (minus[2][0] * (v.0 - g.0)
+                        + minus[2][1] * (v.1 - g.1)
+                        + minus[2][2] * (v.2 - g.2));
             }
+
+            ndarray::azip!((k0 in &mut k[i].0,
+                            k1 in &mut k[i].1,
+                            k2 in &mut k[i].2,
+                            &detj in &grid.detj) {
+                *k0 /= detj;
+                *k1 /= detj;
+                *k2 /= detj;
+            });
         }
 
         Zip::from(&mut fut.ex)
@@ -175,6 +339,7 @@ impl System {
 pub struct WorkBuffers {
     y: (Array2<f32>, Array2<f32>, Array2<f32>),
     buf: [(Array2<f32>, Array2<f32>, Array2<f32>); 4],
+    tmp: (Array2<f32>, Array2<f32>, Array2<f32>, Array2<f32>),
 }
 
 impl WorkBuffers {
@@ -186,8 +351,9 @@ impl WorkBuffers {
                 (arr.clone(), arr.clone(), arr.clone()),
                 (arr.clone(), arr.clone(), arr.clone()),
                 (arr.clone(), arr.clone(), arr.clone()),
-                (arr.clone(), arr.clone(), arr),
+                (arr.clone(), arr.clone(), arr.clone()),
             ],
+            tmp: (arr.clone(), arr.clone(), arr.clone(), arr),
         }
     }
 }

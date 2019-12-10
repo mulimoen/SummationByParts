@@ -7,6 +7,7 @@ import { Universe, default as init, set_panic_hook as setPanicHook } from "./max
 (async function run() {
     const wasm = await init("./maxwell_bg.wasm");
     setPanicHook();
+    const DIAMOND = false;
 
     const canvas = document.getElementById("glCanvas");
 
@@ -104,6 +105,14 @@ import { Universe, default as init, set_panic_hook as setPanicHook } from "./max
             const n = width*j + i;
             x[n] = i / (width - 1.0);
             y[n] = j / (height - 1.0);
+
+
+            if (DIAMOND) {
+                const xx = x[n];
+                const yy = y[n];
+                x[n] = xx - yy;
+                y[n] = xx + yy;
+            }
         }
     }
 
