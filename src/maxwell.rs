@@ -216,8 +216,6 @@ impl Field {
             let ny = self.ny();
             let nx = self.nx();
 
-            let hinv = 1.0 / (SBP::h()[0] / (nx - 1) as f32);
-
             fn positive_flux(kx: f32, ky: f32) -> [[f32; 3]; 3] {
                 let r = (kx * kx + ky * ky).sqrt();
                 [
@@ -235,120 +233,140 @@ impl Field {
                 ]
             }
 
-            for j in 0..ny {
-                // East boundary, positive flux
-                let tau = -1.0;
-                let g = (y.ex()[(j, 0)], y.hz()[(j, 0)], y.ey()[(j, 0)]);
-                let v = (
-                    y.ex()[(j, nx - 1)],
-                    y.hz()[(j, nx - 1)],
-                    y.ey()[(j, nx - 1)],
-                );
+            let hinv = 1.0 / (SBP::h()[0] / (nx - 1) as f32);
+            let g = y.slice(s![.., .., 0]);
+            let v = y.slice(s![.., .., nx - 1]);
+            {
+                // East boundary
+                let mut k = k[i].slice_mut(s![.., .., nx - 1]);
 
-                let kx = grid.detj_dxi_dx[(j, nx - 1)];
-                let ky = grid.detj_dxi_dy[(j, nx - 1)];
+                for j in 0..ny {
+                    // East boundary, positive flux
+                    let tau = -1.0;
 
-                let plus = positive_flux(kx, ky);
+                    let v = (v[(0, j)], v[(1, j)], v[(2, j)]);
+                    let g = (g[(0, j)], g[(1, j)], g[(2, j)]);
 
-                k[i].ex_mut()[(j, nx - 1)] += tau
-                    * hinv
-                    * (plus[0][0] * (v.0 - g.0)
-                        + plus[0][1] * (v.1 - g.1)
-                        + plus[0][2] * (v.2 - g.2));
-                k[i].hz_mut()[(j, nx - 1)] += tau
-                    * hinv
-                    * (plus[1][0] * (v.0 - g.0)
-                        + plus[1][1] * (v.1 - g.1)
-                        + plus[1][2] * (v.2 - g.2));
-                k[i].ey_mut()[(j, nx - 1)] += tau
-                    * hinv
-                    * (plus[2][0] * (v.0 - g.0)
-                        + plus[2][1] * (v.1 - g.1)
-                        + plus[2][2] * (v.2 - g.2));
+                    let kx = grid.detj_dxi_dx[(j, nx - 1)];
+                    let ky = grid.detj_dxi_dy[(j, nx - 1)];
 
+                    let plus = positive_flux(kx, ky);
+
+                    k[(0, j)] += tau
+                        * hinv
+                        * (plus[0][0] * (v.0 - g.0)
+                            + plus[0][1] * (v.1 - g.1)
+                            + plus[0][2] * (v.2 - g.2));
+                    k[(1, j)] += tau
+                        * hinv
+                        * (plus[1][0] * (v.0 - g.0)
+                            + plus[1][1] * (v.1 - g.1)
+                            + plus[1][2] * (v.2 - g.2));
+                    k[(2, j)] += tau
+                        * hinv
+                        * (plus[2][0] * (v.0 - g.0)
+                            + plus[2][1] * (v.1 - g.1)
+                            + plus[2][2] * (v.2 - g.2));
+                }
+            }
+            {
                 // West boundary, negative flux
-                let tau = 1.0;
+                let mut k = k[i].slice_mut(s![.., .., 0]);
                 let (v, g) = (g, v);
+                for j in 0..ny {
+                    let tau = 1.0;
 
-                let kx = grid.detj_dxi_dx[(j, 0)];
-                let ky = grid.detj_dxi_dy[(j, 0)];
+                    let v = (v[(0, j)], v[(1, j)], v[(2, j)]);
+                    let g = (g[(0, j)], g[(1, j)], g[(2, j)]);
 
-                let minus = negative_flux(kx, ky);
+                    let kx = grid.detj_dxi_dx[(j, 0)];
+                    let ky = grid.detj_dxi_dy[(j, 0)];
 
-                k[i].ex_mut()[(j, 0)] += tau
-                    * hinv
-                    * (minus[0][0] * (v.0 - g.0)
-                        + minus[0][1] * (v.1 - g.1)
-                        + minus[0][2] * (v.2 - g.2));
-                k[i].hz_mut()[(j, 0)] += tau
-                    * hinv
-                    * (minus[1][0] * (v.0 - g.0)
-                        + minus[1][1] * (v.1 - g.1)
-                        + minus[1][2] * (v.2 - g.2));
-                k[i].ey_mut()[(j, 0)] += tau
-                    * hinv
-                    * (minus[2][0] * (v.0 - g.0)
-                        + minus[2][1] * (v.1 - g.1)
-                        + minus[2][2] * (v.2 - g.2));
+                    let minus = negative_flux(kx, ky);
+
+                    k[(0, j)] += tau
+                        * hinv
+                        * (minus[0][0] * (v.0 - g.0)
+                            + minus[0][1] * (v.1 - g.1)
+                            + minus[0][2] * (v.2 - g.2));
+                    k[(1, j)] += tau
+                        * hinv
+                        * (minus[1][0] * (v.0 - g.0)
+                            + minus[1][1] * (v.1 - g.1)
+                            + minus[1][2] * (v.2 - g.2));
+                    k[(2, j)] += tau
+                        * hinv
+                        * (minus[2][0] * (v.0 - g.0)
+                            + minus[2][1] * (v.1 - g.1)
+                            + minus[2][2] * (v.2 - g.2));
+                }
             }
 
             let hinv = 1.0 / (SBP::h()[0] / (ny - 1) as f32);
+            let g = y.slice(s![.., 0, ..]);
+            let v = y.slice(s![.., ny - 1, ..]);
+            {
+                let mut k = k[i].slice_mut(s![.., ny - 1, ..]);
 
-            for j in 0..nx {
-                // North boundary, positive flux
-                let tau = -1.0;
-                let g = (y.ex()[(0, j)], y.hz()[(0, j)], y.ey()[(0, j)]);
-                let v = (
-                    y.ex()[(ny - 1, j)],
-                    y.hz()[(ny - 1, j)],
-                    y.ey()[(ny - 1, j)],
-                );
+                for j in 0..nx {
+                    // North boundary, positive flux
+                    let tau = -1.0;
+                    let v = (v[(0, j)], v[(1, j)], v[(2, j)]);
+                    let g = (g[(0, j)], g[(1, j)], g[(2, j)]);
 
-                let kx = grid.detj_deta_dx[(ny - 1, j)];
-                let ky = grid.detj_deta_dy[(ny - 1, j)];
+                    let kx = grid.detj_deta_dx[(ny - 1, j)];
+                    let ky = grid.detj_deta_dy[(ny - 1, j)];
 
-                let plus = positive_flux(kx, ky);
+                    let plus = positive_flux(kx, ky);
 
-                k[i].ex_mut()[(ny - 1, j)] += tau
-                    * hinv
-                    * (plus[0][0] * (v.0 - g.0)
-                        + plus[0][1] * (v.1 - g.1)
-                        + plus[0][2] * (v.2 - g.2));
-                k[i].hz_mut()[(ny - 1, j)] += tau
-                    * hinv
-                    * (plus[1][0] * (v.0 - g.0)
-                        + plus[1][1] * (v.1 - g.1)
-                        + plus[1][2] * (v.2 - g.2));
-                k[i].ey_mut()[(ny - 1, j)] += tau
-                    * hinv
-                    * (plus[2][0] * (v.0 - g.0)
-                        + plus[2][1] * (v.1 - g.1)
-                        + plus[2][2] * (v.2 - g.2));
+                    k[(0, j)] += tau
+                        * hinv
+                        * (plus[0][0] * (v.0 - g.0)
+                            + plus[0][1] * (v.1 - g.1)
+                            + plus[0][2] * (v.2 - g.2));
+                    k[(1, j)] += tau
+                        * hinv
+                        * (plus[1][0] * (v.0 - g.0)
+                            + plus[1][1] * (v.1 - g.1)
+                            + plus[1][2] * (v.2 - g.2));
+                    k[(2, j)] += tau
+                        * hinv
+                        * (plus[2][0] * (v.0 - g.0)
+                            + plus[2][1] * (v.1 - g.1)
+                            + plus[2][2] * (v.2 - g.2));
+                }
+            }
 
-                // South boundary, negative flux
-                let tau = 1.0;
-                let (g, v) = (v, g);
+            {
+                let (v, g) = (g, v);
+                let mut k = k[i].slice_mut(s![.., 0, ..]);
+                for j in 0..nx {
+                    // South boundary, negative flux
+                    let tau = 1.0;
+                    let v = (v[(0, j)], v[(1, j)], v[(2, j)]);
+                    let g = (g[(0, j)], g[(1, j)], g[(2, j)]);
 
-                let kx = grid.detj_deta_dx[(0, j)];
-                let ky = grid.detj_deta_dy[(0, j)];
+                    let kx = grid.detj_deta_dx[(0, j)];
+                    let ky = grid.detj_deta_dy[(0, j)];
 
-                let minus = negative_flux(kx, ky);
+                    let minus = negative_flux(kx, ky);
 
-                k[i].ex_mut()[(0, j)] += tau
-                    * hinv
-                    * (minus[0][0] * (v.0 - g.0)
-                        + minus[0][1] * (v.1 - g.1)
-                        + minus[0][2] * (v.2 - g.2));
-                k[i].hz_mut()[(0, j)] += tau
-                    * hinv
-                    * (minus[1][0] * (v.0 - g.0)
-                        + minus[1][1] * (v.1 - g.1)
-                        + minus[1][2] * (v.2 - g.2));
-                k[i].ey_mut()[(0, j)] += tau
-                    * hinv
-                    * (minus[2][0] * (v.0 - g.0)
-                        + minus[2][1] * (v.1 - g.1)
-                        + minus[2][2] * (v.2 - g.2));
+                    k[(0, j)] += tau
+                        * hinv
+                        * (minus[0][0] * (v.0 - g.0)
+                            + minus[0][1] * (v.1 - g.1)
+                            + minus[0][2] * (v.2 - g.2));
+                    k[(1, j)] += tau
+                        * hinv
+                        * (minus[1][0] * (v.0 - g.0)
+                            + minus[1][1] * (v.1 - g.1)
+                            + minus[1][2] * (v.2 - g.2));
+                    k[(2, j)] += tau
+                        * hinv
+                        * (minus[2][0] * (v.0 - g.0)
+                            + minus[2][1] * (v.1 - g.1)
+                            + minus[2][2] * (v.2 - g.2));
+                }
             }
 
             azip!((k in &mut k[i].0,
