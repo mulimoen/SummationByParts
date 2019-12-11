@@ -13,7 +13,14 @@ fn performance_benchmark(c: &mut Criterion) {
 
     let w = 40;
     let h = 26;
-    let mut universe = Universe::new(w, h);
+    let x = ndarray::Array2::from_shape_fn((h, w), |(_, i)| i as f32 / (w - 1) as f32);
+    let y = ndarray::Array2::from_shape_fn((h, w), |(j, _)| j as f32 / (h - 1) as f32);
+    let mut universe = Universe::new(
+        w as u32,
+        h as u32,
+        x.as_slice().unwrap(),
+        y.as_slice().unwrap(),
+    );
 
     group.bench_function("advance", |b| {
         b.iter(|| {

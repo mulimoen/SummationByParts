@@ -3,7 +3,7 @@ use wasm_bindgen::prelude::*;
 mod grid;
 mod maxwell;
 mod operators;
-pub use crate::maxwell::{System, WorkBuffers};
+pub use crate::maxwell::{Field, WorkBuffers};
 pub(crate) use grid::Grid;
 
 #[cfg(feature = "wee_alloc")]
@@ -18,7 +18,7 @@ pub fn set_panic_hook() {
 
 #[wasm_bindgen]
 pub struct Universe {
-    sys: (System, System),
+    sys: (Field, Field),
     wb: WorkBuffers,
     grid: Grid<operators::Upwind4>,
 }
@@ -34,7 +34,10 @@ impl Universe {
             "Could not create grid. Different number of elements compared to width*height?",
         );
         Self {
-            sys: (System::new(width, height), System::new(width, height)),
+            sys: (
+                Field::new(width as usize, height as usize),
+                Field::new(width as usize, height as usize),
+            ),
             grid,
             wb: WorkBuffers::new(width as usize, height as usize),
         }
@@ -45,7 +48,7 @@ impl Universe {
     }
 
     pub fn advance(&mut self, dt: f32) {
-        System::advance::<operators::Upwind4>(
+        Field::advance::<operators::Upwind4>(
             &self.sys.0,
             &mut self.sys.1,
             dt,
@@ -55,15 +58,15 @@ impl Universe {
         std::mem::swap(&mut self.sys.0, &mut self.sys.1);
     }
 
-    pub fn get_ex_ptr(&mut self) -> *mut u8 {
-        self.sys.0.ex.as_mut_ptr() as *mut u8
+    pub fn get_ex_ptr(&self) -> *const u8 {
+        self.sys.0.ex().as_ptr() as *const u8
     }
 
-    pub fn get_ey_ptr(&mut self) -> *mut u8 {
-        self.sys.0.ey.as_mut_ptr() as *mut u8
+    pub fn get_ey_ptr(&self) -> *const u8 {
+        self.sys.0.ey().as_ptr() as *const u8
     }
 
-    pub fn get_hz_ptr(&mut self) -> *mut u8 {
-        self.sys.0.hz.as_mut_ptr() as *mut u8
+    pub fn get_hz_ptr(&self) -> *const u8 {
+        self.sys.0.hz().as_ptr() as *const u8
     }
 }

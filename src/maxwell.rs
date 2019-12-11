@@ -1,10 +1,21 @@
 use super::operators::SbpOperator;
-use ndarray::{Array2, Zip};
+use ndarray::prelude::*;
+use ndarray::{azip, Zip};
 
-pub struct System {
-    pub(crate) ex: Array2<f32>,
-    pub(crate) ey: Array2<f32>,
-    pub(crate) hz: Array2<f32>,
+#[derive(Clone, Debug)]
+pub struct Field(pub(crate) Array3<f32>);
+
+impl std::ops::Deref for Field {
+    type Target = Array3<f32>;
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl std::ops::DerefMut for Field {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
 }
 
 fn gaussian(x: f32, x0: f32, y: f32, y0: f32) -> f32 {
@@ -17,28 +28,70 @@ fn gaussian(x: f32, x0: f32, y: f32, y0: f32) -> f32 {
     1.0 / (2.0 * f32::consts::PI * sigma * sigma) * (-(x * x + y * y) / (2.0 * sigma * sigma)).exp()
 }
 
-impl System {
-    pub fn new(width: u32, height: u32) -> Self {
-        let field = Array2::zeros((height as usize, width as usize));
-        let ex = field.clone();
-        let ey = field.clone();
-        let hz = field;
+impl Field {
+    pub fn new(width: usize, height: usize) -> Self {
+        let field = Array3::zeros((3, height, width));
 
-        Self { ex, ey, hz }
+        Self(field)
+    }
+
+    pub fn nx(&self) -> usize {
+        self.0.shape()[2]
+    }
+    pub fn ny(&self) -> usize {
+        self.0.shape()[1]
+    }
+
+    pub fn ex(&self) -> ArrayView2<f32> {
+        self.slice(s![0, .., ..])
+    }
+    pub fn hz(&self) -> ArrayView2<f32> {
+        self.slice(s![1, .., ..])
+    }
+    pub fn ey(&self) -> ArrayView2<f32> {
+        self.slice(s![2, .., ..])
+    }
+
+    pub fn ex_mut(&mut self) -> ArrayViewMut2<f32> {
+        self.slice_mut(s![0, .., ..])
+    }
+    pub fn hz_mut(&mut self) -> ArrayViewMut2<f32> {
+        self.slice_mut(s![1, .., ..])
+    }
+    pub fn ey_mut(&mut self) -> ArrayViewMut2<f32> {
+        self.slice_mut(s![2, .., ..])
+    }
+
+    pub fn components_mut(
+        &mut self,
+    ) -> (ArrayViewMut2<f32>, ArrayViewMut2<f32>, ArrayViewMut2<f32>) {
+        let nx = self.nx();
+        let ny = self.ny();
+
+        let (ex, f) = self.0.view_mut().split_at(Axis(0), 1);
+        let (hz, ey) = f.split_at(Axis(0), 1);
+
+        (
+            ex.into_shape((ny, nx)).unwrap(),
+            hz.into_shape((ny, nx)).unwrap(),
+            ey.into_shape((ny, nx)).unwrap(),
+        )
     }
 
     pub fn set_gaussian(&mut self, x0: f32, y0: f32) {
-        let nx = self.ex.shape()[1];
-        let ny = self.ex.shape()[0];
+        let nx = self.nx();
+        let ny = self.ny();
+
+        let (mut ex, mut hz, mut ey) = self.components_mut();
         for j in 0..ny {
             for i in 0..nx {
                 // Must divice interval on nx/ny instead of nx - 1/ny-1
                 // due to periodic conditions [0, 1)
                 let x = i as f32 / nx as f32;
                 let y = j as f32 / ny as f32;
-                self.ex[(j, i)] = 0.0;
-                self.ey[(j, i)] = 0.0;
-                self.hz[(j, i)] = gaussian(x, x0, y, y0) / 32.0;
+                ex[(j, i)] = 0.0;
+                ey[(j, i)] = 0.0;
+                hz[(j, i)] = gaussian(x, x0, y, y0) / 32.0;
             }
         }
     }
@@ -52,32 +105,26 @@ impl System {
     ) where
         SBP: SbpOperator,
     {
-        assert_eq!(self.ex.shape(), fut.ex.shape());
+        assert_eq!(self.0.shape(), fut.0.shape());
 
         let mut wb: WorkBuffers;
         let (y, k, tmp) = if let Some(x) = work_buffers {
             (&mut x.y, &mut x.buf, &mut x.tmp)
         } else {
-            wb = WorkBuffers::new(self.ex.shape()[1], self.ex.shape()[0]);
+            wb = WorkBuffers::new(self.nx(), self.ny());
             (&mut wb.y, &mut wb.buf, &mut wb.tmp)
         };
 
         for i in 0..4 {
             // y = y0 + c*kn
-            y.0.assign(&self.ex);
-            y.1.assign(&self.hz);
-            y.2.assign(&self.ey);
+            y.assign(&self);
             match i {
                 0 => {}
                 1 | 2 => {
-                    y.0.scaled_add(1.0 / 2.0 * dt, &k[i - 1].0);
-                    y.1.scaled_add(1.0 / 2.0 * dt, &k[i - 1].1);
-                    y.2.scaled_add(1.0 / 2.0 * dt, &k[i - 1].2);
+                    y.scaled_add(1.0 / 2.0 * dt, &k[i - 1]);
                 }
                 3 => {
-                    y.0.scaled_add(dt, &k[i - 1].0);
-                    y.1.scaled_add(dt, &k[i - 1].1);
-                    y.2.scaled_add(dt, &k[i - 1].2);
+                    y.scaled_add(dt, &k[i - 1]);
                 }
                 _ => {
                     unreachable!();
@@ -102,19 +149,19 @@ impl System {
             {
                 ndarray::azip!((a in &mut tmp.0,
                                 &dxi_dy in &grid.detj_dxi_dy,
-                                &hz in &y.1)
+                                &hz in &y.hz())
                     *a = dxi_dy * hz
                 );
                 SBP::diffxi(tmp.0.view(), tmp.1.view_mut());
 
                 ndarray::azip!((b in &mut tmp.2,
                                 &deta_dy in &grid.detj_deta_dy,
-                                &hz in &y.1)
+                                &hz in &y.hz())
                     *b = deta_dy * hz
                 );
                 SBP::diffeta(tmp.2.view(), tmp.3.view_mut());
 
-                ndarray::azip!((flux in &mut k[i].0, &ax in &tmp.1, &by in &tmp.3)
+                ndarray::azip!((flux in &mut k[i].ex_mut(), &ax in &tmp.1, &by in &tmp.3)
                     *flux = ax + by
                 );
             }
@@ -124,8 +171,8 @@ impl System {
                 ndarray::azip!((a in &mut tmp.0,
                                 &dxi_dx in &grid.detj_dxi_dx,
                                 &dxi_dy in &grid.detj_dxi_dy,
-                                &ex in &y.0,
-                                &ey in &y.2)
+                                &ex in &y.ex(),
+                                &ey in &y.ey())
                     *a = dxi_dx * -ey + dxi_dy * ex
                 );
                 SBP::diffxi(tmp.0.view(), tmp.1.view_mut());
@@ -133,13 +180,13 @@ impl System {
                 ndarray::azip!((b in &mut tmp.2,
                                 &deta_dx in &grid.detj_deta_dx,
                                 &deta_dy in &grid.detj_deta_dy,
-                                &ex in &y.0,
-                                &ey in &y.2)
+                                &ex in &y.ex(),
+                                &ey in &y.ey())
                     *b = deta_dx * -ey + deta_dy * ex
                 );
                 SBP::diffeta(tmp.2.view(), tmp.3.view_mut());
 
-                ndarray::azip!((flux in &mut k[i].1, &ax in &tmp.1, &by in &tmp.3)
+                ndarray::azip!((flux in &mut k[i].hz_mut(), &ax in &tmp.1, &by in &tmp.3)
                     *flux = ax + by
                 );
             }
@@ -148,26 +195,26 @@ impl System {
             {
                 ndarray::azip!((a in &mut tmp.0,
                                 &dxi_dx in &grid.detj_dxi_dx,
-                                &hz in &y.1)
+                                &hz in &y.hz())
                     *a = dxi_dx * -hz
                 );
                 SBP::diffxi(tmp.0.view(), tmp.1.view_mut());
 
-                ndarray::azip!((b in &mut tmp.2,
+                azip!((b in &mut tmp.2,
                                 &deta_dx in &grid.detj_deta_dx,
-                                &hz in &y.1)
+                                &hz in &y.hz())
                     *b = deta_dx * -hz
                 );
                 SBP::diffeta(tmp.2.view(), tmp.3.view_mut());
 
-                ndarray::azip!((flux in &mut k[i].2, &ax in &tmp.1, &by in &tmp.3)
+                azip!((flux in &mut k[i].ey_mut(), &ax in &tmp.1, &by in &tmp.3)
                     *flux = ax + by
                 );
             }
 
             // Boundary conditions (SAT)
-            let ny = y.0.shape()[0];
-            let nx = y.0.shape()[1];
+            let ny = self.ny();
+            let nx = self.nx();
 
             let hinv = 1.0 / (SBP::h()[0] / (nx - 1) as f32);
 
@@ -191,25 +238,29 @@ impl System {
             for j in 0..ny {
                 // East boundary, positive flux
                 let tau = -1.0;
-                let g = (y.0[(j, 0)], y.1[(j, 0)], y.2[(j, 0)]);
-                let v = (y.0[(j, nx - 1)], y.1[(j, nx - 1)], y.2[(j, nx - 1)]);
+                let g = (y.ex()[(j, 0)], y.hz()[(j, 0)], y.ey()[(j, 0)]);
+                let v = (
+                    y.ex()[(j, nx - 1)],
+                    y.hz()[(j, nx - 1)],
+                    y.ey()[(j, nx - 1)],
+                );
 
                 let kx = grid.detj_dxi_dx[(j, nx - 1)];
                 let ky = grid.detj_dxi_dy[(j, nx - 1)];
 
                 let plus = positive_flux(kx, ky);
 
-                k[i].0[(j, nx - 1)] += tau
+                k[i].ex_mut()[(j, nx - 1)] += tau
                     * hinv
                     * (plus[0][0] * (v.0 - g.0)
                         + plus[0][1] * (v.1 - g.1)
                         + plus[0][2] * (v.2 - g.2));
-                k[i].1[(j, nx - 1)] += tau
+                k[i].hz_mut()[(j, nx - 1)] += tau
                     * hinv
                     * (plus[1][0] * (v.0 - g.0)
                         + plus[1][1] * (v.1 - g.1)
                         + plus[1][2] * (v.2 - g.2));
-                k[i].2[(j, nx - 1)] += tau
+                k[i].ey_mut()[(j, nx - 1)] += tau
                     * hinv
                     * (plus[2][0] * (v.0 - g.0)
                         + plus[2][1] * (v.1 - g.1)
@@ -224,17 +275,17 @@ impl System {
 
                 let minus = negative_flux(kx, ky);
 
-                k[i].0[(j, 0)] += tau
+                k[i].ex_mut()[(j, 0)] += tau
                     * hinv
                     * (minus[0][0] * (v.0 - g.0)
                         + minus[0][1] * (v.1 - g.1)
                         + minus[0][2] * (v.2 - g.2));
-                k[i].1[(j, 0)] += tau
+                k[i].hz_mut()[(j, 0)] += tau
                     * hinv
                     * (minus[1][0] * (v.0 - g.0)
                         + minus[1][1] * (v.1 - g.1)
                         + minus[1][2] * (v.2 - g.2));
-                k[i].2[(j, 0)] += tau
+                k[i].ey_mut()[(j, 0)] += tau
                     * hinv
                     * (minus[2][0] * (v.0 - g.0)
                         + minus[2][1] * (v.1 - g.1)
@@ -246,25 +297,29 @@ impl System {
             for j in 0..nx {
                 // North boundary, positive flux
                 let tau = -1.0;
-                let g = (y.0[(0, j)], y.1[(0, j)], y.2[(0, j)]);
-                let v = (y.0[(ny - 1, j)], y.1[(ny - 1, j)], y.2[(ny - 1, j)]);
+                let g = (y.ex()[(0, j)], y.hz()[(0, j)], y.ey()[(0, j)]);
+                let v = (
+                    y.ex()[(ny - 1, j)],
+                    y.hz()[(ny - 1, j)],
+                    y.ey()[(ny - 1, j)],
+                );
 
                 let kx = grid.detj_deta_dx[(ny - 1, j)];
                 let ky = grid.detj_deta_dy[(ny - 1, j)];
 
                 let plus = positive_flux(kx, ky);
 
-                k[i].0[(ny - 1, j)] += tau
+                k[i].ex_mut()[(ny - 1, j)] += tau
                     * hinv
                     * (plus[0][0] * (v.0 - g.0)
                         + plus[0][1] * (v.1 - g.1)
                         + plus[0][2] * (v.2 - g.2));
-                k[i].1[(ny - 1, j)] += tau
+                k[i].hz_mut()[(ny - 1, j)] += tau
                     * hinv
                     * (plus[1][0] * (v.0 - g.0)
                         + plus[1][1] * (v.1 - g.1)
                         + plus[1][2] * (v.2 - g.2));
-                k[i].2[(ny - 1, j)] += tau
+                k[i].ey_mut()[(ny - 1, j)] += tau
                     * hinv
                     * (plus[2][0] * (v.0 - g.0)
                         + plus[2][1] * (v.1 - g.1)
@@ -279,57 +334,35 @@ impl System {
 
                 let minus = negative_flux(kx, ky);
 
-                k[i].0[(0, j)] += tau
+                k[i].ex_mut()[(0, j)] += tau
                     * hinv
                     * (minus[0][0] * (v.0 - g.0)
                         + minus[0][1] * (v.1 - g.1)
                         + minus[0][2] * (v.2 - g.2));
-                k[i].1[(0, j)] += tau
+                k[i].hz_mut()[(0, j)] += tau
                     * hinv
                     * (minus[1][0] * (v.0 - g.0)
                         + minus[1][1] * (v.1 - g.1)
                         + minus[1][2] * (v.2 - g.2));
-                k[i].2[(0, j)] += tau
+                k[i].ey_mut()[(0, j)] += tau
                     * hinv
                     * (minus[2][0] * (v.0 - g.0)
                         + minus[2][1] * (v.1 - g.1)
                         + minus[2][2] * (v.2 - g.2));
             }
 
-            ndarray::azip!((k0 in &mut k[i].0,
-                            k1 in &mut k[i].1,
-                            k2 in &mut k[i].2,
-                            &detj in &grid.detj) {
-                *k0 /= detj;
-                *k1 /= detj;
-                *k2 /= detj;
+            azip!((k in &mut k[i].0,
+                            &detj in &grid.detj.broadcast((3, ny, nx)).unwrap()) {
+                *k /= detj;
             });
         }
 
-        Zip::from(&mut fut.ex)
-            .and(&self.ex)
-            .and(&k[0].0)
-            .and(&k[1].0)
-            .and(&k[2].0)
-            .and(&k[3].0)
-            .apply(|y1, &y0, &k1, &k2, &k3, &k4| {
-                *y1 = y0 + dt / 6.0 * (k1 + 2.0 * k2 + 2.0 * k3 + k4)
-            });
-        Zip::from(&mut fut.hz)
-            .and(&self.hz)
-            .and(&k[0].1)
-            .and(&k[1].1)
-            .and(&k[2].1)
-            .and(&k[3].1)
-            .apply(|y1, &y0, &k1, &k2, &k3, &k4| {
-                *y1 = y0 + dt / 6.0 * (k1 + 2.0 * k2 + 2.0 * k3 + k4)
-            });
-        Zip::from(&mut fut.ey)
-            .and(&self.ey)
-            .and(&k[0].2)
-            .and(&k[1].2)
-            .and(&k[2].2)
-            .and(&k[3].2)
+        Zip::from(&mut fut.0)
+            .and(&self.0)
+            .and(&*k[0])
+            .and(&*k[1])
+            .and(&*k[2])
+            .and(&*k[3])
             .apply(|y1, &y0, &k1, &k2, &k3, &k4| {
                 *y1 = y0 + dt / 6.0 * (k1 + 2.0 * k2 + 2.0 * k3 + k4)
             });
@@ -337,23 +370,19 @@ impl System {
 }
 
 pub struct WorkBuffers {
-    y: (Array2<f32>, Array2<f32>, Array2<f32>),
-    buf: [(Array2<f32>, Array2<f32>, Array2<f32>); 4],
+    y: Field,
+    buf: [Field; 4],
     tmp: (Array2<f32>, Array2<f32>, Array2<f32>, Array2<f32>),
 }
 
 impl WorkBuffers {
     pub fn new(nx: usize, ny: usize) -> Self {
-        let arr = Array2::zeros((ny, nx));
+        let arr2 = Array2::zeros((ny, nx));
+        let arr3 = Field::new(nx, ny);
         Self {
-            y: (arr.clone(), arr.clone(), arr.clone()),
-            buf: [
-                (arr.clone(), arr.clone(), arr.clone()),
-                (arr.clone(), arr.clone(), arr.clone()),
-                (arr.clone(), arr.clone(), arr.clone()),
-                (arr.clone(), arr.clone(), arr.clone()),
-            ],
-            tmp: (arr.clone(), arr.clone(), arr.clone(), arr),
+            y: arr3.clone(),
+            buf: [arr3.clone(), arr3.clone(), arr3.clone(), arr3],
+            tmp: (arr2.clone(), arr2.clone(), arr2.clone(), arr2),
         }
     }
 }
