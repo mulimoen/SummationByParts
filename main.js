@@ -224,8 +224,6 @@ import { Universe, default as init, set_panic_hook as setPanicHook } from "./max
                 dt = MAX_DT;
             }
         }
-        universe.advance(dt/2);
-        universe.advance(dt/2);
 
         let fieldPtr;
         if (chosenField.value === 0) {
@@ -244,6 +242,9 @@ import { Universe, default as init, set_panic_hook as setPanicHook } from "./max
             const vertexCount = positions.length;
             gl.drawElements(gl.TRIANGLES, vertexCount, type, offset);
         }
+
+        universe.advance(dt/2);
+        universe.advance(dt/2);
 
         window.requestAnimationFrame(drawMe);
     }
