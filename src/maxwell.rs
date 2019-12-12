@@ -275,62 +275,69 @@ fn SAT_characteristics<SBP: SbpOperator>(k: &mut Field, y: &Field, grid: &Grid<S
         ]
     }
 
-    let hinv = 1.0 / (SBP::h()[0] / (nx - 1) as f32);
-    let g = y.slice(s![.., .., 0]);
-    let v = y.slice(s![.., .., nx - 1]);
     {
         // East boundary
-        let mut k = k.slice_mut(s![.., .., nx - 1]);
-
-        for j in 0..ny {
+        let hinv = 1.0 / (SBP::h()[0] / (nx - 1) as f32);
+        let g = y.slice(s![.., .., 0]);
+        for ((((mut k, v), g), &kx), &ky) in k
+            .slice_mut(s![.., .., nx - 1])
+            .gencolumns_mut()
+            .into_iter()
+            .zip(y.slice(s![.., .., nx - 1]).gencolumns())
+            .zip(g.gencolumns())
+            .zip(grid.detj_dxi_dx.slice(s![.., nx - 1]))
+            .zip(grid.detj_dxi_dy.slice(s![.., nx - 1]))
+        {
             // East boundary, positive flux
             let tau = -1.0;
 
-            let v = (v[(0, j)], v[(1, j)], v[(2, j)]);
-            let g = (g[(0, j)], g[(1, j)], g[(2, j)]);
-
-            let kx = grid.detj_dxi_dx[(j, nx - 1)];
-            let ky = grid.detj_dxi_dy[(j, nx - 1)];
+            let v = (v[0], v[1], v[2]);
+            let g = (g[0], g[1], g[2]);
 
             let plus = positive_flux(kx, ky);
 
-            k[(0, j)] += tau
+            k[0] += tau
                 * hinv
                 * (plus[0][0] * (v.0 - g.0) + plus[0][1] * (v.1 - g.1) + plus[0][2] * (v.2 - g.2));
-            k[(1, j)] += tau
+            k[1] += tau
                 * hinv
                 * (plus[1][0] * (v.0 - g.0) + plus[1][1] * (v.1 - g.1) + plus[1][2] * (v.2 - g.2));
-            k[(2, j)] += tau
+            k[2] += tau
                 * hinv
                 * (plus[2][0] * (v.0 - g.0) + plus[2][1] * (v.1 - g.1) + plus[2][2] * (v.2 - g.2));
         }
     }
     {
         // West boundary, negative flux
-        let mut k = k.slice_mut(s![.., .., 0]);
-        let (v, g) = (g, v);
-        for j in 0..ny {
+        let hinv = 1.0 / (SBP::h()[0] / (nx - 1) as f32);
+        let g = y.slice(s![.., .., nx - 1]);
+        for ((((mut k, v), g), &kx), &ky) in k
+            .slice_mut(s![.., .., 0])
+            .gencolumns_mut()
+            .into_iter()
+            .zip(y.slice(s![.., .., 0]).gencolumns())
+            .zip(g.gencolumns())
+            .zip(grid.detj_dxi_dx.slice(s![.., 0]))
+            .zip(grid.detj_dxi_dy.slice(s![.., 0]))
+        {
             let tau = 1.0;
 
-            let v = (v[(0, j)], v[(1, j)], v[(2, j)]);
-            let g = (g[(0, j)], g[(1, j)], g[(2, j)]);
-
-            let kx = grid.detj_dxi_dx[(j, 0)];
-            let ky = grid.detj_dxi_dy[(j, 0)];
+            let v = (v[0], v[1], v[2]);
+            let g = (g[0], g[1], g[2]);
 
             let minus = negative_flux(kx, ky);
 
-            k[(0, j)] += tau
+            k[0] += tau
                 * hinv
                 * (minus[0][0] * (v.0 - g.0)
                     + minus[0][1] * (v.1 - g.1)
                     + minus[0][2] * (v.2 - g.2));
-            k[(1, j)] += tau
+            k[1] += tau
                 * hinv
                 * (minus[1][0] * (v.0 - g.0)
                     + minus[1][1] * (v.1 - g.1)
                     + minus[1][2] * (v.2 - g.2));
-            k[(2, j)] += tau
+            k[2] += tau
                 * hinv
                 * (minus[2][0] * (v.0 - g.0)
                     + minus[2][1] * (v.1 - g.1)
@@ -338,60 +345,68 @@ fn SAT_characteristics<SBP: SbpOperator>(k: &mut Field, y: &Field, grid: &Grid<S
         }
     }
 
-    let hinv = 1.0 / (SBP::h()[0] / (ny - 1) as f32);
-    let g = y.slice(s![.., 0, ..]);
-    let v = y.slice(s![.., ny - 1, ..]);
     {
-        let mut k = k.slice_mut(s![.., ny - 1, ..]);
-
-        for j in 0..nx {
+        let g = y.slice(s![.., 0, ..]);
+        let hinv = 1.0 / (SBP::h()[0] / (ny - 1) as f32);
+        for ((((mut k, v), g), &kx), &ky) in k
+            .slice_mut(s![.., ny - 1, ..])
+            .gencolumns_mut()
+            .into_iter()
+            .zip(y.slice(s![.., ny - 1, ..]).gencolumns())
+            .zip(g.gencolumns())
+            .zip(grid.detj_deta_dx.slice(s![ny - 1, ..]))
+            .zip(grid.detj_deta_dy.slice(s![ny - 1, ..]))
+        {
             // North boundary, positive flux
             let tau = -1.0;
-            let v = (v[(0, j)], v[(1, j)], v[(2, j)]);
-            let g = (g[(0, j)], g[(1, j)], g[(2, j)]);
-
-            let kx = grid.detj_deta_dx[(ny - 1, j)];
-            let ky = grid.detj_deta_dy[(ny - 1, j)];
+            let v = (v[0], v[1], v[2]);
+            let g = (g[0], g[1], g[2]);
 
             let plus = positive_flux(kx, ky);
 
-            k[(0, j)] += tau
+            k[0] += tau
                 * hinv
                 * (plus[0][0] * (v.0 - g.0) + plus[0][1] * (v.1 - g.1) + plus[0][2] * (v.2 - g.2));
-            k[(1, j)] += tau
+            k[1] += tau
                 * hinv
                 * (plus[1][0] * (v.0 - g.0) + plus[1][1] * (v.1 - g.1) + plus[1][2] * (v.2 - g.2));
-            k[(2, j)] += tau
+            k[2] += tau
                 * hinv
                 * (plus[2][0] * (v.0 - g.0) + plus[2][1] * (v.1 - g.1) + plus[2][2] * (v.2 - g.2));
         }
     }
 
     {
-        let (v, g) = (g, v);
-        let mut k = k.slice_mut(s![.., 0, ..]);
-        for j in 0..nx {
+        let g = y.slice(s![.., ny - 1, ..]);
+        let hinv = 1.0 / (SBP::h()[0] / (ny - 1) as f32);
+        for ((((mut k, v), g), &kx), &ky) in k
+            .slice_mut(s![.., 0, ..])
+            .gencolumns_mut()
+            .into_iter()
+            .zip(y.slice(s![.., 0, ..]).gencolumns())
+            .zip(g.gencolumns())
+            .zip(grid.detj_deta_dx.slice(s![0, ..]))
+            .zip(grid.detj_deta_dy.slice(s![0, ..]))
+        {
             // South boundary, negative flux
-            let tau = 1.0;
-            let v = (v[(0, j)], v[(1, j)], v[(2, j)]);
-            let g = (g[(0, j)], g[(1, j)], g[(2, j)]);
 
-            let kx = grid.detj_deta_dx[(0, j)];
-            let ky = grid.detj_deta_dy[(0, j)];
+            let tau = 1.0;
+            let v = (v[0], v[1], v[2]);
+            let g = (g[0], g[1], g[2]);
 
             let minus = negative_flux(kx, ky);
 
-            k[(0, j)] += tau
+            k[0] += tau
                 * hinv
                 * (minus[0][0] * (v.0 - g.0)
                     + minus[0][1] * (v.1 - g.1)
                     + minus[0][2] * (v.2 - g.2));
-            k[(1, j)] += tau
+            k[1] += tau
                 * hinv
                 * (minus[1][0] * (v.0 - g.0)
                     + minus[1][1] * (v.1 - g.1)
                     + minus[1][2] * (v.2 - g.2));
-            k[(2, j)] += tau
+            k[2] += tau
                 * hinv
                 * (minus[2][0] * (v.0 - g.0)
                     + minus[2][1] * (v.1 - g.1)
