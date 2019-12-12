@@ -1,4 +1,4 @@
-use super::operators::SbpOperator;
+use super::operators::{SbpOperator, UpwindOperator};
 use super::Grid;
 use ndarray::prelude::*;
 use ndarray::{azip, Zip};
@@ -97,6 +97,62 @@ impl Field {
         }
     }
 
+    pub(crate) fn advance_upwind<UO>(
+        &self,
+        fut: &mut Self,
+        dt: f32,
+        grid: &Grid<UO>,
+        work_buffers: Option<&mut WorkBuffers>,
+    ) where
+        UO: UpwindOperator,
+    {
+        assert_eq!(self.0.shape(), fut.0.shape());
+
+        let mut wb: WorkBuffers;
+        let (y, k, tmp) = if let Some(x) = work_buffers {
+            (&mut x.y, &mut x.buf, &mut x.tmp)
+        } else {
+            wb = WorkBuffers::new(self.nx(), self.ny());
+            (&mut wb.y, &mut wb.buf, &mut wb.tmp)
+        };
+
+        let boundaries = BoundaryTerms {
+            north: Boundary::This,
+            south: Boundary::This,
+            west: Boundary::This,
+            east: Boundary::This,
+        };
+
+        for i in 0..4 {
+            // y = y0 + c*kn
+            y.assign(&self);
+            match i {
+                0 => {}
+                1 | 2 => {
+                    y.scaled_add(1.0 / 2.0 * dt, &k[i - 1]);
+                }
+                3 => {
+                    y.scaled_add(dt, &k[i - 1]);
+                }
+                _ => {
+                    unreachable!();
+                }
+            };
+
+            RHS_upwind(&mut k[i], &y, grid, &boundaries, tmp);
+        }
+
+        Zip::from(&mut fut.0)
+            .and(&self.0)
+            .and(&*k[0])
+            .and(&*k[1])
+            .and(&*k[2])
+            .and(&*k[3])
+            .apply(|y1, &y0, &k1, &k2, &k3, &k4| {
+                *y1 = y0 + dt / 6.0 * (k1 + 2.0 * k2 + 2.0 * k3 + k4)
+            });
+    }
+
     /// Solving (Au)_x + (Bu)_y
     /// with:
     ///        A               B
@@ -186,6 +242,25 @@ fn RHS<SBP: SbpOperator>(
     });
 }
 
+#[allow(non_snake_case)]
+fn RHS_upwind<UO: UpwindOperator>(
+    k: &mut Field,
+    y: &Field,
+    grid: &Grid<UO>,
+    boundaries: &BoundaryTerms,
+    tmp: &mut (Array2<f32>, Array2<f32>, Array2<f32>, Array2<f32>),
+) {
+    fluxes(k, y, grid, tmp);
+    dissipation(k, y, grid, tmp);
+
+    SAT_characteristics(k, y, grid, boundaries);
+
+    azip!((k in &mut k.0,
+                    &detj in &grid.detj.broadcast((3, y.ny(), y.nx())).unwrap()) {
+        *k /= detj;
+    });
+}
+
 fn fluxes<SBP: SbpOperator>(
     k: &mut Field,
     y: &Field,
@@ -256,6 +331,92 @@ fn fluxes<SBP: SbpOperator>(
 
         azip!((flux in &mut k.ey_mut(), &ax in &tmp.1, &by in &tmp.3)
             *flux = ax + by
+        );
+    }
+}
+
+fn dissipation<UO: UpwindOperator>(
+    k: &mut Field,
+    y: &Field,
+    grid: &Grid<UO>,
+    tmp: &mut (Array2<f32>, Array2<f32>, Array2<f32>, Array2<f32>),
+) {
+    // ex component
+    {
+        ndarray::azip!((a in &mut tmp.0,
+                        &kx in &grid.detj_dxi_dx,
+                        &ky in &grid.detj_dxi_dy,
+                        &ex in &y.ex(),
+                        &ey in &y.ey()) {
+            let r = f32::hypot(kx, ky);
+            *a = ky*ky/r * ex + -kx*ky/r*ey;
+        });
+        UO::dissxi(tmp.0.view(), tmp.1.view_mut());
+
+        ndarray::azip!((b in &mut tmp.2,
+                    &kx in &grid.detj_deta_dx,
+                    &ky in &grid.detj_deta_dy,
+                    &ex in &y.ex(),
+                    &ey in &y.ey()) {
+            let r = f32::hypot(kx, ky);
+            *b = ky*ky/r * ex + -kx*ky/r*ey;
+        });
+        UO::disseta(tmp.2.view(), tmp.3.view_mut());
+
+        ndarray::azip!((flux in &mut k.ex_mut(), &ax in &tmp.1, &by in &tmp.3)
+            *flux += ax + by
+        );
+    }
+
+    // hz component
+    {
+        ndarray::azip!((a in &mut tmp.0,
+                        &kx in &grid.detj_dxi_dx,
+                        &ky in &grid.detj_dxi_dy,
+                        &hz in &y.hz()) {
+            let r = f32::hypot(kx, ky);
+            *a = r * hz;
+        });
+        UO::dissxi(tmp.0.view(), tmp.1.view_mut());
+
+        ndarray::azip!((b in &mut tmp.2,
+                        &kx in &grid.detj_deta_dx,
+                        &ky in &grid.detj_deta_dy,
+                        &hz in &y.hz()) {
+            let r = f32::hypot(kx, ky);
+            *b = r * hz;
+        });
+        UO::disseta(tmp.2.view(), tmp.3.view_mut());
+
+        ndarray::azip!((flux in &mut k.hz_mut(), &ax in &tmp.1, &by in &tmp.3)
+            *flux += ax + by
+        );
+    }
+
+    // ey
+    {
+        ndarray::azip!((a in &mut tmp.0,
+                        &kx in &grid.detj_dxi_dx,
+                        &ky in &grid.detj_dxi_dy,
+                        &ex in &y.ex(),
+                        &ey in &y.ey()) {
+            let r = f32::hypot(kx, ky);
+            *a = -kx*ky/r * ex + kx*kx/r*ey;
+        });
+        UO::dissxi(tmp.0.view(), tmp.1.view_mut());
+
+        ndarray::azip!((b in &mut tmp.2,
+                    &kx in &grid.detj_deta_dx,
+                    &ky in &grid.detj_deta_dy,
+                    &ex in &y.ex(),
+                    &ey in &y.ey()) {
+            let r = f32::hypot(kx, ky);
+            *b = -kx*ky/r * ex + kx*kx/r*ey;
+        });
+        UO::disseta(tmp.2.view(), tmp.3.view_mut());
+
+        ndarray::azip!((flux in &mut k.hz_mut(), &ax in &tmp.1, &by in &tmp.3)
+            *flux += ax + by
         );
     }
 }

@@ -243,8 +243,8 @@ import { Universe, default as init, set_panic_hook as setPanicHook } from "./max
             gl.drawElements(gl.TRIANGLES, vertexCount, type, offset);
         }
 
-        universe.advance(dt/2);
-        universe.advance(dt/2);
+        universe.advance_upwind(dt/2);
+        universe.advance_upwind(dt/2);
 
         window.requestAnimationFrame(drawMe);
     }

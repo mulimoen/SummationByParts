@@ -47,6 +47,18 @@ impl Universe {
         self.sys.0.set_gaussian(x0, y0);
     }
 
+    /// Using artifical dissipation with the upwind operator
+    pub fn advance_upwind(&mut self, dt: f32) {
+        Field::advance_upwind::<operators::Upwind4>(
+            &self.sys.0,
+            &mut self.sys.1,
+            dt,
+            &self.grid,
+            Some(&mut self.wb),
+        );
+        std::mem::swap(&mut self.sys.0, &mut self.sys.1);
+    }
+
     pub fn advance(&mut self, dt: f32) {
         Field::advance::<operators::Upwind4>(
             &self.sys.0,
