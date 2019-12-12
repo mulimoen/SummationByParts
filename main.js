@@ -180,7 +180,7 @@ import { Universe, default as init, set_panic_hook as setPanicHook } from "./max
     }
 
     const TIMEFACTOR = 10000.0;
-    const MAX_DT = 2.0/Math.max(width, height);
+    const MAX_DT = 1.0/Math.max(width, height);
 
     let t = 0;
     let firstDraw = true;

@@ -122,6 +122,13 @@ impl Field {
             (&mut wb.y, &mut wb.buf, &mut wb.tmp)
         };
 
+        let boundaries = BoundaryTerms {
+            north: Boundary::This,
+            south: Boundary::This,
+            west: Boundary::This,
+            east: Boundary::This,
+        };
+
         for i in 0..4 {
             // y = y0 + c*kn
             y.assign(&self);
@@ -138,7 +145,7 @@ impl Field {
                 }
             };
 
-            RHS(&mut k[i], &y, grid, tmp);
+            RHS(&mut k[i], &y, grid, &boundaries, tmp);
         }
 
         Zip::from(&mut fut.0)
@@ -166,11 +173,12 @@ fn RHS<SBP: SbpOperator>(
     k: &mut Field,
     y: &Field,
     grid: &Grid<SBP>,
+    boundaries: &BoundaryTerms,
     tmp: &mut (Array2<f32>, Array2<f32>, Array2<f32>, Array2<f32>),
 ) {
     fluxes(k, y, grid, tmp);
 
-    SAT_characteristics(k, y, grid);
+    SAT_characteristics(k, y, grid, boundaries);
 
     azip!((k in &mut k.0,
                     &detj in &grid.detj.broadcast((3, y.ny(), y.nx())).unwrap()) {
@@ -252,9 +260,27 @@ fn fluxes<SBP: SbpOperator>(
     }
 }
 
+#[derive(Clone, Debug)]
+pub enum Boundary {
+    This,
+}
+
+#[derive(Clone, Debug)]
+pub struct BoundaryTerms {
+    pub north: Boundary,
+    pub south: Boundary,
+    pub east: Boundary,
+    pub west: Boundary,
+}
+
 #[allow(non_snake_case)]
-fn SAT_characteristics<SBP: SbpOperator>(k: &mut Field, y: &Field, grid: &Grid<SBP>) {
-    // Boundary conditions (SAT)
+/// Boundary conditions (SAT)
+fn SAT_characteristics<SBP: SbpOperator>(
+    k: &mut Field,
+    y: &Field,
+    grid: &Grid<SBP>,
+    boundaries: &BoundaryTerms,
+) {
     let ny = y.ny();
     let nx = y.nx();
 
@@ -276,9 +302,11 @@ fn SAT_characteristics<SBP: SbpOperator>(k: &mut Field, y: &Field, grid: &Grid<S
     }
 
     {
+        let g = match boundaries.east {
+            Boundary::This => y.slice(s![.., .., 0]),
+        };
         // East boundary
         let hinv = 1.0 / (SBP::h()[0] / (nx - 1) as f32);
-        let g = y.slice(s![.., .., 0]);
         for ((((mut k, v), g), &kx), &ky) in k
             .slice_mut(s![.., .., nx - 1])
             .gencolumns_mut()
@@ -309,8 +337,10 @@ fn SAT_characteristics<SBP: SbpOperator>(k: &mut Field, y: &Field, grid: &Grid<S
     }
     {
         // West boundary, negative flux
+        let g = match boundaries.east {
+            Boundary::This => y.slice(s![.., .., nx - 1]),
+        };
         let hinv = 1.0 / (SBP::h()[0] / (nx - 1) as f32);
-        let g = y.slice(s![.., .., nx - 1]);
         for ((((mut k, v), g), &kx), &ky) in k
             .slice_mut(s![.., .., 0])
             .gencolumns_mut()
@@ -346,7 +376,9 @@ fn SAT_characteristics<SBP: SbpOperator>(k: &mut Field, y: &Field, grid: &Grid<S
     }
 
     {
-        let g = y.slice(s![.., 0, ..]);
+        let g = match boundaries.north {
+            Boundary::This => y.slice(s![.., 0, ..]),
+        };
         let hinv = 1.0 / (SBP::h()[0] / (ny - 1) as f32);
         for ((((mut k, v), g), &kx), &ky) in k
             .slice_mut(s![.., ny - 1, ..])
@@ -377,7 +409,9 @@ fn SAT_characteristics<SBP: SbpOperator>(k: &mut Field, y: &Field, grid: &Grid<S
     }
 
     {
-        let g = y.slice(s![.., ny - 1, ..]);
+        let g = match boundaries.south {
+            Boundary::This => y.slice(s![.., ny - 1, ..]),
+        };
         let hinv = 1.0 / (SBP::h()[0] / (ny - 1) as f32);
         for ((((mut k, v), g), &kx), &ky) in k
             .slice_mut(s![.., 0, ..])
