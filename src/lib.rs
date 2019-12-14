@@ -61,7 +61,7 @@ impl Universe {
 
     /// Using artifical dissipation with the upwind operator
     pub fn advance_upwind(&mut self, dt: f32) {
-        Field::advance_upwind::<operators::Upwind4>(
+        maxwell::advance_upwind::<operators::Upwind4>(
             &self.sys.0,
             &mut self.sys.1,
             dt,
@@ -72,7 +72,7 @@ impl Universe {
     }
 
     pub fn advance(&mut self, dt: f32) {
-        Field::advance::<operators::Upwind4>(
+        maxwell::advance::<operators::Upwind4>(
             &self.sys.0,
             &mut self.sys.1,
             dt,
