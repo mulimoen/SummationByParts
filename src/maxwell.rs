@@ -19,16 +19,6 @@ impl std::ops::DerefMut for Field {
     }
 }
 
-fn gaussian(x: f32, x0: f32, y: f32, y0: f32) -> f32 {
-    use std::f32;
-    let x = x - x0;
-    let y = y - y0;
-
-    let sigma = 0.05;
-
-    1.0 / (2.0 * f32::consts::PI * sigma * sigma) * (-(x * x + y * y) / (2.0 * sigma * sigma)).exp()
-}
-
 impl Field {
     pub fn new(width: usize, height: usize) -> Self {
         let field = Array3::zeros((3, height, width));
@@ -77,24 +67,6 @@ impl Field {
             hz.into_shape((ny, nx)).unwrap(),
             ey.into_shape((ny, nx)).unwrap(),
         )
-    }
-
-    pub fn set_gaussian(&mut self, x0: f32, y0: f32) {
-        let nx = self.nx();
-        let ny = self.ny();
-
-        let (mut ex, mut hz, mut ey) = self.components_mut();
-        for j in 0..ny {
-            for i in 0..nx {
-                // Must divice interval on nx/ny instead of nx - 1/ny-1
-                // due to periodic conditions [0, 1)
-                let x = i as f32 / nx as f32;
-                let y = j as f32 / ny as f32;
-                ex[(j, i)] = 0.0;
-                ey[(j, i)] = 0.0;
-                hz[(j, i)] = gaussian(x, x0, y, y0) / 32.0;
-            }
-        }
     }
 
     pub(crate) fn advance_upwind<UO>(

@@ -43,8 +43,20 @@ impl Universe {
         }
     }
 
+    fn set_gaussian(&mut self, x0: f32, y0: f32) {
+        let (ex, hz, ey) = self.sys.0.components_mut();
+        ndarray::azip!(
+            (ex in ex, hz in hz, ey in ey,
+             &x in &self.grid.x, &y in &self.grid.y)
+        {
+            *ex = 0.0;
+            *ey = 0.0;
+            *hz = gaussian(x, x0, y, y0)/32.0;
+        });
+    }
+
     pub fn init(&mut self, x0: f32, y0: f32) {
-        self.sys.0.set_gaussian(x0, y0);
+        self.set_gaussian(x0, y0);
     }
 
     /// Using artifical dissipation with the upwind operator
@@ -81,4 +93,14 @@ impl Universe {
     pub fn get_hz_ptr(&self) -> *const u8 {
         self.sys.0.hz().as_ptr() as *const u8
     }
+}
+
+fn gaussian(x: f32, x0: f32, y: f32, y0: f32) -> f32 {
+    use std::f32;
+    let x = x - x0;
+    let y = y - y0;
+
+    let sigma = 0.05;
+
+    1.0 / (2.0 * f32::consts::PI * sigma * sigma) * (-(x * x + y * y) / (2.0 * sigma * sigma)).exp()
 }
