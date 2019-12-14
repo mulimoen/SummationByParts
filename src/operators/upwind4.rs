@@ -60,10 +60,10 @@ impl Upwind4 {
         let idx = 1.0 / dx;
 
         for j in 0..prev.len_of(Axis(0)) {
-            //use std::slice;
-            //let prev = unsafe { slice::from_raw_parts(prev.slice(s![j, ..]).as_ptr(), nx) };
-            let prev = prev.slice(s![j, ..]);
-            let prev = prev.as_slice_memory_order().unwrap();
+            use std::slice;
+            let prev = unsafe { slice::from_raw_parts(prev.uget((j, 0)) as *const f32, nx) };
+            let fut = unsafe { slice::from_raw_parts_mut(fut.uget_mut((j, 0)) as *mut f32, nx) };
+            //let mut fut = fut.slice_mut(s![j, ..]);
 
             let first_elems = unsafe { f32x8::from_slice_unaligned_unchecked(prev) };
             let block = {
@@ -83,10 +83,10 @@ impl Upwind4 {
                     ),
                 ]
             };
-            fut[(j, 0)] = idx * (block[0] * first_elems).sum();
-            fut[(j, 1)] = idx * (block[1] * first_elems).sum();
-            fut[(j, 2)] = idx * (block[2] * first_elems).sum();
-            fut[(j, 3)] = idx * (block[3] * first_elems).sum();
+            fut[0] = idx * (block[0] * first_elems).sum();
+            fut[1] = idx * (block[1] * first_elems).sum();
+            fut[2] = idx * (block[2] * first_elems).sum();
+            fut[3] = idx * (block[3] * first_elems).sum();
 
             let diag = {
                 let diag = Self::DIAG;
@@ -95,7 +95,6 @@ impl Upwind4 {
                 )
             };
             for (f, p) in fut
-                .slice_mut(s![j, ..])
                 .iter_mut()
                 .skip(block.len())
                 .zip(
@@ -110,10 +109,10 @@ impl Upwind4 {
 
             let last_elems = unsafe { f32x8::from_slice_unaligned_unchecked(&prev[nx - 8..]) }
                 .shuffle1_dyn(u32x8::new(7, 6, 5, 4, 3, 2, 1, 0));
-            fut[(j, nx - 4)] = -idx * (block[3] * last_elems).sum();
-            fut[(j, nx - 3)] = -idx * (block[2] * last_elems).sum();
-            fut[(j, nx - 2)] = -idx * (block[1] * last_elems).sum();
-            fut[(j, nx - 1)] = -idx * (block[0] * last_elems).sum();
+            fut[nx - 4] = -idx * (block[3] * last_elems).sum();
+            fut[nx - 3] = -idx * (block[2] * last_elems).sum();
+            fut[nx - 2] = -idx * (block[1] * last_elems).sum();
+            fut[nx - 1] = -idx * (block[0] * last_elems).sum();
         }
     }
 
@@ -136,31 +135,31 @@ impl Upwind4 {
             let a = unsafe {
                 [
                     SimdT::from_slice_unaligned(slice::from_raw_parts(
-                        prev.slice(s![j.., 0]).as_ptr(),
+                        prev.uget((j, 0)) as *const f32,
                         SimdT::lanes(),
                     )),
                     SimdT::from_slice_unaligned(slice::from_raw_parts(
-                        prev.slice(s![j.., 1]).as_ptr(),
+                        prev.uget((j, 1)) as *const f32,
                         SimdT::lanes(),
                     )),
                     SimdT::from_slice_unaligned(slice::from_raw_parts(
-                        prev.slice(s![j.., 2]).as_ptr(),
+                        prev.uget((j, 2)) as *const f32,
                         SimdT::lanes(),
                     )),
                     SimdT::from_slice_unaligned(slice::from_raw_parts(
-                        prev.slice(s![j.., 3]).as_ptr(),
+                        prev.uget((j, 3)) as *const f32,
                         SimdT::lanes(),
                     )),
                     SimdT::from_slice_unaligned(slice::from_raw_parts(
-                        prev.slice(s![j.., 4]).as_ptr(),
+                        prev.uget((j, 4)) as *const f32,
                         SimdT::lanes(),
                     )),
                     SimdT::from_slice_unaligned(slice::from_raw_parts(
-                        prev.slice(s![j.., 5]).as_ptr(),
+                        prev.uget((j, 5)) as *const f32,
                         SimdT::lanes(),
                     )),
                     SimdT::from_slice_unaligned(slice::from_raw_parts(
-                        prev.slice(s![j.., 6]).as_ptr(),
+                        prev.uget((j, 6)) as *const f32,
                         SimdT::lanes(),
                     )),
                 ]
@@ -177,7 +176,7 @@ impl Upwind4 {
                         + a[6] * bl[6]);
                 unsafe {
                     b.write_to_slice_unaligned(slice::from_raw_parts_mut(
-                        fut.slice_mut(s![j.., i]).as_mut_ptr(),
+                        fut.uget_mut((j, i)) as *mut f32,
                         SimdT::lanes(),
                     ));
                 }
@@ -188,7 +187,7 @@ impl Upwind4 {
                 // Push a onto circular buffer
                 a = [a[1], a[2], a[3], a[4], a[5], a[6], unsafe {
                     SimdT::from_slice_unaligned(slice::from_raw_parts(
-                        prev.slice(s![j.., i + 3]).as_ptr(),
+                        prev.uget((j, i + 3)) as *const f32,
                         SimdT::lanes(),
                     ))
                 }];
@@ -202,7 +201,7 @@ impl Upwind4 {
                         + a[6] * Self::DIAG[6]);
                 unsafe {
                     b.write_to_slice_unaligned(slice::from_raw_parts_mut(
-                        fut.slice_mut(s![j.., i]).as_mut_ptr(),
+                        fut.uget_mut((j, i)) as *mut f32,
                         SimdT::lanes(),
                     ));
                 }
@@ -211,31 +210,31 @@ impl Upwind4 {
             let a = unsafe {
                 [
                     SimdT::from_slice_unaligned(slice::from_raw_parts(
-                        prev.slice(s![j.., nx - 1]).as_ptr(),
+                        prev.uget((j, nx - 1)) as *const f32,
                         SimdT::lanes(),
                     )),
                     SimdT::from_slice_unaligned(slice::from_raw_parts(
-                        prev.slice(s![j.., nx - 2]).as_ptr(),
+                        prev.uget((j, nx - 2)) as *const f32,
                         SimdT::lanes(),
                     )),
                     SimdT::from_slice_unaligned(slice::from_raw_parts(
-                        prev.slice(s![j.., nx - 3]).as_ptr(),
+                        prev.uget((j, nx - 3)) as *const f32,
                         SimdT::lanes(),
                     )),
                     SimdT::from_slice_unaligned(slice::from_raw_parts(
-                        prev.slice(s![j.., nx - 4]).as_ptr(),
+                        prev.uget((j, nx - 4)) as *const f32,
                         SimdT::lanes(),
                     )),
                     SimdT::from_slice_unaligned(slice::from_raw_parts(
-                        prev.slice(s![j.., nx - 5]).as_ptr(),
+                        prev.uget((j, nx - 5)) as *const f32,
                         SimdT::lanes(),
                     )),
                     SimdT::from_slice_unaligned(slice::from_raw_parts(
-                        prev.slice(s![j.., nx - 6]).as_ptr(),
+                        prev.uget((j, nx - 6)) as *const f32,
                         SimdT::lanes(),
                     )),
                     SimdT::from_slice_unaligned(slice::from_raw_parts(
-                        prev.slice(s![j.., nx - 7]).as_ptr(),
+                        prev.uget((j, nx - 7)) as *const f32,
                         SimdT::lanes(),
                     )),
                 ]
