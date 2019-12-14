@@ -56,17 +56,14 @@ impl Field {
     pub fn components_mut(
         &mut self,
     ) -> (ArrayViewMut2<f32>, ArrayViewMut2<f32>, ArrayViewMut2<f32>) {
-        let nx = self.nx();
-        let ny = self.ny();
+        let mut iter = self.0.outer_iter_mut();
 
-        let (ex, f) = self.0.view_mut().split_at(Axis(0), 1);
-        let (hz, ey) = f.split_at(Axis(0), 1);
+        let ex = iter.next().unwrap();
+        let hz = iter.next().unwrap();
+        let ey = iter.next().unwrap();
+        assert_eq!(iter.next(), None);
 
-        (
-            ex.into_shape((ny, nx)).unwrap(),
-            hz.into_shape((ny, nx)).unwrap(),
-            ey.into_shape((ny, nx)).unwrap(),
-        )
+        (ex, hz, ey)
     }
 }
 
