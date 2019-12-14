@@ -25,8 +25,9 @@ macro_rules! diff_simd_row_7_47 {
                 assert_eq!(prev.shape(), fut.shape());
                 assert!(prev.len_of(Axis(1)) >= 2 * $BLOCK.len());
                 assert!(prev.len() >= f32x8::lanes());
-                // The prev array must have contigous last dimension
+                // The prev and fut array must have contigous last dimension
                 assert_eq!(prev.strides()[1], 1);
+                assert_eq!(fut.strides()[1], 1);
 
                 let nx = prev.len_of(Axis(1));
                 let dx = 1.0 / (nx - 1) as f32;
@@ -254,7 +255,7 @@ macro_rules! diff_simd_col_7_47 {
                                 + a[6] * bl[6]);
                         unsafe {
                             b.write_to_slice_unaligned(slice::from_raw_parts_mut(
-                                fut.slice_mut(s![j.., nx - 1 - i]).as_mut_ptr(),
+                                fut.uget_mut((j, nx - 1 - i)) as *mut f32,
                                 SimdT::lanes(),
                             ));
                         }
@@ -311,7 +312,7 @@ impl SbpOperator for Upwind4 {
         assert!(prev.shape()[1] >= 2 * Self::BLOCK.len());
 
         match (prev.strides(), fut.strides()) {
-            ([_, 1], [_, _]) => {
+            ([_, 1], [_, 1]) => {
                 Self::diff_simd_row(prev, fut);
             }
             ([1, _], [1, _]) if prev.len_of(Axis(0)) % SimdT::lanes() == 0 => {
@@ -431,7 +432,7 @@ impl UpwindOperator for Upwind4 {
         assert!(prev.shape()[1] >= 2 * Self::BLOCK.len());
 
         match (prev.strides(), fut.strides()) {
-            ([_, 1], [_, _]) => {
+            ([_, 1], [_, 1]) => {
                 Self::diss_simd_row(prev, fut);
             }
             ([1, _], [1, _]) if prev.len_of(Axis(0)) % SimdT::lanes() == 0 => {
