@@ -67,5 +67,9 @@ macro_rules! diff_op_1d {
 
 mod upwind4;
 pub use upwind4::Upwind4;
+mod upwind9;
+pub use upwind9::Upwind9;
 mod traditional4;
 pub use traditional4::SBP4;
+mod traditional8;
+pub use traditional8::SBP8;
