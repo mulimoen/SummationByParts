@@ -16,9 +16,7 @@ where
 }
 
 impl<SBP: super::operators::SbpOperator> Grid<SBP> {
-    pub fn new(width: u32, height: u32, x: &[f32], y: &[f32]) -> Result<Self, ndarray::ShapeError> {
-        let nx = width as usize;
-        let ny = height as usize;
+    pub fn new(nx: usize, ny: usize, x: &[f32], y: &[f32]) -> Result<Self, ndarray::ShapeError> {
         let x = Array2::from_shape_vec((ny, nx), x.to_vec())?;
         let y = Array2::from_shape_vec((ny, nx), y.to_vec())?;
 
