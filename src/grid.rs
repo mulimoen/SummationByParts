@@ -16,9 +16,10 @@ where
 }
 
 impl<SBP: super::operators::SbpOperator> Grid<SBP> {
-    pub fn new(nx: usize, ny: usize, x: &[f32], y: &[f32]) -> Result<Self, ndarray::ShapeError> {
-        let x = Array2::from_shape_vec((ny, nx), x.to_vec())?;
-        let y = Array2::from_shape_vec((ny, nx), y.to_vec())?;
+    pub fn new(x: Array2<f32>, y: Array2<f32>) -> Result<Self, ndarray::ShapeError> {
+        assert_eq!(x.shape(), y.shape());
+        let ny = x.shape()[0];
+        let nx = x.shape()[1];
 
         let mut dx_dxi = Array2::zeros((ny, nx));
         SBP::diffxi(x.view(), dx_dxi.view_mut());
@@ -62,5 +63,22 @@ impl<SBP: super::operators::SbpOperator> Grid<SBP> {
             detj_deta_dy,
             operator: std::marker::PhantomData,
         })
+    }
+    pub fn new_from_slice(
+        ny: usize,
+        nx: usize,
+        x: &[f32],
+        y: &[f32],
+    ) -> Result<Self, ndarray::ShapeError> {
+        let x = Array2::from_shape_vec((ny, nx), x.to_vec())?;
+        let y = Array2::from_shape_vec((ny, nx), y.to_vec())?;
+
+        Self::new(x, y)
+    }
+    pub fn nx(&self) -> usize {
+        self.x.shape()[1]
+    }
+    pub fn ny(&self) -> usize {
+        self.x.shape()[0]
     }
 }

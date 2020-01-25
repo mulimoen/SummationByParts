@@ -1,4 +1,4 @@
-import { Universe, default as init, set_panic_hook as setPanicHook } from "./maxwell.js";
+import { EulerUniverse, Universe, default as init, set_panic_hook as setPanicHook } from "./maxwell.js";
 
 /**
  * Initialises and runs the Maxwell solver,
@@ -49,7 +49,7 @@ import { Universe, default as init, set_panic_hook as setPanicHook } from "./max
             if (uChosenField == 0) {
                 r = vField + 0.5;
             } else if (uChosenField == 1) {
-                g = (vField + 1.0)/2.0;
+                g = 2.5*(vField - 1.0) + 0.5;
             } else {
                 b = vField + 0.5;
             }
@@ -103,8 +103,8 @@ import { Universe, default as init, set_panic_hook as setPanicHook } from "./max
     for (let j = 0; j < height; j += 1) {
         for (let i = 0; i < width; i += 1) {
             const n = width*j + i;
-            x[n] = i / (width - 1.0);
-            y[n] = j / (height - 1.0);
+            x[n] = 10.0*(i / (width - 1.0) - 0.5);
+            y[n] = 20.0*(j / (height - 1.0));
 
 
             if (DIAMOND) {
@@ -116,7 +116,7 @@ import { Universe, default as init, set_panic_hook as setPanicHook } from "./max
         }
     }
 
-    const universe = new Universe(width, height, x, y);
+    const universe = new EulerUniverse(height, width, x, y);
 
 
     // Transfer x, y to cpu, prepare fBuffer
@@ -201,7 +201,7 @@ import { Universe, default as init, set_panic_hook as setPanicHook } from "./max
     };
     chosenField.cycle();
 
-    universe.init(0.5, 0.5);
+    universe.init(0, 10);
 
     /**
      * Integrates and draws the next iteration
@@ -227,14 +227,18 @@ import { Universe, default as init, set_panic_hook as setPanicHook } from "./max
 
         let fieldPtr;
         if (chosenField.value === 0) {
-            fieldPtr = universe.get_ex_ptr();
+            fieldPtr = universe.get_rho_ptr();
         } else if (chosenField.value === 1) {
-            fieldPtr = universe.get_hz_ptr();
+            fieldPtr = universe.get_rhou_ptr();
+        } else if (chosenField.value == 2) {
+            fieldPtr = universe.get_rhov_ptr();
         } else {
-            fieldPtr = universe.get_ey_ptr();
-        }
+            fieldPtr = universe.get_e_ptr();
+        };
         const field = new Float32Array(wasm.memory.buffer, fieldPtr, width*height);
         gl.bufferData(gl.ARRAY_BUFFER, field, gl.DYNAMIC_DRAW);
+        console.log(field.reduce((min, v) => v < min ? v : min));
+        console.log(field.reduce((max, v) => v > max ? v : max));
 
         {
             const offset = 0;
@@ -243,8 +247,8 @@ import { Universe, default as init, set_panic_hook as setPanicHook } from "./max
             gl.drawElements(gl.TRIANGLES, vertexCount, type, offset);
         }
 
-        universe.advance_upwind(dt/2);
-        universe.advance_upwind(dt/2);
+        universe.advance(dt/2);
+        universe.advance(dt/2);
 
         window.requestAnimationFrame(drawMe);
     }
@@ -267,7 +271,7 @@ import { Universe, default as init, set_panic_hook as setPanicHook } from "./max
         // Must adjust for bbox and transformations for x/y
         const mousex = event.clientX / window.innerWidth;
         const mousey = event.clientY / window.innerHeight;
-        universe.init(mousex, 1.0 - mousey);
+        universe.init(10*(mousex-0.5), 20.0*(1.0 - mousey));
     }, {"passive": true});
 
     resizeCanvas();
