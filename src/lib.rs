@@ -147,10 +147,10 @@ impl EulerUniverse {
 
     pub fn init(&mut self, x0: f32, y0: f32) {
         // Should parametrise such that we have radius, drop in pressure at center, etc
-        let rstar = 0.5;
-        let eps = 1.0;
+        let rstar = 1.0;
+        let eps = 3.0;
         #[allow(non_snake_case)]
-        let M = 0.1;
+        let M = 0.5;
 
         let p_inf = 1.0 / (euler::GAMMA * M * M);
         let t = 0.0;
@@ -164,7 +164,7 @@ impl EulerUniverse {
                 let y = self.0.grid.y[(j, i)];
 
                 let dx = (x - x0) - t;
-                let dy = (y - y0) - t;
+                let dy = y - y0;
                 let f = (1.0 - (dx * dx + dy * dy)) / (rstar * rstar);
 
                 use euler::GAMMA;
@@ -180,7 +180,7 @@ impl EulerUniverse {
                     1.0 / (GAMMA - 1.0),
                 );
                 assert!(rho > 0.0);
-                let p = rho.powf(GAMMA) * p_inf;
+                let p = p_inf * rho.powf(GAMMA);
                 assert!(p > 0.0);
                 let e = p / (GAMMA - 1.0) + rho * (u * u + v * v) / 2.0;
                 assert!(e > 0.0);
@@ -197,8 +197,8 @@ impl EulerUniverse {
         self.0.advance(dt)
     }
 
-    pub fn advance_upwind(&mut self, _dt: f32) {
-        todo!()
+    pub fn advance_upwind(&mut self, dt: f32) {
+        self.0.advance_upwind(dt)
     }
 
     pub fn get_rho_ptr(&self) -> *const u8 {
@@ -241,11 +241,41 @@ impl<SBP: operators::SbpOperator> EulerSystem<SBP> {
     }
 }
 
+impl<SBP: operators::UpwindOperator> EulerSystem<SBP> {
+    pub fn advance_upwind(&mut self, dt: f32) {
+        euler::advance_upwind(
+            &self.sys.0,
+            &mut self.sys.1,
+            dt,
+            &self.grid,
+            Some(&mut self.wb),
+        );
+        std::mem::swap(&mut self.sys.0, &mut self.sys.1);
+    }
+}
+
 #[test]
 fn start_and_advance_euler() {
+    let x = ndarray::Array2::from_shape_fn((20, 20), |(_j, i)| {
+        5.0 * 2.0 * ((i as f32 / (20 - 1) as f32) - 0.5)
+    });
+    let y = ndarray::Array2::from_shape_fn((20, 20), |(j, _i)| {
+        5.0 * 2.0 * ((j as f32 / (20 - 1) as f32) - 0.5)
+    });
+    let mut universe = EulerUniverse::new(x, y);
+    universe.init(-1.0, 0.0);
+    for _ in 0..50 {
+        universe.advance(0.01);
+    }
+}
+
+#[test]
+fn start_and_advance_upwind_euler() {
     let x = ndarray::Array2::from_shape_fn((20, 10), |(_j, i)| i as f32 / (10 - 1) as f32);
     let y = ndarray::Array2::from_shape_fn((20, 10), |(j, _i)| j as f32 / (20 - 1) as f32);
     let mut universe = EulerUniverse::new(x, y);
     universe.init(0.5, 0.5);
-    universe.advance(0.01);
+    for _ in 0..50 {
+        universe.advance_upwind(0.01);
+    }
 }

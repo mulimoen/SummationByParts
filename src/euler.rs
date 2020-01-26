@@ -121,7 +121,6 @@ impl Field {
     }
 }
 
-#[allow(unused)]
 pub(crate) fn advance_upwind<UO>(
     prev: &Field,
     fut: &mut Field,
@@ -176,12 +175,6 @@ pub(crate) fn advance_upwind<UO>(
         .apply(|y1, &y0, &k1, &k2, &k3, &k4| *y1 = y0 + dt / 6.0 * (k1 + 2.0 * k2 + 2.0 * k3 + k4));
 }
 
-/// Solving (Au)_x + (Bu)_y
-/// with:
-///        A               B
-///  [ 0,  0,  0]    [ 0,  1,  0]
-///  [ 0,  0, -1]    [ 1,  0,  0]
-///  [ 0, -1,  0]    [ 0,  0,  0]
 pub(crate) fn advance<SBP>(
     prev: &Field,
     fut: &mut Field,
@@ -241,42 +234,32 @@ fn pressure(gamma: f32, rho: f32, rhou: f32, rhov: f32, e: f32) -> f32 {
 }
 
 #[allow(non_snake_case)]
-/// This flux is rotated by the grid metrics
-/// (Au)_x + (Bu)_y = 1/J [
-///          (J xi_x Au)_xi + (J eta_x Au)_eta
-///          (J xi_y Bu)_xi + (J eta_y Bu)_eta
-///      ]
-/// where J is the grid determinant
-///
-/// This is used both in fluxes and SAT terms
 fn RHS<SBP: SbpOperator>(
     k: &mut Field,
     y: &Field,
     grid: &Grid<SBP>,
     boundaries: &BoundaryTerms,
-    tmp: &mut (Field, Field, Field, Field),
+    tmp: &mut (Field, Field, Field, Field, Field, Field),
 ) {
     let ehat = &mut tmp.0;
     let fhat = &mut tmp.1;
-    fluxes([ehat, fhat], y, grid);
-    let de = &mut tmp.2;
-    let df = &mut tmp.3;
+    fluxes((ehat, fhat), y, grid);
+    let dE = &mut tmp.2;
+    let dF = &mut tmp.3;
 
-    SBP::diffxi(ehat.rho(), de.rho_mut());
-    SBP::diffxi(ehat.rhou(), de.rhou_mut());
-    SBP::diffxi(ehat.rhov(), de.rhov_mut());
-    SBP::diffxi(ehat.e(), de.e_mut());
+    SBP::diffxi(ehat.rho(), dE.rho_mut());
+    SBP::diffxi(ehat.rhou(), dE.rhou_mut());
+    SBP::diffxi(ehat.rhov(), dE.rhov_mut());
+    SBP::diffxi(ehat.e(), dE.e_mut());
 
-    SBP::diffeta(fhat.rho(), df.rho_mut());
-    SBP::diffeta(fhat.rhou(), df.rhou_mut());
-    SBP::diffeta(fhat.rhov(), df.rhov_mut());
-    SBP::diffeta(fhat.e(), df.e_mut());
+    SBP::diffeta(fhat.rho(), dF.rho_mut());
+    SBP::diffeta(fhat.rhou(), dF.rhou_mut());
+    SBP::diffeta(fhat.rhov(), dF.rhov_mut());
+    SBP::diffeta(fhat.e(), dF.e_mut());
 
-    // And dissipation...
-
-    ndarray::azip!((out in &mut k.0,
-                    eflux in &de.0,
-                    fflux in &df.0,
+    azip!((out in &mut k.0,
+                    eflux in &dE.0,
+                    fflux in &dF.0,
                     detj in &grid.detj.broadcast((4, y.ny(), y.nx())).unwrap()) {
         *out = (-eflux - fflux)/detj
     });
@@ -285,26 +268,100 @@ fn RHS<SBP: SbpOperator>(
 }
 
 #[allow(non_snake_case)]
-#[allow(unused)]
 fn RHS_upwind<UO: UpwindOperator>(
     k: &mut Field,
     y: &Field,
     grid: &Grid<UO>,
     boundaries: &BoundaryTerms,
-    tmp: &mut (Field, Field, Field, Field),
+    tmp: &mut (Field, Field, Field, Field, Field, Field),
 ) {
-    // fluxes(k, y, grid, tmp);
-    // dissipation(k, y, grid, tmp);
+    let ehat = &mut tmp.0;
+    let fhat = &mut tmp.1;
+    fluxes((ehat, fhat), y, grid);
+    let dE = &mut tmp.2;
+    let dF = &mut tmp.3;
+
+    UO::diffxi(ehat.rho(), dE.rho_mut());
+    UO::diffxi(ehat.rhou(), dE.rhou_mut());
+    UO::diffxi(ehat.rhov(), dE.rhov_mut());
+    UO::diffxi(ehat.e(), dE.e_mut());
+
+    UO::diffeta(fhat.rho(), dF.rho_mut());
+    UO::diffeta(fhat.rhou(), dF.rhou_mut());
+    UO::diffeta(fhat.rhov(), dF.rhov_mut());
+    UO::diffeta(fhat.e(), dF.e_mut());
+
+    let ad_xi = &mut tmp.4;
+    let ad_eta = &mut tmp.5;
+    upwind_dissipation((ad_xi, ad_eta), y, grid, (&mut tmp.0, &mut tmp.1));
+
+    azip!((out in &mut k.0,
+                    eflux in &dE.0,
+                    fflux in &dF.0,
+                    ad_xi in &ad_xi.0,
+                    ad_eta in &ad_eta.0,
+                    detj in &grid.detj.broadcast((4, y.ny(), y.nx())).unwrap()) {
+        *out = (-eflux - fflux + ad_xi + ad_eta)/detj
+    });
 
     SAT_characteristics(k, y, grid, boundaries);
-
-    azip!((k in &mut k.0,
-                    &detj in &grid.detj.broadcast((3, y.ny(), y.nx())).unwrap()) {
-        *k /= detj;
-    });
 }
 
-fn fluxes<SBP: SbpOperator>(k: [&mut Field; 2], y: &Field, grid: &Grid<SBP>) {
+fn upwind_dissipation<UO: UpwindOperator>(
+    k: (&mut Field, &mut Field),
+    y: &Field,
+    grid: &Grid<UO>,
+    tmp: (&mut Field, &mut Field),
+) {
+    for j in 0..y.ny() {
+        for i in 0..y.nx() {
+            let rho = y[(0, j, i)];
+            assert!(rho > 0.0);
+            let rhou = y[(1, j, i)];
+            let rhov = y[(2, j, i)];
+            let e = y[(3, j, i)];
+
+            let u = rhou / rho;
+            let v = rhov / rho;
+
+            let uhat = grid.detj_dxi_dx[(j, i)] / grid.detj[(j, i)] * u
+                + grid.detj_dxi_dy[(j, i)] / grid.detj[(j, i)] * v;
+            let vhat = grid.detj_deta_dx[(j, i)] / grid.detj[(j, i)] * u
+                + grid.detj_deta_dy[(j, i)] / grid.detj[(j, i)] * v;
+
+            let p = pressure(GAMMA, rho, rhou, rhov, e);
+            assert!(p > 0.0);
+            let c = (GAMMA * p / rho).sqrt();
+
+            let alpha_u = uhat.abs() + c;
+            let alpha_v = vhat.abs() + c;
+
+            tmp.0[(0, j, i)] = alpha_u * rho * grid.detj[(j, i)];
+            tmp.1[(0, j, i)] = alpha_v * rho * grid.detj[(j, i)];
+
+            tmp.0[(1, j, i)] = alpha_u * rhou * grid.detj[(j, i)];
+            tmp.1[(1, j, i)] = alpha_v * rhou * grid.detj[(j, i)];
+
+            tmp.0[(2, j, i)] = alpha_u * rhov * grid.detj[(j, i)];
+            tmp.1[(2, j, i)] = alpha_v * rhov * grid.detj[(j, i)];
+
+            tmp.0[(3, j, i)] = alpha_u * e * grid.detj[(j, i)];
+            tmp.1[(3, j, i)] = alpha_v * e * grid.detj[(j, i)];
+        }
+    }
+
+    UO::dissxi(tmp.0.rho(), k.0.rho_mut());
+    UO::dissxi(tmp.0.rhou(), k.0.rhou_mut());
+    UO::dissxi(tmp.0.rhov(), k.0.rhov_mut());
+    UO::dissxi(tmp.0.e(), k.0.e_mut());
+
+    UO::disseta(tmp.1.rho(), k.1.rho_mut());
+    UO::disseta(tmp.1.rhou(), k.1.rhou_mut());
+    UO::disseta(tmp.1.rhov(), k.1.rhov_mut());
+    UO::disseta(tmp.1.e(), k.1.e_mut());
+}
+
+fn fluxes<SBP: SbpOperator>(k: (&mut Field, &mut Field), y: &Field, grid: &Grid<SBP>) {
     let j_dxi_dx = grid.detj_dxi_dx.view();
     let j_dxi_dy = grid.detj_dxi_dy.view();
     let j_deta_dx = grid.detj_deta_dx.view();
@@ -318,10 +375,13 @@ fn fluxes<SBP: SbpOperator>(k: [&mut Field; 2], y: &Field, grid: &Grid<SBP>) {
     for j in 0..y.ny() {
         for i in 0..y.nx() {
             let rho = rho[(j, i)];
+            assert!(rho > 0.0);
             let rhou = rhou[(j, i)];
             let rhov = rhov[(j, i)];
             let e = e[(j, i)];
             let p = pressure(GAMMA, rho, rhou, rhov, e);
+
+            assert!(p > 0.0);
 
             let ef = [
                 rhou,
@@ -340,21 +400,11 @@ fn fluxes<SBP: SbpOperator>(k: [&mut Field; 2], y: &Field, grid: &Grid<SBP>) {
                 let eflux = j_dxi_dx[(j, i)] * ef[comp] + j_dxi_dy[(j, i)] * ff[comp];
                 let fflux = j_deta_dx[(j, i)] * ef[comp] + j_deta_dy[(j, i)] * ff[comp];
 
-                k[0][(comp, j, i)] = eflux;
-                k[1][(comp, j, i)] = fflux;
+                k.0[(comp, j, i)] = eflux;
+                k.1[(comp, j, i)] = fflux;
             }
         }
     }
-}
-
-#[allow(unused)]
-fn dissipation<UO: UpwindOperator>(
-    k: &mut Field,
-    y: &Field,
-    grid: &Grid<UO>,
-    tmp: &mut (Array2<f32>, Array2<f32>, Array2<f32>, Array2<f32>),
-) {
-    todo!()
 }
 
 #[derive(Clone, Debug)]
@@ -378,6 +428,16 @@ fn SAT_characteristics<SBP: SbpOperator>(
     grid: &Grid<SBP>,
     _boundaries: &BoundaryTerms,
 ) {
+    /* // Whean using infinite boundaries, use this...
+    let steady_v = [1.0, 1.0, 0.0, {
+        let M = 0.1;
+        let p_inf = 1.0 / (GAMMA * M * M);
+        p_inf / (GAMMA - 1.0) + 0.5
+    }];
+    let steady_a = ndarray::Array1::from(steady_v.to_vec());
+    let steady = steady_a.broadcast((k.nx(), 4)).unwrap().reversed_axes();
+    assert_eq!(steady.shape(), [4, k.nx()]);
+    */
     // North boundary
     {
         let hi = (k.ny() - 1) as f32 * SBP::h()[0];
@@ -388,6 +448,7 @@ fn SAT_characteristics<SBP: SbpOperator>(
             k.north_mut(),
             y.north(),
             y.south(), // Self South
+            //steady.view(),
             hi,
             sign,
             tau,
@@ -406,6 +467,7 @@ fn SAT_characteristics<SBP: SbpOperator>(
             k.south_mut(),
             y.south(),
             y.north(), // Self North
+            //steady.view(),
             hi,
             sign,
             tau,
@@ -414,17 +476,28 @@ fn SAT_characteristics<SBP: SbpOperator>(
             grid.detj_deta_dy.slice(slice),
         );
     }
+    /*let steady = ndarray::Array2::from_shape_fn((4, k.ny()), |(k, _)| match k {
+        0 => 1.0,
+        1 => 1.0,
+        2 => 0.0,
+        3 => {
+            let M = 0.1;
+            let p_inf = 1.0 / (GAMMA * M * M);
+            p_inf / (GAMMA - 1.0) + 0.5
+        }
+        _ => unreachable!(),
+    });*/
     // West Boundary
     {
         let hi = (k.nx() - 1) as f32 * SBP::h()[0];
         let sign = 1.0;
         let tau = -1.0;
         let slice = s![.., 0];
-        println!("{:?}", slice);
         SAT_characteristic(
             k.west_mut(),
             y.west(),
             y.east(), // Self East
+            //steady.view(),
             hi,
             sign,
             tau,
@@ -443,6 +516,7 @@ fn SAT_characteristics<SBP: SbpOperator>(
             k.east_mut(),
             y.east(),
             y.west(), // Self West
+            //steady.view(),
             hi,
             sign,
             tau,
@@ -472,14 +546,21 @@ fn SAT_characteristic(
     assert_eq!(y.shape()[0], 4);
     assert_eq!(y.shape()[1], detj.shape()[0]);
 
-    for i in 0..z.shape()[1] {
-        let rho = y[(0, i)];
-        let rhou = y[(1, i)];
-        let rhov = y[(2, i)];
-        let e = y[(3, i)];
+    for (((((mut k, y), z), detj), detj_d_dx), detj_d_dy) in k
+        .axis_iter_mut(ndarray::Axis(1))
+        .zip(y.axis_iter(ndarray::Axis(1)))
+        .zip(z.axis_iter(ndarray::Axis(1)))
+        .zip(detj.iter())
+        .zip(detj_d_dx.iter())
+        .zip(detj_d_dy.iter())
+    {
+        let rho = y[0];
+        let rhou = y[1];
+        let rhov = y[2];
+        let e = y[3];
 
-        let kx_ = detj_d_dx[i] / detj[i];
-        let ky_ = detj_d_dy[i] / detj[i];
+        let kx_ = detj_d_dx / detj;
+        let ky_ = detj_d_dy / detj;
 
         let (kx, ky) = {
             let r = f32::hypot(kx_, ky_);
@@ -538,12 +619,7 @@ fn SAT_characteristic(
             ],
         ];
 
-        let res = [
-            rho - z[(0, i)],
-            rhou - z[(1, i)],
-            rhov - z[(2, i)],
-            e - z[(3, i)],
-        ];
+        let res = [rho - z[0], rhou - z[1], rhov - z[2], e - z[3]];
         let mut TIres = [0.0; 4];
         for row in 0..4 {
             for col in 0..4 {
@@ -566,7 +642,7 @@ fn SAT_characteristic(
         }
 
         for comp in 0..4 {
-            k[(comp, i)] += hi * tau * TLTIres[comp];
+            k[comp] += hi * tau * TLTIres[comp];
         }
     }
 }
@@ -574,7 +650,7 @@ fn SAT_characteristic(
 pub struct WorkBuffers {
     y: Field,
     buf: [Field; 4],
-    tmp: (Field, Field, Field, Field),
+    tmp: (Field, Field, Field, Field, Field, Field),
 }
 
 impl WorkBuffers {
@@ -583,7 +659,14 @@ impl WorkBuffers {
         Self {
             y: arr3.clone(),
             buf: [arr3.clone(), arr3.clone(), arr3.clone(), arr3.clone()],
-            tmp: (arr3.clone(), arr3.clone(), arr3.clone(), arr3),
+            tmp: (
+                arr3.clone(),
+                arr3.clone(),
+                arr3.clone(),
+                arr3.clone(),
+                arr3.clone(),
+                arr3,
+            ),
         }
     }
 }

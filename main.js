@@ -8,6 +8,7 @@ import { EulerUniverse, Universe, default as init, set_panic_hook as setPanicHoo
     const wasm = await init("./maxwell_bg.wasm");
     setPanicHook();
     const DIAMOND = false;
+    const UPWIND = true;
 
     const canvas = document.getElementById("glCanvas");
 
@@ -103,7 +104,7 @@ import { EulerUniverse, Universe, default as init, set_panic_hook as setPanicHoo
     for (let j = 0; j < height; j += 1) {
         for (let i = 0; i < width; i += 1) {
             const n = width*j + i;
-            x[n] = 10.0*(i / (width - 1.0) - 0.5);
+            x[n] = 20.0*(i / (width - 1.0));
             y[n] = 20.0*(j / (height - 1.0));
 
 
@@ -201,7 +202,7 @@ import { EulerUniverse, Universe, default as init, set_panic_hook as setPanicHoo
     };
     chosenField.cycle();
 
-    universe.init(0, 10);
+    universe.init(10, 10);
 
     /**
      * Integrates and draws the next iteration
@@ -237,8 +238,8 @@ import { EulerUniverse, Universe, default as init, set_panic_hook as setPanicHoo
         };
         const field = new Float32Array(wasm.memory.buffer, fieldPtr, width*height);
         gl.bufferData(gl.ARRAY_BUFFER, field, gl.DYNAMIC_DRAW);
-        console.log(field.reduce((min, v) => v < min ? v : min));
-        console.log(field.reduce((max, v) => v > max ? v : max));
+        // console.log(field.reduce((min, v) => v < min ? v : min));
+        // console.log(field.reduce((max, v) => v > max ? v : max));
 
         {
             const offset = 0;
@@ -247,8 +248,13 @@ import { EulerUniverse, Universe, default as init, set_panic_hook as setPanicHoo
             gl.drawElements(gl.TRIANGLES, vertexCount, type, offset);
         }
 
-        universe.advance(dt/2);
-        universe.advance(dt/2);
+        if (UPWIND) {
+            universe.advance_upwind(dt/2);
+            universe.advance_upwind(dt/2);
+        } else {
+            universe.advance(dt/2);
+            universe.advance(dt/2);
+        }
 
         window.requestAnimationFrame(drawMe);
     }
@@ -271,7 +277,14 @@ import { EulerUniverse, Universe, default as init, set_panic_hook as setPanicHoo
         // Must adjust for bbox and transformations for x/y
         const mousex = event.clientX / window.innerWidth;
         const mousey = event.clientY / window.innerHeight;
-        universe.init(10*(mousex-0.5), 20.0*(1.0 - mousey));
+
+        const normx = mousex;
+        const normy = 1.0 - mousey;
+
+        universe.init(
+            (bbox[1] - bbox[0])*normx + bbox[0],
+            (bbox[3] - bbox[2])*normy + bbox[2],
+        );
     }, {"passive": true});
 
     resizeCanvas();
