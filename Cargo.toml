@@ -30,3 +30,6 @@ criterion = "0.3.0"
 name = "system"
 path = "src/benches/bench.rs"
 harness = false
+
+[profile.bench]
+debug = true

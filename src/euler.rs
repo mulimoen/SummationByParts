@@ -443,7 +443,7 @@ fn SAT_characteristics<SBP: SbpOperator>(
         let hi = (k.ny() - 1) as f32 * SBP::h()[0];
         let sign = -1.0;
         let tau = 1.0;
-        let slice = s![y.nx() - 1, ..];
+        let slice = s![y.ny() - 1, ..];
         SAT_characteristic(
             k.north_mut(),
             y.north(),

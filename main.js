@@ -211,20 +211,7 @@ import { EulerUniverse, Universe, default as init, set_panic_hook as setPanicHoo
     function drawMe(timeOfDraw) {
         gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
-        let dt = (timeOfDraw - t) / TIMEFACTOR;
-        t = timeOfDraw;
-        if (firstDraw || dt <= 0.0) {
-            firstDraw = false;
-            dt = MAX_DT;
-        } else {
-            if (dt >= MAX_DT) {
-                warnTime += 1;
-                if (warnTime !== -2) {
-                    console.warn("Can not keep up with framerate");
-                }
-                dt = MAX_DT;
-            }
-        }
+        let dt = 0.01;
 
         let fieldPtr;
         if (chosenField.value === 0) {

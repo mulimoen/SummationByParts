@@ -146,51 +146,7 @@ impl EulerUniverse {
     }
 
     pub fn init(&mut self, x0: f32, y0: f32) {
-        // Should parametrise such that we have radius, drop in pressure at center, etc
-        let rstar = 1.0;
-        let eps = 3.0;
-        #[allow(non_snake_case)]
-        let M = 0.5;
-
-        let p_inf = 1.0 / (euler::GAMMA * M * M);
-        let t = 0.0;
-
-        let nx = self.0.grid.nx();
-        let ny = self.0.grid.ny();
-
-        for j in 0..ny {
-            for i in 0..nx {
-                let x = self.0.grid.x[(j, i)];
-                let y = self.0.grid.y[(j, i)];
-
-                let dx = (x - x0) - t;
-                let dy = y - y0;
-                let f = (1.0 - (dx * dx + dy * dy)) / (rstar * rstar);
-
-                use euler::GAMMA;
-                use std::f32::consts::PI;
-                let u =
-                    1.0 - eps * dy / (2.0 * PI * p_inf.sqrt() * rstar * rstar) * (f / 2.0).exp();
-                let v =
-                    0.0 + eps * dx / (2.0 * PI * p_inf.sqrt() * rstar * rstar) * (f / 2.0).exp();
-                let rho = f32::powf(
-                    1.0 - eps * eps * (GAMMA - 1.0) * M * M
-                        / (8.0 * PI * PI * p_inf * rstar * rstar)
-                        * f.exp(),
-                    1.0 / (GAMMA - 1.0),
-                );
-                assert!(rho > 0.0);
-                let p = p_inf * rho.powf(GAMMA);
-                assert!(p > 0.0);
-                let e = p / (GAMMA - 1.0) + rho * (u * u + v * v) / 2.0;
-                assert!(e > 0.0);
-
-                self.0.sys.0[(0, j, i)] = rho;
-                self.0.sys.0[(1, j, i)] = rho * u;
-                self.0.sys.0[(2, j, i)] = rho * v;
-                self.0.sys.0[(3, j, i)] = e;
-            }
-        }
+        self.0.vortex(x0, y0)
     }
 
     pub fn advance(&mut self, dt: f32) {
@@ -238,6 +194,54 @@ impl<SBP: operators::SbpOperator> EulerSystem<SBP> {
             Some(&mut self.wb),
         );
         std::mem::swap(&mut self.sys.0, &mut self.sys.1);
+    }
+
+    pub fn vortex(&mut self, x0: f32, y0: f32) {
+        // Should parametrise such that we have radius, drop in pressure at center, etc
+        let rstar = 1.0;
+        let eps = 3.0;
+        #[allow(non_snake_case)]
+        let M = 0.5;
+
+        let p_inf = 1.0 / (euler::GAMMA * M * M);
+        let t = 0.0;
+
+        let nx = self.grid.nx();
+        let ny = self.grid.ny();
+
+        for j in 0..ny {
+            for i in 0..nx {
+                let x = self.grid.x[(j, i)];
+                let y = self.grid.y[(j, i)];
+
+                let dx = (x - x0) - t;
+                let dy = y - y0;
+                let f = (1.0 - (dx * dx + dy * dy)) / (rstar * rstar);
+
+                use euler::GAMMA;
+                use std::f32::consts::PI;
+                let u =
+                    1.0 - eps * dy / (2.0 * PI * p_inf.sqrt() * rstar * rstar) * (f / 2.0).exp();
+                let v =
+                    0.0 + eps * dx / (2.0 * PI * p_inf.sqrt() * rstar * rstar) * (f / 2.0).exp();
+                let rho = f32::powf(
+                    1.0 - eps * eps * (GAMMA - 1.0) * M * M
+                        / (8.0 * PI * PI * p_inf * rstar * rstar)
+                        * f.exp(),
+                    1.0 / (GAMMA - 1.0),
+                );
+                assert!(rho > 0.0);
+                let p = p_inf * rho.powf(GAMMA);
+                assert!(p > 0.0);
+                let e = p / (GAMMA - 1.0) + rho * (u * u + v * v) / 2.0;
+                assert!(e > 0.0);
+
+                self.sys.0[(0, j, i)] = rho;
+                self.sys.0[(1, j, i)] = rho * u;
+                self.sys.0[(2, j, i)] = rho * v;
+                self.sys.0[(3, j, i)] = e;
+            }
+        }
     }
 }
 
