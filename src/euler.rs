@@ -313,41 +313,54 @@ fn upwind_dissipation<UO: UpwindOperator>(
     grid: &Grid<UO>,
     tmp: (&mut Field, &mut Field),
 ) {
-    for j in 0..y.ny() {
-        for i in 0..y.nx() {
-            let rho = y[(0, j, i)];
-            assert!(rho > 0.0);
-            let rhou = y[(1, j, i)];
-            let rhov = y[(2, j, i)];
-            let e = y[(3, j, i)];
+    let n = y.nx() * y.ny();
+    let yview = y.view().into_shape((4, n)).unwrap();
+    let mut tmp0 = tmp.0.view_mut().into_shape((4, n)).unwrap();
+    let mut tmp1 = tmp.1.view_mut().into_shape((4, n)).unwrap();
 
-            let u = rhou / rho;
-            let v = rhov / rho;
+    for (
+        ((((((y, mut tmp0), mut tmp1), detj), detj_dxi_dx), detj_dxi_dy), detj_deta_dx),
+        detj_deta_dy,
+    ) in yview
+        .axis_iter(ndarray::Axis(1))
+        .zip(tmp0.axis_iter_mut(ndarray::Axis(1)))
+        .zip(tmp1.axis_iter_mut(ndarray::Axis(1)))
+        .zip(grid.detj.iter())
+        .zip(grid.detj_dxi_dx.iter())
+        .zip(grid.detj_dxi_dy.iter())
+        .zip(grid.detj_deta_dx.iter())
+        .zip(grid.detj_deta_dy.iter())
+    {
+        let rho = y[0];
+        assert!(rho > 0.0);
+        let rhou = y[1];
+        let rhov = y[2];
+        let e = y[3];
 
-            let uhat = grid.detj_dxi_dx[(j, i)] / grid.detj[(j, i)] * u
-                + grid.detj_dxi_dy[(j, i)] / grid.detj[(j, i)] * v;
-            let vhat = grid.detj_deta_dx[(j, i)] / grid.detj[(j, i)] * u
-                + grid.detj_deta_dy[(j, i)] / grid.detj[(j, i)] * v;
+        let u = rhou / rho;
+        let v = rhov / rho;
 
-            let p = pressure(GAMMA, rho, rhou, rhov, e);
-            assert!(p > 0.0);
-            let c = (GAMMA * p / rho).sqrt();
+        let uhat = detj_dxi_dx / detj * u + detj_dxi_dy / detj * v;
+        let vhat = detj_deta_dx / detj * u + detj_deta_dy / detj * v;
 
-            let alpha_u = uhat.abs() + c;
-            let alpha_v = vhat.abs() + c;
+        let p = pressure(GAMMA, rho, rhou, rhov, e);
+        assert!(p > 0.0);
+        let c = (GAMMA * p / rho).sqrt();
 
-            tmp.0[(0, j, i)] = alpha_u * rho * grid.detj[(j, i)];
-            tmp.1[(0, j, i)] = alpha_v * rho * grid.detj[(j, i)];
+        let alpha_u = uhat.abs() + c;
+        let alpha_v = vhat.abs() + c;
 
-            tmp.0[(1, j, i)] = alpha_u * rhou * grid.detj[(j, i)];
-            tmp.1[(1, j, i)] = alpha_v * rhou * grid.detj[(j, i)];
+        tmp0[0] = alpha_u * rho * detj;
+        tmp1[0] = alpha_v * rho * detj;
 
-            tmp.0[(2, j, i)] = alpha_u * rhov * grid.detj[(j, i)];
-            tmp.1[(2, j, i)] = alpha_v * rhov * grid.detj[(j, i)];
+        tmp0[1] = alpha_u * rhou * detj;
+        tmp1[1] = alpha_v * rhou * detj;
 
-            tmp.0[(3, j, i)] = alpha_u * e * grid.detj[(j, i)];
-            tmp.1[(3, j, i)] = alpha_v * e * grid.detj[(j, i)];
-        }
+        tmp0[2] = alpha_u * rhov * detj;
+        tmp1[2] = alpha_v * rhov * detj;
+
+        tmp0[3] = alpha_u * e * detj;
+        tmp1[3] = alpha_v * e * detj;
     }
 
     UO::dissxi(tmp.0.rho(), k.0.rho_mut());
