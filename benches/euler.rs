@@ -1,6 +1,6 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
-use maxwell::operators::{SbpOperator, Upwind4, UpwindOperator, SBP4};
-use maxwell::EulerSystem;
+use sbp::operators::{SbpOperator, Upwind4, UpwindOperator, SBP4};
+use sbp::EulerSystem;
 
 fn advance_system<SBP: SbpOperator>(universe: &mut EulerSystem<SBP>, n: usize) {
     for _ in 0..n {

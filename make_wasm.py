@@ -29,7 +29,7 @@ if __name__ == "__main__":
         pathlib.Path("target")
         .joinpath(target_triple)
         .joinpath("release" if args.release else "debug")
-        .joinpath("maxwell.wasm")
+        .joinpath("sbp.wasm")
     )
     if args.release:
         command.append("--release")
@@ -53,7 +53,7 @@ if __name__ == "__main__":
         try:
             with tempfile.TemporaryDirectory() as d_:
                 d = pathlib.Path(d_)
-                wasm_bg = publish.joinpath("maxwell_bg.wasm")
+                wasm_bg = publish.joinpath("sbp_bg.wasm")
                 wasm_to_opt = d.joinpath("before-wasm-opt.wasm")
                 copyfile(wasm_bg, wasm_to_opt)
                 check_call(["wasm-opt", "-O4", str(wasm_to_opt), "-o", str(wasm_bg)])

@@ -1,11 +1,11 @@
-import { EulerUniverse, Universe, default as init, set_panic_hook as setPanicHook } from "./maxwell.js";
+import { EulerUniverse, MaxwellUniverse, default as init, set_panic_hook as setPanicHook } from "./sbp.js";
 
 /**
  * Initialises and runs the Maxwell solver,
  * plotting the solution to a canvas using webgl
  */
 (async function run() {
-    const wasm = await init("./maxwell_bg.wasm");
+    const wasm = await init("./sbp_bg.wasm");
     setPanicHook();
     const DIAMOND = false;
     const UPWIND = true;

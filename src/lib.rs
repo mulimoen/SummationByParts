@@ -18,13 +18,13 @@ pub fn set_panic_hook() {
 }
 
 #[wasm_bindgen]
-pub struct Universe(System<operators::Upwind4>);
+pub struct MaxwellUniverse(MaxwellSystem<operators::Upwind4>);
 
 #[wasm_bindgen]
-impl Universe {
+impl MaxwellUniverse {
     #[wasm_bindgen(constructor)]
     pub fn new(width: usize, height: usize, x: &[f32], y: &[f32]) -> Self {
-        Self(System::new(width as usize, height as usize, x, y))
+        Self(MaxwellSystem::new(width as usize, height as usize, x, y))
     }
 
     pub fn init(&mut self, x0: f32, y0: f32) {
@@ -52,13 +52,13 @@ impl Universe {
     }
 }
 
-pub struct System<SBP: operators::SbpOperator> {
+pub struct MaxwellSystem<SBP: operators::SbpOperator> {
     sys: (Field, Field),
     wb: WorkBuffers,
     grid: Grid<SBP>,
 }
 
-impl<SBP: operators::SbpOperator> System<SBP> {
+impl<SBP: operators::SbpOperator> MaxwellSystem<SBP> {
     pub fn new(width: usize, height: usize, x: &[f32], y: &[f32]) -> Self {
         assert_eq!((width * height), x.len());
         assert_eq!((width * height), y.len());
@@ -97,7 +97,7 @@ impl<SBP: operators::SbpOperator> System<SBP> {
     }
 }
 
-impl<UO: operators::UpwindOperator> System<UO> {
+impl<UO: operators::UpwindOperator> MaxwellSystem<UO> {
     /// Using artificial dissipation with the upwind operator
     pub fn advance_upwind(&mut self, dt: f32) {
         maxwell::advance_upwind(
