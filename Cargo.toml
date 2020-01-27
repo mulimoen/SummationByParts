@@ -27,8 +27,7 @@ debug = true
 criterion = "0.3.0"
 
 [[bench]]
-name = "system"
-path = "src/benches/bench.rs"
+name = "bench"
 harness = false
 
 [profile.bench]
