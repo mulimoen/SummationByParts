@@ -54,13 +54,13 @@ criterion_group!(benches, performance_benchmark);
 
 fn advance_euler_system<SBP: SbpOperator>(universe: &mut EulerSystem<SBP>, n: usize) {
     for _ in 0..n {
-        universe.advance(0.01);
+        universe.advance(1.0 / 40.0 * 0.2);
     }
 }
 
 fn advance_euler_system_upwind<UO: UpwindOperator>(universe: &mut EulerSystem<UO>, n: usize) {
     for _ in 0..n {
-        universe.advance_upwind(0.01);
+        universe.advance_upwind(1.0 / 40.0 * 0.2);
     }
 }
 
@@ -79,7 +79,7 @@ fn euler_performance_benchmark(c: &mut Criterion) {
     group.bench_function("advance_euler", |b| {
         b.iter(|| {
             universe.vortex(0.0, 0.0);
-            advance_euler_system(&mut universe, black_box(10))
+            advance_euler_system(&mut universe, black_box(20))
         })
     });
 
@@ -87,7 +87,7 @@ fn euler_performance_benchmark(c: &mut Criterion) {
     group.bench_function("advance_euler_upwind", |b| {
         b.iter(|| {
             universe.vortex(0.0, 0.0);
-            advance_euler_system_upwind(&mut universe, black_box(10))
+            advance_euler_system_upwind(&mut universe, black_box(20))
         })
     });
 
@@ -95,7 +95,7 @@ fn euler_performance_benchmark(c: &mut Criterion) {
     group.bench_function("advance_euler_trad4", |b| {
         b.iter(|| {
             universe.vortex(0.0, 0.0);
-            advance_euler_system(&mut universe, black_box(10))
+            advance_euler_system(&mut universe, black_box(20))
         })
     });
 

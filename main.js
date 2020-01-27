@@ -104,8 +104,8 @@ import { EulerUniverse, Universe, default as init, set_panic_hook as setPanicHoo
     for (let j = 0; j < height; j += 1) {
         for (let i = 0; i < width; i += 1) {
             const n = width*j + i;
-            x[n] = 20.0*(i / (width - 1.0));
-            y[n] = 20.0*(j / (height - 1.0));
+            x[n] = 20.0*(i / (width - 1.0) - 0.5);
+            y[n] = 20.0*(j / (height - 1.0) - 0.5);
 
 
             if (DIAMOND) {
@@ -181,7 +181,7 @@ import { EulerUniverse, Universe, default as init, set_panic_hook as setPanicHoo
     }
 
     const TIMEFACTOR = 10000.0;
-    const MAX_DT = 1.0/Math.max(width, height);
+    const MAX_DT = Math.min(1.0/width, 1.0/height)*0.2;
 
     let t = 0;
     let firstDraw = true;
@@ -202,7 +202,7 @@ import { EulerUniverse, Universe, default as init, set_panic_hook as setPanicHoo
     };
     chosenField.cycle();
 
-    universe.init(10, 10);
+    universe.init(0, 0);
 
     /**
      * Integrates and draws the next iteration
@@ -236,11 +236,11 @@ import { EulerUniverse, Universe, default as init, set_panic_hook as setPanicHoo
         }
 
         if (UPWIND) {
-            universe.advance_upwind(dt/2);
-            universe.advance_upwind(dt/2);
+            universe.advance_upwind(MAX_DT);
+            universe.advance_upwind(MAX_DT);
         } else {
-            universe.advance(dt/2);
-            universe.advance(dt/2);
+            universe.advance(MAX_DT);
+            universe.advance(MAX_DT);
         }
 
         window.requestAnimationFrame(drawMe);
