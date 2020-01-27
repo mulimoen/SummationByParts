@@ -187,6 +187,7 @@ impl<SBP: operators::SbpOperator> EulerSystem<SBP> {
 
     pub fn advance(&mut self, dt: f32) {
         euler::advance(
+            euler::RHS_trad,
             &self.sys.0,
             &mut self.sys.1,
             dt,
@@ -247,7 +248,8 @@ impl<SBP: operators::SbpOperator> EulerSystem<SBP> {
 
 impl<SBP: operators::UpwindOperator> EulerSystem<SBP> {
     pub fn advance_upwind(&mut self, dt: f32) {
-        euler::advance_upwind(
+        euler::advance(
+            euler::RHS_upwind,
             &self.sys.0,
             &mut self.sys.1,
             dt,

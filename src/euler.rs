@@ -121,61 +121,8 @@ impl Field {
     }
 }
 
-pub(crate) fn advance_upwind<UO>(
-    prev: &Field,
-    fut: &mut Field,
-    dt: f32,
-    grid: &Grid<UO>,
-    work_buffers: Option<&mut WorkBuffers>,
-) where
-    UO: UpwindOperator,
-{
-    assert_eq!(prev.0.shape(), fut.0.shape());
-
-    let mut wb: WorkBuffers;
-    let (y, k, tmp) = if let Some(x) = work_buffers {
-        (&mut x.y, &mut x.buf, &mut x.tmp)
-    } else {
-        wb = WorkBuffers::new(prev.nx(), prev.ny());
-        (&mut wb.y, &mut wb.buf, &mut wb.tmp)
-    };
-
-    let boundaries = BoundaryTerms {
-        north: Boundary::This,
-        south: Boundary::This,
-        west: Boundary::This,
-        east: Boundary::This,
-    };
-
-    for i in 0..4 {
-        // y = y0 + c*kn
-        y.assign(&prev);
-        match i {
-            0 => {}
-            1 | 2 => {
-                y.scaled_add(1.0 / 2.0 * dt, &k[i - 1]);
-            }
-            3 => {
-                y.scaled_add(dt, &k[i - 1]);
-            }
-            _ => {
-                unreachable!();
-            }
-        };
-
-        RHS_upwind(&mut k[i], &y, grid, &boundaries, tmp);
-    }
-
-    Zip::from(&mut fut.0)
-        .and(&prev.0)
-        .and(&*k[0])
-        .and(&*k[1])
-        .and(&*k[2])
-        .and(&*k[3])
-        .apply(|y1, &y0, &k1, &k2, &k3, &k4| *y1 = y0 + dt / 6.0 * (k1 + 2.0 * k2 + 2.0 * k3 + k4));
-}
-
-pub(crate) fn advance<SBP>(
+pub(crate) fn advance<SBP, RHS>(
+    rhs: RHS,
     prev: &Field,
     fut: &mut Field,
     dt: f32,
@@ -183,6 +130,13 @@ pub(crate) fn advance<SBP>(
     work_buffers: Option<&mut WorkBuffers>,
 ) where
     SBP: SbpOperator,
+    RHS: Fn(
+        &mut Field,
+        &Field,
+        &Grid<SBP>,
+        &BoundaryTerms,
+        &mut (Field, Field, Field, Field, Field, Field),
+    ),
 {
     assert_eq!(prev.0.shape(), fut.0.shape());
 
@@ -217,7 +171,7 @@ pub(crate) fn advance<SBP>(
             }
         };
 
-        RHS(&mut k[i], &y, grid, &boundaries, tmp);
+        rhs(&mut k[i], &y, grid, &boundaries, tmp);
     }
 
     Zip::from(&mut fut.0)
@@ -234,7 +188,7 @@ fn pressure(gamma: f32, rho: f32, rhou: f32, rhov: f32, e: f32) -> f32 {
 }
 
 #[allow(non_snake_case)]
-fn RHS<SBP: SbpOperator>(
+pub(crate) fn RHS_trad<SBP: SbpOperator>(
     k: &mut Field,
     y: &Field,
     grid: &Grid<SBP>,
@@ -268,7 +222,7 @@ fn RHS<SBP: SbpOperator>(
 }
 
 #[allow(non_snake_case)]
-fn RHS_upwind<UO: UpwindOperator>(
+pub(crate) fn RHS_upwind<UO: UpwindOperator>(
     k: &mut Field,
     y: &Field,
     grid: &Grid<UO>,
