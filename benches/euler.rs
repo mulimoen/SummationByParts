@@ -1,14 +1,14 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
+use sbp::euler::System;
 use sbp::operators::{SbpOperator, Upwind4, UpwindOperator, SBP4};
-use sbp::EulerSystem;
 
-fn advance_system<SBP: SbpOperator>(universe: &mut EulerSystem<SBP>, n: usize) {
+fn advance_system<SBP: SbpOperator>(universe: &mut System<SBP>, n: usize) {
     for _ in 0..n {
         universe.advance(1.0 / 40.0 * 0.2);
     }
 }
 
-fn advance_system_upwind<UO: UpwindOperator>(universe: &mut EulerSystem<UO>, n: usize) {
+fn advance_system_upwind<UO: UpwindOperator>(universe: &mut System<UO>, n: usize) {
     for _ in 0..n {
         universe.advance_upwind(1.0 / 40.0 * 0.2);
     }
@@ -25,26 +25,26 @@ fn performance_benchmark(c: &mut Criterion) {
     let y = ndarray::Array1::linspace(-10.0, 10.0, h);
     let y = y.broadcast((w, h)).unwrap().reversed_axes();
 
-    let mut universe = EulerSystem::<Upwind4>::new(x.into_owned(), y.into_owned());
+    let mut universe = System::<Upwind4>::new(x.into_owned(), y.into_owned());
     group.bench_function("advance", |b| {
         b.iter(|| {
-            universe.vortex(0.0, 0.0);
+            universe.init_with_vortex(0.0, 0.0);
             advance_system(&mut universe, black_box(20))
         })
     });
 
-    let mut universe = EulerSystem::<Upwind4>::new(x.into_owned(), y.into_owned());
+    let mut universe = System::<Upwind4>::new(x.into_owned(), y.into_owned());
     group.bench_function("advance_upwind", |b| {
         b.iter(|| {
-            universe.vortex(0.0, 0.0);
+            universe.init_with_vortex(0.0, 0.0);
             advance_system_upwind(&mut universe, black_box(20))
         })
     });
 
-    let mut universe = EulerSystem::<SBP4>::new(x.into_owned(), y.into_owned());
+    let mut universe = System::<SBP4>::new(x.into_owned(), y.into_owned());
     group.bench_function("advance_trad4", |b| {
         b.iter(|| {
-            universe.vortex(0.0, 0.0);
+            universe.init_with_vortex(0.0, 0.0);
             advance_system(&mut universe, black_box(20))
         })
     });

@@ -1,4 +1,6 @@
 use ndarray::Array2;
+
+#[derive(Debug, Clone)]
 pub struct Grid<SBP>
 where
     SBP: super::operators::SbpOperator,

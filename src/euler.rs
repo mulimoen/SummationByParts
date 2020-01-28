@@ -5,6 +5,106 @@ use ndarray::{azip, Zip};
 
 pub const GAMMA: f32 = 1.4;
 
+// A collection of buffers that allows one to efficiently
+// move to the next state
+pub struct System<SBP: SbpOperator> {
+    sys: (Field, Field),
+    wb: WorkBuffers,
+    grid: Grid<SBP>,
+}
+
+impl<SBP: SbpOperator> System<SBP> {
+    pub fn new(x: ndarray::Array2<f32>, y: ndarray::Array2<f32>) -> Self {
+        let grid = Grid::new(x, y).expect(
+            "Could not create grid. Different number of elements compared to width*height?",
+        );
+        let nx = grid.nx();
+        let ny = grid.ny();
+        Self {
+            sys: (Field::new(ny, nx), Field::new(ny, nx)),
+            grid,
+            wb: WorkBuffers::new(ny, nx),
+        }
+    }
+
+    pub fn advance(&mut self, dt: f32) {
+        advance(
+            RHS_trad,
+            &self.sys.0,
+            &mut self.sys.1,
+            dt,
+            &self.grid,
+            Some(&mut self.wb),
+        );
+        std::mem::swap(&mut self.sys.0, &mut self.sys.1);
+    }
+
+    pub fn init_with_vortex(&mut self, x0: f32, y0: f32) {
+        // Should parametrise such that we have radius, drop in pressure at center, etc
+        let rstar = 1.0;
+        let eps = 3.0;
+        #[allow(non_snake_case)]
+        let M = 0.5;
+
+        let p_inf = 1.0 / (GAMMA * M * M);
+        let t = 0.0;
+
+        let nx = self.grid.nx();
+        let ny = self.grid.ny();
+
+        for j in 0..ny {
+            for i in 0..nx {
+                let x = self.grid.x[(j, i)];
+                let y = self.grid.y[(j, i)];
+
+                let dx = (x - x0) - t;
+                let dy = y - y0;
+                let f = (1.0 - (dx * dx + dy * dy)) / (rstar * rstar);
+
+                use std::f32::consts::PI;
+                let u =
+                    1.0 - eps * dy / (2.0 * PI * p_inf.sqrt() * rstar * rstar) * (f / 2.0).exp();
+                let v =
+                    0.0 + eps * dx / (2.0 * PI * p_inf.sqrt() * rstar * rstar) * (f / 2.0).exp();
+                let rho = f32::powf(
+                    1.0 - eps * eps * (GAMMA - 1.0) * M * M
+                        / (8.0 * PI * PI * p_inf * rstar * rstar)
+                        * f.exp(),
+                    1.0 / (GAMMA - 1.0),
+                );
+                assert!(rho > 0.0);
+                let p = p_inf * rho.powf(GAMMA);
+                assert!(p > 0.0);
+                let e = p / (GAMMA - 1.0) + rho * (u * u + v * v) / 2.0;
+                assert!(e > 0.0);
+
+                self.sys.0[(0, j, i)] = rho;
+                self.sys.0[(1, j, i)] = rho * u;
+                self.sys.0[(2, j, i)] = rho * v;
+                self.sys.0[(3, j, i)] = e;
+            }
+        }
+    }
+
+    pub fn field(&self) -> &Field {
+        &self.sys.0
+    }
+}
+
+impl<UO: UpwindOperator> System<UO> {
+    pub fn advance_upwind(&mut self, dt: f32) {
+        advance(
+            RHS_upwind,
+            &self.sys.0,
+            &mut self.sys.1,
+            dt,
+            &self.grid,
+            Some(&mut self.wb),
+        );
+        std::mem::swap(&mut self.sys.0, &mut self.sys.1);
+    }
+}
+
 #[derive(Clone, Debug)]
 /// A 4 x ny x nx array
 pub struct Field(pub(crate) Array3<f32>);
