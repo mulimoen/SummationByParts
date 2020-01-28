@@ -2,7 +2,7 @@
 
 from argparse import ArgumentParser
 from subprocess import check_call
-from shutil import copyfile
+from shutil import copyfile, copytree
 import tempfile
 import pathlib
 
@@ -61,5 +61,4 @@ if __name__ == "__main__":
             print("wasm-opt not found, not optimising further")
             pass
 
-    for f in ["index.html", "main.js", "style.css"]:
-        copyfile(f, publish.joinpath(f))
+    copytree("webfront", publish, dirs_exist_ok=True)
