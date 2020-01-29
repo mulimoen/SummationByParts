@@ -2,6 +2,7 @@ use wasm_bindgen::prelude::*;
 
 pub mod euler;
 mod grid;
+pub(crate) mod integrate;
 mod maxwell;
 pub mod operators;
 pub use crate::maxwell::{Field, WorkBuffers};
