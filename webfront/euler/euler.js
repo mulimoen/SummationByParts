@@ -9,6 +9,7 @@ import { EulerUniverse, default as init, set_panic_hook as setPanicHook } from "
     setPanicHook();
     const DIAMOND = false;
     const UPWIND = true;
+    const MEASURE = false;
 
     const canvas = document.getElementById("glCanvas");
 
@@ -211,8 +212,6 @@ import { EulerUniverse, default as init, set_panic_hook as setPanicHook } from "
     function drawMe(timeOfDraw) {
         gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
-        let dt = 0.01;
-
         let fieldPtr;
         if (chosenField.value === 0) {
             fieldPtr = universe.get_rho_ptr();
@@ -223,6 +222,7 @@ import { EulerUniverse, default as init, set_panic_hook as setPanicHook } from "
         } else {
             fieldPtr = universe.get_e_ptr();
         };
+        MEASURE && console.time("draw");
         const field = new Float32Array(wasm.memory.buffer, fieldPtr, width*height);
         gl.bufferData(gl.ARRAY_BUFFER, field, gl.DYNAMIC_DRAW);
         // console.log(field.reduce((min, v) => v < min ? v : min));
@@ -234,7 +234,9 @@ import { EulerUniverse, default as init, set_panic_hook as setPanicHook } from "
             const vertexCount = positions.length;
             gl.drawElements(gl.TRIANGLES, vertexCount, type, offset);
         }
+        MEASURE && console.timeEnd("draw");
 
+        MEASURE && console.time("advance");
         if (UPWIND) {
             universe.advance_upwind(MAX_DT);
             universe.advance_upwind(MAX_DT);
@@ -242,6 +244,7 @@ import { EulerUniverse, default as init, set_panic_hook as setPanicHook } from "
             universe.advance(MAX_DT);
             universe.advance(MAX_DT);
         }
+        MEASURE && console.timeEnd("advance");
 
         window.requestAnimationFrame(drawMe);
     }
