@@ -224,23 +224,24 @@ impl Field {
     }
 }
 
-pub(crate) fn integrate_rk4<SBP, RHS, WB>(
+pub(crate) fn integrate_rk4<'a, F: 'a, SBP, RHS, WB>(
     rhs: RHS,
-    prev: &Field,
-    fut: &mut Field,
+    prev: &F,
+    fut: &mut F,
     dt: f32,
     grid: &Grid<SBP>,
-    k: &mut [Field; 4],
+    k: &mut [F; 4],
     mut wb: &mut WB,
 ) where
+    F: std::ops::Deref<Target = Array3<f32>> + std::ops::DerefMut<Target = Array3<f32>>,
     SBP: SbpOperator,
-    RHS: Fn(&mut Field, &Field, &Grid<SBP>, &mut WB),
+    RHS: Fn(&mut F, &F, &Grid<SBP>, &mut WB),
 {
-    assert_eq!(prev.0.shape(), fut.0.shape());
+    assert_eq!(prev.shape(), fut.shape());
 
     for i in 0..4 {
         // y = y0 + c*kn
-        fut.assign(&prev);
+        fut.assign(prev);
         match i {
             0 => {}
             1 | 2 => {
@@ -257,8 +258,8 @@ pub(crate) fn integrate_rk4<SBP, RHS, WB>(
         rhs(&mut k[i], &fut, grid, &mut wb);
     }
 
-    Zip::from(&mut fut.0)
-        .and(&prev.0)
+    Zip::from(&mut **fut)
+        .and(&**prev)
         .and(&*k[0])
         .and(&*k[1])
         .and(&*k[2])
