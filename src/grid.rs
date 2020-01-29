@@ -66,17 +66,6 @@ impl<SBP: super::operators::SbpOperator> Grid<SBP> {
             operator: std::marker::PhantomData,
         })
     }
-    pub fn new_from_slice(
-        ny: usize,
-        nx: usize,
-        x: &[f32],
-        y: &[f32],
-    ) -> Result<Self, ndarray::ShapeError> {
-        let x = Array2::from_shape_vec((ny, nx), x.to_vec())?;
-        let y = Array2::from_shape_vec((ny, nx), y.to_vec())?;
-
-        Self::new(x, y)
-    }
     pub fn nx(&self) -> usize {
         self.x.shape()[1]
     }

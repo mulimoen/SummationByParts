@@ -21,7 +21,7 @@ impl std::ops::DerefMut for Field {
 }
 
 impl Field {
-    pub fn new(width: usize, height: usize) -> Self {
+    pub fn new(height: usize, width: usize) -> Self {
         let field = Array3::zeros((3, height, width));
 
         Self(field)
@@ -68,6 +68,7 @@ impl Field {
     }
 }
 
+#[derive(Debug, Clone)]
 pub struct System<SBP: SbpOperator> {
     sys: (Field, Field),
     wb: WorkBuffers,
@@ -75,17 +76,17 @@ pub struct System<SBP: SbpOperator> {
 }
 
 impl<SBP: SbpOperator> System<SBP> {
-    pub fn new(width: usize, height: usize, x: &[f32], y: &[f32]) -> Self {
-        assert_eq!((width * height), x.len());
-        assert_eq!((width * height), y.len());
+    pub fn new(x: Array2<f32>, y: Array2<f32>) -> Self {
+        assert_eq!(x.shape(), y.shape());
+        let ny = x.shape()[0];
+        let nx = x.shape()[1];
 
-        let grid = Grid::new_from_slice(height, width, x, y).expect(
-            "Could not create grid. Different number of elements compared to width*height?",
-        );
+        let grid = Grid::new(x, y).unwrap();
+
         Self {
-            sys: (Field::new(width, height), Field::new(width, height)),
+            sys: (Field::new(ny, nx), Field::new(ny, nx)),
             grid,
-            wb: WorkBuffers::new(width, height),
+            wb: WorkBuffers::new(ny, nx),
         }
     }
 
@@ -556,15 +557,16 @@ fn SAT_characteristics<SBP: SbpOperator>(
     }
 }
 
+#[derive(Clone, Debug)]
 pub struct WorkBuffers {
     k: [Field; 4],
     tmp: (Array2<f32>, Array2<f32>, Array2<f32>, Array2<f32>),
 }
 
 impl WorkBuffers {
-    pub fn new(nx: usize, ny: usize) -> Self {
+    pub fn new(ny: usize, nx: usize) -> Self {
         let arr2 = Array2::zeros((ny, nx));
-        let arr3 = Field::new(nx, ny);
+        let arr3 = Field::new(ny, nx);
         Self {
             k: [arr3.clone(), arr3.clone(), arr3.clone(), arr3],
             tmp: (arr2.clone(), arr2.clone(), arr2.clone(), arr2),

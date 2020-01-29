@@ -23,8 +23,10 @@ pub struct MaxwellUniverse(maxwell::System<operators::Upwind4>);
 #[wasm_bindgen]
 impl MaxwellUniverse {
     #[wasm_bindgen(constructor)]
-    pub fn new(width: usize, height: usize, x: &[f32], y: &[f32]) -> Self {
-        Self(maxwell::System::new(width as usize, height as usize, x, y))
+    pub fn new(height: usize, width: usize, x: &[f32], y: &[f32]) -> Self {
+        let x = ndarray::Array2::from_shape_vec((height, width), x.to_vec()).unwrap();
+        let y = ndarray::Array2::from_shape_vec((height, width), y.to_vec()).unwrap();
+        Self(maxwell::System::new(x, y))
     }
 
     pub fn init(&mut self, x0: f32, y0: f32) {

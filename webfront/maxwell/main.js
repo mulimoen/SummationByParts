@@ -116,7 +116,7 @@ import { MaxwellUniverse, default as init, set_panic_hook as setPanicHook } from
         }
     }
 
-    const universe = new MaxwellUniverse(width, height, x, y);
+    const universe = new MaxwellUniverse(height, width, x, y);
 
 
     // Transfer x, y to cpu, prepare fBuffer
