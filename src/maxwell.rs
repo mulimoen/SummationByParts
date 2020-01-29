@@ -1,7 +1,8 @@
+use super::integrate::integrate_rk4;
 use super::operators::{SbpOperator, UpwindOperator};
 use super::Grid;
+use ndarray::azip;
 use ndarray::prelude::*;
-use ndarray::{azip, Zip};
 
 #[derive(Clone, Debug)]
 pub struct Field(pub(crate) Array3<f32>);
@@ -67,121 +68,91 @@ impl Field {
     }
 }
 
-pub(crate) fn advance_upwind<UO>(
-    prev: &Field,
-    fut: &mut Field,
-    dt: f32,
-    grid: &Grid<UO>,
-    work_buffers: Option<&mut WorkBuffers>,
-) where
-    UO: UpwindOperator,
-{
-    assert_eq!(prev.0.shape(), fut.0.shape());
-
-    let mut wb: WorkBuffers;
-    let (y, k, tmp) = if let Some(x) = work_buffers {
-        (&mut x.y, &mut x.buf, &mut x.tmp)
-    } else {
-        wb = WorkBuffers::new(prev.nx(), prev.ny());
-        (&mut wb.y, &mut wb.buf, &mut wb.tmp)
-    };
-
-    let boundaries = BoundaryTerms {
-        north: Boundary::This,
-        south: Boundary::This,
-        west: Boundary::This,
-        east: Boundary::This,
-    };
-
-    for i in 0..4 {
-        // y = y0 + c*kn
-        y.assign(&prev);
-        match i {
-            0 => {}
-            1 | 2 => {
-                y.scaled_add(1.0 / 2.0 * dt, &k[i - 1]);
-            }
-            3 => {
-                y.scaled_add(dt, &k[i - 1]);
-            }
-            _ => {
-                unreachable!();
-            }
-        };
-
-        RHS_upwind(&mut k[i], &y, grid, &boundaries, tmp);
-    }
-
-    Zip::from(&mut fut.0)
-        .and(&prev.0)
-        .and(&*k[0])
-        .and(&*k[1])
-        .and(&*k[2])
-        .and(&*k[3])
-        .apply(|y1, &y0, &k1, &k2, &k3, &k4| *y1 = y0 + dt / 6.0 * (k1 + 2.0 * k2 + 2.0 * k3 + k4));
+pub struct System<SBP: SbpOperator> {
+    sys: (Field, Field),
+    wb: WorkBuffers,
+    grid: Grid<SBP>,
 }
 
+impl<SBP: SbpOperator> System<SBP> {
+    pub fn new(width: usize, height: usize, x: &[f32], y: &[f32]) -> Self {
+        assert_eq!((width * height), x.len());
+        assert_eq!((width * height), y.len());
+
+        let grid = Grid::new_from_slice(height, width, x, y).expect(
+            "Could not create grid. Different number of elements compared to width*height?",
+        );
+        Self {
+            sys: (Field::new(width, height), Field::new(width, height)),
+            grid,
+            wb: WorkBuffers::new(width, height),
+        }
+    }
+
+    pub fn field(&self) -> &Field {
+        &self.sys.0
+    }
+
+    pub fn set_gaussian(&mut self, x0: f32, y0: f32) {
+        let (ex, hz, ey) = self.sys.0.components_mut();
+        ndarray::azip!(
+            (ex in ex, hz in hz, ey in ey,
+             &x in &self.grid.x, &y in &self.grid.y)
+        {
+            *ex = 0.0;
+            *ey = 0.0;
+            *hz = gaussian(x, x0, y, y0)/32.0;
+        });
+    }
+
+    pub fn advance(&mut self, dt: f32) {
+        integrate_rk4(
+            RHS,
+            &self.sys.0,
+            &mut self.sys.1,
+            dt,
+            &self.grid,
+            &mut self.wb.k,
+            &mut self.wb.tmp,
+        );
+        std::mem::swap(&mut self.sys.0, &mut self.sys.1);
+    }
+}
+
+impl<UO: UpwindOperator> System<UO> {
+    /// Using artificial dissipation with the upwind operator
+    pub fn advance_upwind(&mut self, dt: f32) {
+        integrate_rk4(
+            RHS_upwind,
+            &self.sys.0,
+            &mut self.sys.1,
+            dt,
+            &self.grid,
+            &mut self.wb.k,
+            &mut self.wb.tmp,
+        );
+        std::mem::swap(&mut self.sys.0, &mut self.sys.1);
+    }
+}
+
+fn gaussian(x: f32, x0: f32, y: f32, y0: f32) -> f32 {
+    use std::f32;
+    let x = x - x0;
+    let y = y - y0;
+
+    let sigma = 0.05;
+
+    1.0 / (2.0 * f32::consts::PI * sigma * sigma) * (-(x * x + y * y) / (2.0 * sigma * sigma)).exp()
+}
+
+#[allow(non_snake_case)]
 /// Solving (Au)_x + (Bu)_y
 /// with:
 ///        A               B
 ///  [ 0,  0,  0]    [ 0,  1,  0]
 ///  [ 0,  0, -1]    [ 1,  0,  0]
 ///  [ 0, -1,  0]    [ 0,  0,  0]
-pub(crate) fn advance<SBP>(
-    prev: &Field,
-    fut: &mut Field,
-    dt: f32,
-    grid: &Grid<SBP>,
-    work_buffers: Option<&mut WorkBuffers>,
-) where
-    SBP: SbpOperator,
-{
-    assert_eq!(prev.0.shape(), fut.0.shape());
-
-    let mut wb: WorkBuffers;
-    let (y, k, tmp) = if let Some(x) = work_buffers {
-        (&mut x.y, &mut x.buf, &mut x.tmp)
-    } else {
-        wb = WorkBuffers::new(prev.nx(), prev.ny());
-        (&mut wb.y, &mut wb.buf, &mut wb.tmp)
-    };
-
-    let boundaries = BoundaryTerms {
-        north: Boundary::This,
-        south: Boundary::This,
-        west: Boundary::This,
-        east: Boundary::This,
-    };
-
-    for i in 0..4 {
-        // y = y0 + c*kn
-        y.assign(&prev);
-        match i {
-            0 => {}
-            1 | 2 => {
-                y.scaled_add(1.0 / 2.0 * dt, &k[i - 1]);
-            }
-            3 => {
-                y.scaled_add(dt, &k[i - 1]);
-            }
-            _ => {
-                unreachable!();
-            }
-        };
-
-        RHS(&mut k[i], &y, grid, &boundaries, tmp);
-    }
-
-    Zip::from(&mut fut.0)
-        .and(&prev.0)
-        .and(&*k[0])
-        .and(&*k[1])
-        .and(&*k[2])
-        .and(&*k[3])
-        .apply(|y1, &y0, &k1, &k2, &k3, &k4| *y1 = y0 + dt / 6.0 * (k1 + 2.0 * k2 + 2.0 * k3 + k4));
-}
-
-#[allow(non_snake_case)]
+///
 /// This flux is rotated by the grid metrics
 /// (Au)_x + (Bu)_y = 1/J [
 ///          (J xi_x Au)_xi + (J eta_x Au)_eta
@@ -194,12 +165,17 @@ fn RHS<SBP: SbpOperator>(
     k: &mut Field,
     y: &Field,
     grid: &Grid<SBP>,
-    boundaries: &BoundaryTerms,
     tmp: &mut (Array2<f32>, Array2<f32>, Array2<f32>, Array2<f32>),
 ) {
     fluxes(k, y, grid, tmp);
 
-    SAT_characteristics(k, y, grid, boundaries);
+    let boundaries = BoundaryTerms {
+        north: Boundary::This,
+        south: Boundary::This,
+        west: Boundary::This,
+        east: Boundary::This,
+    };
+    SAT_characteristics(k, y, grid, &boundaries);
 
     azip!((k in &mut k.0,
                     &detj in &grid.detj.broadcast((3, y.ny(), y.nx())).unwrap()) {
@@ -212,13 +188,18 @@ fn RHS_upwind<UO: UpwindOperator>(
     k: &mut Field,
     y: &Field,
     grid: &Grid<UO>,
-    boundaries: &BoundaryTerms,
     tmp: &mut (Array2<f32>, Array2<f32>, Array2<f32>, Array2<f32>),
 ) {
     fluxes(k, y, grid, tmp);
     dissipation(k, y, grid, tmp);
 
-    SAT_characteristics(k, y, grid, boundaries);
+    let boundaries = BoundaryTerms {
+        north: Boundary::This,
+        south: Boundary::This,
+        west: Boundary::This,
+        east: Boundary::This,
+    };
+    SAT_characteristics(k, y, grid, &boundaries);
 
     azip!((k in &mut k.0,
                     &detj in &grid.detj.broadcast((3, y.ny(), y.nx())).unwrap()) {
@@ -576,8 +557,7 @@ fn SAT_characteristics<SBP: SbpOperator>(
 }
 
 pub struct WorkBuffers {
-    y: Field,
-    buf: [Field; 4],
+    k: [Field; 4],
     tmp: (Array2<f32>, Array2<f32>, Array2<f32>, Array2<f32>),
 }
 
@@ -586,8 +566,7 @@ impl WorkBuffers {
         let arr2 = Array2::zeros((ny, nx));
         let arr3 = Field::new(nx, ny);
         Self {
-            y: arr3.clone(),
-            buf: [arr3.clone(), arr3.clone(), arr3.clone(), arr3],
+            k: [arr3.clone(), arr3.clone(), arr3.clone(), arr3],
             tmp: (arr2.clone(), arr2.clone(), arr2.clone(), arr2),
         }
     }

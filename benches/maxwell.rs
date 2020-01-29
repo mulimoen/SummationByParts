@@ -1,14 +1,14 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
+use sbp::maxwell::System;
 use sbp::operators::{SbpOperator, Upwind4, UpwindOperator, SBP4};
-use sbp::MaxwellSystem;
 
-fn advance_system<SBP: SbpOperator>(universe: &mut MaxwellSystem<SBP>, n: usize) {
+fn advance_system<SBP: SbpOperator>(universe: &mut System<SBP>, n: usize) {
     for _ in 0..n {
         universe.advance(0.01);
     }
 }
 
-fn advance_system_upwind<UO: UpwindOperator>(universe: &mut MaxwellSystem<UO>, n: usize) {
+fn advance_system_upwind<UO: UpwindOperator>(universe: &mut System<UO>, n: usize) {
     for _ in 0..n {
         universe.advance_upwind(0.01);
     }
@@ -23,8 +23,7 @@ fn performance_benchmark(c: &mut Criterion) {
     let x = ndarray::Array2::from_shape_fn((h, w), |(_, i)| i as f32 / (w - 1) as f32);
     let y = ndarray::Array2::from_shape_fn((h, w), |(j, _)| j as f32 / (h - 1) as f32);
 
-    let mut universe =
-        MaxwellSystem::<Upwind4>::new(w, h, x.as_slice().unwrap(), y.as_slice().unwrap());
+    let mut universe = System::<Upwind4>::new(w, h, x.as_slice().unwrap(), y.as_slice().unwrap());
     group.bench_function("advance", |b| {
         b.iter(|| {
             universe.set_gaussian(0.5, 0.5);
@@ -32,8 +31,7 @@ fn performance_benchmark(c: &mut Criterion) {
         })
     });
 
-    let mut universe =
-        MaxwellSystem::<Upwind4>::new(w, h, x.as_slice().unwrap(), y.as_slice().unwrap());
+    let mut universe = System::<Upwind4>::new(w, h, x.as_slice().unwrap(), y.as_slice().unwrap());
     group.bench_function("advance_upwind", |b| {
         b.iter(|| {
             universe.set_gaussian(0.5, 0.5);
@@ -41,8 +39,7 @@ fn performance_benchmark(c: &mut Criterion) {
         })
     });
 
-    let mut universe =
-        MaxwellSystem::<SBP4>::new(w, h, x.as_slice().unwrap(), y.as_slice().unwrap());
+    let mut universe = System::<SBP4>::new(w, h, x.as_slice().unwrap(), y.as_slice().unwrap());
     group.bench_function("advance_trad4", |b| {
         b.iter(|| {
             universe.set_gaussian(0.5, 0.5);
