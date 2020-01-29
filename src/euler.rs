@@ -28,13 +28,14 @@ impl<SBP: SbpOperator> System<SBP> {
     }
 
     pub fn advance(&mut self, dt: f32) {
-        advance(
+        integrate_rk4(
             RHS_trad,
             &self.sys.0,
             &mut self.sys.1,
             dt,
             &self.grid,
-            Some(&mut self.wb),
+            &mut self.wb.k,
+            &mut self.wb.tmp,
         );
         std::mem::swap(&mut self.sys.0, &mut self.sys.1);
     }
@@ -94,13 +95,14 @@ impl<SBP: SbpOperator> System<SBP> {
 
 impl<UO: UpwindOperator> System<UO> {
     pub fn advance_upwind(&mut self, dt: f32) {
-        advance(
+        integrate_rk4(
             RHS_upwind,
             &self.sys.0,
             &mut self.sys.1,
             dt,
             &self.grid,
-            Some(&mut self.wb),
+            &mut self.wb.k,
+            &mut self.wb.tmp,
         );
         std::mem::swap(&mut self.sys.0, &mut self.sys.1);
     }
@@ -222,57 +224,37 @@ impl Field {
     }
 }
 
-pub(crate) fn advance<SBP, RHS>(
+pub(crate) fn integrate_rk4<SBP, RHS, WB>(
     rhs: RHS,
     prev: &Field,
     fut: &mut Field,
     dt: f32,
     grid: &Grid<SBP>,
-    work_buffers: Option<&mut WorkBuffers>,
+    k: &mut [Field; 4],
+    mut wb: &mut WB,
 ) where
     SBP: SbpOperator,
-    RHS: Fn(
-        &mut Field,
-        &Field,
-        &Grid<SBP>,
-        &BoundaryTerms,
-        &mut (Field, Field, Field, Field, Field, Field),
-    ),
+    RHS: Fn(&mut Field, &Field, &Grid<SBP>, &mut WB),
 {
     assert_eq!(prev.0.shape(), fut.0.shape());
 
-    let mut wb: WorkBuffers;
-    let (y, k, tmp) = if let Some(x) = work_buffers {
-        (&mut x.y, &mut x.buf, &mut x.tmp)
-    } else {
-        wb = WorkBuffers::new(prev.nx(), prev.ny());
-        (&mut wb.y, &mut wb.buf, &mut wb.tmp)
-    };
-
-    let boundaries = BoundaryTerms {
-        north: Boundary::This,
-        south: Boundary::This,
-        west: Boundary::This,
-        east: Boundary::This,
-    };
-
     for i in 0..4 {
         // y = y0 + c*kn
-        y.assign(&prev);
+        fut.assign(&prev);
         match i {
             0 => {}
             1 | 2 => {
-                y.scaled_add(1.0 / 2.0 * dt, &k[i - 1]);
+                fut.scaled_add(1.0 / 2.0 * dt, &k[i - 1]);
             }
             3 => {
-                y.scaled_add(dt, &k[i - 1]);
+                fut.scaled_add(dt, &k[i - 1]);
             }
             _ => {
                 unreachable!();
             }
         };
 
-        rhs(&mut k[i], &y, grid, &boundaries, tmp);
+        rhs(&mut k[i], &fut, grid, &mut wb);
     }
 
     Zip::from(&mut fut.0)
@@ -293,7 +275,6 @@ pub(crate) fn RHS_trad<SBP: SbpOperator>(
     k: &mut Field,
     y: &Field,
     grid: &Grid<SBP>,
-    boundaries: &BoundaryTerms,
     tmp: &mut (Field, Field, Field, Field, Field, Field),
 ) {
     let ehat = &mut tmp.0;
@@ -319,7 +300,14 @@ pub(crate) fn RHS_trad<SBP: SbpOperator>(
         *out = (-eflux - fflux)/detj
     });
 
-    SAT_characteristics(k, y, grid, boundaries);
+    let boundaries = BoundaryTerms {
+        north: Boundary::This,
+        south: Boundary::This,
+        west: Boundary::This,
+        east: Boundary::This,
+    };
+
+    SAT_characteristics(k, y, grid, &boundaries);
 }
 
 #[allow(non_snake_case)]
@@ -327,7 +315,6 @@ pub(crate) fn RHS_upwind<UO: UpwindOperator>(
     k: &mut Field,
     y: &Field,
     grid: &Grid<UO>,
-    boundaries: &BoundaryTerms,
     tmp: &mut (Field, Field, Field, Field, Field, Field),
 ) {
     let ehat = &mut tmp.0;
@@ -359,7 +346,13 @@ pub(crate) fn RHS_upwind<UO: UpwindOperator>(
         *out = (-eflux - fflux + ad_xi + ad_eta)/detj
     });
 
-    SAT_characteristics(k, y, grid, boundaries);
+    let boundaries = BoundaryTerms {
+        north: Boundary::This,
+        south: Boundary::This,
+        west: Boundary::This,
+        east: Boundary::This,
+    };
+    SAT_characteristics(k, y, grid, &boundaries);
 }
 
 #[allow(clippy::many_single_char_names)]
@@ -721,8 +714,7 @@ fn SAT_characteristic(
 }
 
 pub struct WorkBuffers {
-    y: Field,
-    buf: [Field; 4],
+    k: [Field; 4],
     tmp: (Field, Field, Field, Field, Field, Field),
 }
 
@@ -730,8 +722,7 @@ impl WorkBuffers {
     pub fn new(nx: usize, ny: usize) -> Self {
         let arr3 = Field::new(nx, ny);
         Self {
-            y: arr3.clone(),
-            buf: [arr3.clone(), arr3.clone(), arr3.clone(), arr3.clone()],
+            k: [arr3.clone(), arr3.clone(), arr3.clone(), arr3.clone()],
             tmp: (
                 arr3.clone(),
                 arr3.clone(),
