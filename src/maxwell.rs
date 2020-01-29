@@ -1,4 +1,4 @@
-use super::integrate::integrate_rk4;
+use super::integrate;
 use super::operators::{SbpOperator, UpwindOperator};
 use super::Grid;
 use ndarray::azip;
@@ -106,7 +106,7 @@ impl<SBP: SbpOperator> System<SBP> {
     }
 
     pub fn advance(&mut self, dt: f32) {
-        integrate_rk4(
+        integrate::rk4(
             RHS,
             &self.sys.0,
             &mut self.sys.1,
@@ -122,7 +122,7 @@ impl<SBP: SbpOperator> System<SBP> {
 impl<UO: UpwindOperator> System<UO> {
     /// Using artificial dissipation with the upwind operator
     pub fn advance_upwind(&mut self, dt: f32) {
-        integrate_rk4(
+        integrate::rk4(
             RHS_upwind,
             &self.sys.0,
             &mut self.sys.1,

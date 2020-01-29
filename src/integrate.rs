@@ -2,7 +2,7 @@ use super::grid::Grid;
 use super::operators::SbpOperator;
 use ndarray::{Array3, Zip};
 
-pub(crate) fn integrate_rk4<'a, F: 'a, SBP, RHS, WB>(
+pub(crate) fn rk4<'a, F: 'a, SBP, RHS, WB>(
     rhs: RHS,
     prev: &F,
     fut: &mut F,
