@@ -39,6 +39,7 @@ impl<SBP: SbpOperator> System<SBP> {
         std::mem::swap(&mut self.sys.0, &mut self.sys.1);
     }
 
+    #[allow(clippy::many_single_char_names)]
     pub fn init_with_vortex(&mut self, x0: f32, y0: f32) {
         // Should parametrise such that we have radius, drop in pressure at center, etc
         let rstar = 1.0;
@@ -361,6 +362,7 @@ pub(crate) fn RHS_upwind<UO: UpwindOperator>(
     SAT_characteristics(k, y, grid, boundaries);
 }
 
+#[allow(clippy::many_single_char_names)]
 fn upwind_dissipation<UO: UpwindOperator>(
     k: (&mut Field, &mut Field),
     y: &Field,
@@ -595,6 +597,8 @@ fn SAT_characteristics<SBP: SbpOperator>(
 }
 
 #[allow(non_snake_case)]
+#[allow(clippy::many_single_char_names)]
+#[allow(clippy::too_many_arguments)]
 /// Boundary conditions (SAT)
 fn SAT_characteristic(
     mut k: ArrayViewMut2<f32>,
@@ -688,6 +692,7 @@ fn SAT_characteristic(
 
         let res = [rho - z[0], rhou - z[1], rhov - z[2], e - z[3]];
         let mut TIres = [0.0; 4];
+        #[allow(clippy::needless_range_loop)]
         for row in 0..4 {
             for col in 0..4 {
                 TIres[row] += TI[row][col] * res[col];
@@ -702,6 +707,7 @@ fn SAT_characteristic(
 
         // T*LTIres
         let mut TLTIres = [0.0; 4];
+        #[allow(clippy::needless_range_loop)]
         for row in 0..4 {
             for col in 0..4 {
                 TLTIres[row] += T[row][col] * LTIres[col];

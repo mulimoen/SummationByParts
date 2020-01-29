@@ -1,3 +1,6 @@
+#![allow(clippy::excessive_precision)]
+#![allow(clippy::unreadable_literal)]
+
 use ndarray::{ArrayView2, ArrayViewMut2};
 
 pub trait SbpOperator {
