@@ -1,6 +1,6 @@
+use super::grid::Grid;
 use super::integrate;
 use super::operators::{SbpOperator, UpwindOperator};
-use super::Grid;
 use ndarray::azip;
 use ndarray::prelude::*;
 

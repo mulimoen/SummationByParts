@@ -1,0 +1,21 @@
+[package]
+name = "sbp"
+version = "0.1.1"
+authors = ["Magnus Ulimoen <flymagnus@gmail.com>"]
+edition = "2018"
+
+[dependencies]
+ndarray = { version = "0.13.0", features = ["approx"] }
+approx = "0.3.2"
+packed_simd = "0.3.3"
+
+[dev-dependencies]
+criterion = "0.3.0"
+
+[[bench]]
+name = "maxwell"
+harness = false
+
+[[bench]]
+name = "euler"
+harness = false

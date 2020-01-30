@@ -1,11 +1,11 @@
-import { EulerUniverse, default as init, set_panic_hook as setPanicHook } from "../sbp.js";
+import { EulerUniverse, default as init, set_panic_hook as setPanicHook } from "../sbp_web.js";
 
 /**
  * Initialises and runs the Euler solver,
  * plotting the solution to a canvas using webgl
  */
 (async function run() {
-    const wasm = await init("../sbp_bg.wasm");
+    const wasm = await init("../sbp_web_bg.wasm");
     setPanicHook();
     const DIAMOND = false;
     const UPWIND = true;
