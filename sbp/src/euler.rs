@@ -260,10 +260,10 @@ pub(crate) fn RHS_trad<SBP: SbpOperator>(
     });
 
     let boundaries = BoundaryTerms {
-        north: Boundary::This,
-        south: Boundary::This,
-        west: Boundary::This,
-        east: Boundary::This,
+        north: y.south(),
+        south: y.north(),
+        west: y.east(),
+        east: y.west(),
     };
 
     SAT_characteristics(k, y, grid, &boundaries);
@@ -306,11 +306,12 @@ pub(crate) fn RHS_upwind<UO: UpwindOperator>(
     });
 
     let boundaries = BoundaryTerms {
-        north: Boundary::This,
-        south: Boundary::This,
-        west: Boundary::This,
-        east: Boundary::This,
+        north: y.south(),
+        south: y.north(),
+        west: y.east(),
+        east: y.west(),
     };
+
     SAT_characteristics(k, y, grid, &boundaries);
 }
 
@@ -429,16 +430,11 @@ fn fluxes<SBP: SbpOperator>(k: (&mut Field, &mut Field), y: &Field, grid: &Grid<
 }
 
 #[derive(Clone, Debug)]
-pub enum Boundary {
-    This,
-}
-
-#[derive(Clone, Debug)]
-pub struct BoundaryTerms {
-    pub north: Boundary,
-    pub south: Boundary,
-    pub east: Boundary,
-    pub west: Boundary,
+pub struct BoundaryTerms<'a> {
+    pub north: ArrayView2<'a, f32>,
+    pub south: ArrayView2<'a, f32>,
+    pub east: ArrayView2<'a, f32>,
+    pub west: ArrayView2<'a, f32>,
 }
 
 #[allow(non_snake_case)]
@@ -447,18 +443,8 @@ fn SAT_characteristics<SBP: SbpOperator>(
     k: &mut Field,
     y: &Field,
     grid: &Grid<SBP>,
-    _boundaries: &BoundaryTerms,
+    boundaries: &BoundaryTerms,
 ) {
-    /* // Whean using infinite boundaries, use this...
-    let steady_v = [1.0, 1.0, 0.0, {
-        let M = 0.1;
-        let p_inf = 1.0 / (GAMMA * M * M);
-        p_inf / (GAMMA - 1.0) + 0.5
-    }];
-    let steady_a = ndarray::Array1::from(steady_v.to_vec());
-    let steady = steady_a.broadcast((k.nx(), 4)).unwrap().reversed_axes();
-    assert_eq!(steady.shape(), [4, k.nx()]);
-    */
     // North boundary
     {
         let hi = (k.ny() - 1) as f32 * SBP::h()[0];
@@ -468,8 +454,7 @@ fn SAT_characteristics<SBP: SbpOperator>(
         SAT_characteristic(
             k.north_mut(),
             y.north(),
-            y.south(), // Self South
-            //steady.view(),
+            boundaries.north,
             hi,
             sign,
             tau,
@@ -487,8 +472,7 @@ fn SAT_characteristics<SBP: SbpOperator>(
         SAT_characteristic(
             k.south_mut(),
             y.south(),
-            y.north(), // Self North
-            //steady.view(),
+            boundaries.south,
             hi,
             sign,
             tau,
@@ -497,17 +481,6 @@ fn SAT_characteristics<SBP: SbpOperator>(
             grid.detj_deta_dy.slice(slice),
         );
     }
-    /*let steady = ndarray::Array2::from_shape_fn((4, k.ny()), |(k, _)| match k {
-        0 => 1.0,
-        1 => 1.0,
-        2 => 0.0,
-        3 => {
-            let M = 0.1;
-            let p_inf = 1.0 / (GAMMA * M * M);
-            p_inf / (GAMMA - 1.0) + 0.5
-        }
-        _ => unreachable!(),
-    });*/
     // West Boundary
     {
         let hi = (k.nx() - 1) as f32 * SBP::h()[0];
@@ -517,8 +490,7 @@ fn SAT_characteristics<SBP: SbpOperator>(
         SAT_characteristic(
             k.west_mut(),
             y.west(),
-            y.east(), // Self East
-            //steady.view(),
+            boundaries.west,
             hi,
             sign,
             tau,
@@ -536,8 +508,7 @@ fn SAT_characteristics<SBP: SbpOperator>(
         SAT_characteristic(
             k.east_mut(),
             y.east(),
-            y.west(), // Self West
-            //steady.view(),
+            boundaries.east,
             hi,
             sign,
             tau,
