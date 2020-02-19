@@ -2,6 +2,7 @@ use super::SbpOperator;
 use crate::diff_op_1d;
 use ndarray::{s, ArrayView1, ArrayView2, ArrayViewMut1, ArrayViewMut2};
 
+#[derive(Debug)]
 pub struct SBP4 {}
 
 diff_op_1d!(SBP4, diff_1d, SBP4::BLOCK, SBP4::DIAG, false);

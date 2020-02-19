@@ -2,6 +2,7 @@ use super::{SbpOperator, UpwindOperator};
 use crate::diff_op_1d;
 use ndarray::{s, ArrayView1, ArrayView2, ArrayViewMut1, ArrayViewMut2, Axis};
 
+#[derive(Debug)]
 pub struct Upwind4 {}
 
 /// Simdtype used in diff_simd_col

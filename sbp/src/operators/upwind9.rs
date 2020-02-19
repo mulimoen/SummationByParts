@@ -2,6 +2,7 @@ use super::{SbpOperator, UpwindOperator};
 use crate::diff_op_1d;
 use ndarray::{s, ArrayView1, ArrayView2, ArrayViewMut1, ArrayViewMut2};
 
+#[derive(Debug)]
 pub struct Upwind9 {}
 
 diff_op_1d!(Upwind9, diff_1d, Upwind9::BLOCK, Upwind9::DIAG, false);

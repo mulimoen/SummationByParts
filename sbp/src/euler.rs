@@ -8,6 +8,7 @@ pub const GAMMA: f32 = 1.4;
 
 // A collection of buffers that allows one to efficiently
 // move to the next state
+#[derive(Debug)]
 pub struct System<SBP: SbpOperator> {
     sys: (Field, Field),
     wb: WorkBuffers,
@@ -643,6 +644,7 @@ fn SAT_characteristic(
     }
 }
 
+#[derive(Debug)]
 pub struct WorkBuffers {
     k: [Field; 4],
     tmp: (Field, Field, Field, Field, Field, Field),
