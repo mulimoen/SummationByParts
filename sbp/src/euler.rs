@@ -30,8 +30,17 @@ impl<SBP: SbpOperator> System<SBP> {
     }
 
     pub fn advance(&mut self, dt: f32) {
+        let rhs_trad = |k: &mut Field, y: &Field, grid: &_, wb: &mut _| {
+            let boundaries = BoundaryTerms {
+                north: y.south(),
+                south: y.north(),
+                west: y.east(),
+                east: y.west(),
+            };
+            RHS_trad(k, y, grid, &boundaries, wb)
+        };
         integrate::rk4(
-            RHS_trad,
+            rhs_trad,
             &self.sys.0,
             &mut self.sys.1,
             dt,
@@ -97,8 +106,17 @@ impl<SBP: SbpOperator> System<SBP> {
 
 impl<UO: UpwindOperator> System<UO> {
     pub fn advance_upwind(&mut self, dt: f32) {
+        let rhs_upwind = |k: &mut Field, y: &Field, grid: &_, wb: &mut _| {
+            let boundaries = BoundaryTerms {
+                north: y.south(),
+                south: y.north(),
+                west: y.east(),
+                east: y.west(),
+            };
+            RHS_upwind(k, y, grid, &boundaries, wb)
+        };
         integrate::rk4(
-            RHS_upwind,
+            rhs_upwind,
             &self.sys.0,
             &mut self.sys.1,
             dt,
@@ -235,6 +253,7 @@ pub(crate) fn RHS_trad<SBP: SbpOperator>(
     k: &mut Field,
     y: &Field,
     grid: &Grid<SBP>,
+    boundaries: &BoundaryTerms,
     tmp: &mut (Field, Field, Field, Field, Field, Field),
 ) {
     let ehat = &mut tmp.0;
@@ -260,14 +279,7 @@ pub(crate) fn RHS_trad<SBP: SbpOperator>(
         *out = (-eflux - fflux)/detj
     });
 
-    let boundaries = BoundaryTerms {
-        north: y.south(),
-        south: y.north(),
-        west: y.east(),
-        east: y.west(),
-    };
-
-    SAT_characteristics(k, y, grid, &boundaries);
+    SAT_characteristics(k, y, grid, boundaries);
 }
 
 #[allow(non_snake_case)]
@@ -275,6 +287,7 @@ pub(crate) fn RHS_upwind<UO: UpwindOperator>(
     k: &mut Field,
     y: &Field,
     grid: &Grid<UO>,
+    boundaries: &BoundaryTerms,
     tmp: &mut (Field, Field, Field, Field, Field, Field),
 ) {
     let ehat = &mut tmp.0;
@@ -306,14 +319,7 @@ pub(crate) fn RHS_upwind<UO: UpwindOperator>(
         *out = (-eflux - fflux + ad_xi + ad_eta)/detj
     });
 
-    let boundaries = BoundaryTerms {
-        north: y.south(),
-        south: y.north(),
-        west: y.east(),
-        east: y.west(),
-    };
-
-    SAT_characteristics(k, y, grid, &boundaries);
+    SAT_characteristics(k, y, grid, boundaries);
 }
 
 #[allow(clippy::many_single_char_names)]
