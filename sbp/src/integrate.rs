@@ -17,16 +17,30 @@ pub(crate) fn rk4<'a, F: 'a, SBP, RHS, WB>(
 {
     assert_eq!(prev.shape(), fut.shape());
 
-    for i in 0..4 {
-        // y = y0 + c*kn
-        fut.assign(prev);
+    for i in 0.. {
         match i {
-            0 => {}
+            0 => {
+                fut.assign(prev);
+            }
             1 | 2 => {
+                fut.assign(prev);
                 fut.scaled_add(1.0 / 2.0 * dt, &k[i - 1]);
             }
             3 => {
+                fut.assign(prev);
                 fut.scaled_add(dt, &k[i - 1]);
+            }
+            4 => {
+                Zip::from(&mut **fut)
+                    .and(&**prev)
+                    .and(&*k[0])
+                    .and(&*k[1])
+                    .and(&*k[2])
+                    .and(&*k[3])
+                    .apply(|y1, &y0, &k1, &k2, &k3, &k4| {
+                        *y1 = y0 + dt / 6.0 * (k1 + 2.0 * k2 + 2.0 * k3 + k4)
+                    });
+                return;
             }
             _ => {
                 unreachable!();
@@ -35,12 +49,4 @@ pub(crate) fn rk4<'a, F: 'a, SBP, RHS, WB>(
 
         rhs(&mut k[i], &fut, grid, &mut wb);
     }
-
-    Zip::from(&mut **fut)
-        .and(&**prev)
-        .and(&*k[0])
-        .and(&*k[1])
-        .and(&*k[2])
-        .and(&*k[3])
-        .apply(|y1, &y0, &k1, &k2, &k3, &k4| *y1 = y0 + dt / 6.0 * (k1 + 2.0 * k2 + 2.0 * k3 + k4));
 }
