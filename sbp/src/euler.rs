@@ -54,49 +54,20 @@ impl<SBP: SbpOperator> System<SBP> {
     #[allow(clippy::many_single_char_names)]
     pub fn init_with_vortex(&mut self, x0: f32, y0: f32) {
         // Should parametrise such that we have radius, drop in pressure at center, etc
-        let rstar = 1.0;
-        let eps = 3.0;
-        #[allow(non_snake_case)]
-        let M = 0.5;
+        let vortex_parameters = VortexParameters {
+            x0,
+            y0,
+            rstar: 1.0,
+            eps: 3.0,
+            mach: 0.5,
+        };
 
-        let p_inf = 1.0 / (GAMMA * M * M);
-        let t = 0.0;
-
-        let nx = self.grid.nx();
-        let ny = self.grid.ny();
-
-        for j in 0..ny {
-            for i in 0..nx {
-                let x = self.grid.x[(j, i)];
-                let y = self.grid.y[(j, i)];
-
-                let dx = (x - x0) - t;
-                let dy = y - y0;
-                let f = (1.0 - (dx * dx + dy * dy)) / (rstar * rstar);
-
-                use std::f32::consts::PI;
-                let u =
-                    1.0 - eps * dy / (2.0 * PI * p_inf.sqrt() * rstar * rstar) * (f / 2.0).exp();
-                let v =
-                    0.0 + eps * dx / (2.0 * PI * p_inf.sqrt() * rstar * rstar) * (f / 2.0).exp();
-                let rho = f32::powf(
-                    1.0 - eps * eps * (GAMMA - 1.0) * M * M
-                        / (8.0 * PI * PI * p_inf * rstar * rstar)
-                        * f.exp(),
-                    1.0 / (GAMMA - 1.0),
-                );
-                assert!(rho > 0.0);
-                let p = p_inf * rho.powf(GAMMA);
-                assert!(p > 0.0);
-                let e = p / (GAMMA - 1.0) + rho * (u * u + v * v) / 2.0;
-                assert!(e > 0.0);
-
-                self.sys.0[(0, j, i)] = rho;
-                self.sys.0[(1, j, i)] = rho * u;
-                self.sys.0[(2, j, i)] = rho * v;
-                self.sys.0[(3, j, i)] = e;
-            }
-        }
+        self.sys.0.vortex(
+            self.grid.x.view(),
+            self.grid.y.view(),
+            0.0,
+            vortex_parameters,
+        )
     }
 
     pub fn field(&self) -> &Field {
@@ -242,6 +213,56 @@ impl Field {
     fn west_mut(&mut self) -> ArrayViewMut2<f32> {
         self.slice_mut(s![.., .., 0])
     }
+
+    fn vortex(
+        &mut self,
+        x: ArrayView2<f32>,
+        y: ArrayView2<f32>,
+        t: f32,
+        vortex_param: VortexParameters,
+    ) {
+        assert_eq!(x.shape(), y.shape());
+        assert_eq!(x.shape()[1], self.nx());
+        assert_eq!(x.shape()[0], self.ny());
+
+        let (rho, rhou, rhov, e) = self.components_mut();
+
+        let eps = vortex_param.eps;
+        let m = vortex_param.mach;
+        let rstar = vortex_param.rstar;
+        let p_inf = 1.0 / (GAMMA * m * m);
+        azip!((rho in rho,
+               rhou in rhou,
+               rhov in rhov,
+               e in e,
+               x in x,
+               y in y)
+        {
+            use std::f32::consts::PI;
+            let dx = (x - vortex_param.x0) - t;
+            let dy = y - vortex_param.y0;
+            let f = (1.0 - (dx*dx + dy*dy))/(rstar*rstar);
+
+            *rho = f32::powf(1.0 - eps*eps*(GAMMA - 1.0)*m*m/(8.0*PI*PI*p_inf*rstar*rstar)*f.exp(), 1.0/(GAMMA - 1.0));
+            assert!(*rho > 0.0);
+            let p = f32::powf(*rho, GAMMA)*p_inf;
+            assert!(p > 0.0);
+            let u = 1.0 - eps*dy/(2.0*PI*p_inf.sqrt()*rstar*rstar)*(f/2.0).exp();
+            let v =       eps*dx/(2.0*PI*p_inf.sqrt()*rstar*rstar)*(f/2.0).exp();
+            *rhou = *rho*u;
+            *rhov = *rho*v;
+            *e = p/(GAMMA - 1.0) + *rho*(u*u + v*v)/2.0;
+        });
+    }
+}
+
+#[derive(Copy, Clone)]
+pub struct VortexParameters {
+    x0: f32,
+    y0: f32,
+    rstar: f32,
+    eps: f32,
+    mach: f32,
 }
 
 fn pressure(gamma: f32, rho: f32, rhou: f32, rhov: f32, e: f32) -> f32 {

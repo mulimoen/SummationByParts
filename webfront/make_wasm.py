@@ -24,7 +24,7 @@ if __name__ == "__main__":
     publish.mkdir(exist_ok=True)
 
     target_triple = "wasm32-unknown-unknown"
-    command = ["env", "RUSTFLAGS=-Clto=thin", "cargo", "build", "--target", target_triple]
+    command = ["cargo", "build", "--target", target_triple]
     if args.release:
         command.append("--release")
 
