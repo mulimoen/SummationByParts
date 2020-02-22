@@ -256,6 +256,66 @@ impl Field {
     }
 }
 
+impl Field {
+    fn err_diff<SBP: SbpOperator>(&self, other: &Self) -> f32 {
+        assert_eq!(self.nx(), other.nx());
+        assert_eq!(self.ny(), other.ny());
+
+        let h = SBP::h();
+
+        // Resulting structure should be
+        // serialized(F0 - F1)^T (Hx kron Hy) serialized(F0 - F1)
+        //
+        // We accomplish this by serializing along x as fastest dimension
+        // Since h is diagonal, it can be iterated with the following iterators
+
+        // This chains the h block into the form [h, 1, 1, 1, rev(h)],
+        // and multiplies with a factor
+        let itermaker = move |n: usize, factor: f32| {
+            h.iter()
+                .copied()
+                .chain(std::iter::repeat(1.0).take(n - 2 * h.len()))
+                .chain(h.iter().copied().rev())
+                .map(move |x| x * factor)
+        };
+
+        let hxiterator = itermaker(self.nx(), 1.0 / (self.nx() - 1) as f32);
+        // Repeating to get the form
+        // [[hx0, hx1, ..., hxn], [hx0, hx1, ..., hxn], ..., [hx0, hx1, ..., hxn]]
+        let hxiterator = hxiterator.into_iter().cycle().take(self.nx() * self.ny());
+
+        let hyiterator = itermaker(self.ny(), 1.0 / (self.ny() - 1) as f32);
+        // Repeating to get the form
+        // [[hy0, hy0, ..., hy0], [hy1, hy1, ..., hy1], ..., [hym, hym, ..., hym]]
+        let hyiterator = hyiterator
+            .into_iter()
+            .flat_map(|x| std::iter::repeat(x).take(self.nx()));
+
+        let diagiterator = hxiterator.into_iter().zip(hyiterator).cycle();
+
+        diagiterator
+            .into_iter()
+            .zip(self.0.iter())
+            .zip(other.0.iter())
+            .map(|(((hx, hy), r0), r1)| (*r0 - *r1).powi(2) * hx * hy)
+            .sum::<f32>()
+    }
+}
+
+#[test]
+fn h2_diff() {
+    let mut field0 = Field::new(20, 21);
+    for f in field0.0.iter_mut() {
+        *f = 1.0
+    }
+    let field1 = Field::new(20, 21);
+
+    assert!((field0.err_diff::<super::operators::Upwind4>(&field1) - 4.0).abs() < 1e-3);
+    assert!((field0.err_diff::<super::operators::Upwind9>(&field1) - 4.0).abs() < 1e-3);
+    assert!((field0.err_diff::<super::operators::SBP4>(&field1) - 4.0).abs() < 1e-3);
+    assert!((field0.err_diff::<super::operators::SBP8>(&field1) - 4.0).abs() < 1e-3);
+}
+
 #[derive(Copy, Clone)]
 pub struct VortexParameters {
     x0: f32,
