@@ -51,6 +51,12 @@ impl<SBP: SbpOperator> System<SBP> {
         std::mem::swap(&mut self.sys.0, &mut self.sys.1);
     }
 
+    pub fn vortex(&mut self, t: f32, vortex_parameters: VortexParameters) {
+        self.sys
+            .0
+            .vortex(self.grid.x.view(), self.grid.y.view(), t, vortex_parameters);
+    }
+
     #[allow(clippy::many_single_char_names)]
     pub fn init_with_vortex(&mut self, x0: f32, y0: f32) {
         // Should parametrise such that we have radius, drop in pressure at center, etc
@@ -72,6 +78,13 @@ impl<SBP: SbpOperator> System<SBP> {
 
     pub fn field(&self) -> &Field {
         &self.sys.0
+    }
+
+    pub fn x(&self) -> ArrayView2<f32> {
+        self.grid.x.view()
+    }
+    pub fn y(&self) -> ArrayView2<f32> {
+        self.grid.y.view()
     }
 }
 
@@ -214,7 +227,7 @@ impl Field {
         self.slice_mut(s![.., .., 0])
     }
 
-    fn vortex(
+    pub fn vortex(
         &mut self,
         x: ArrayView2<f32>,
         y: ArrayView2<f32>,
@@ -257,7 +270,7 @@ impl Field {
 }
 
 impl Field {
-    fn err_diff<SBP: SbpOperator>(&self, other: &Self) -> f32 {
+    pub fn err_diff<SBP: SbpOperator>(&self, other: &Self) -> f32 {
         assert_eq!(self.nx(), other.nx());
         assert_eq!(self.ny(), other.ny());
 
@@ -318,11 +331,11 @@ fn h2_diff() {
 
 #[derive(Copy, Clone)]
 pub struct VortexParameters {
-    x0: f32,
-    y0: f32,
-    rstar: f32,
-    eps: f32,
-    mach: f32,
+    pub x0: f32,
+    pub y0: f32,
+    pub rstar: f32,
+    pub eps: f32,
+    pub mach: f32,
 }
 
 fn pressure(gamma: f32, rho: f32, rhou: f32, rhov: f32, e: f32) -> f32 {
