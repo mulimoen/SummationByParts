@@ -270,7 +270,8 @@ impl Field {
 }
 
 impl Field {
-    pub fn err_diff<SBP: SbpOperator>(&self, other: &Self) -> f32 {
+    /// sqrt((self-other)^T*H*(self-other))
+    pub fn h2_err<SBP: SbpOperator>(&self, other: &Self) -> f32 {
         assert_eq!(self.nx(), other.nx());
         assert_eq!(self.ny(), other.ny());
 
@@ -312,6 +313,7 @@ impl Field {
             .zip(other.0.iter())
             .map(|(((hx, hy), r0), r1)| (*r0 - *r1).powi(2) * hx * hy)
             .sum::<f32>()
+            .sqrt()
     }
 }
 
@@ -323,10 +325,10 @@ fn h2_diff() {
     }
     let field1 = Field::new(20, 21);
 
-    assert!((field0.err_diff::<super::operators::Upwind4>(&field1) - 4.0).abs() < 1e-3);
-    assert!((field0.err_diff::<super::operators::Upwind9>(&field1) - 4.0).abs() < 1e-3);
-    assert!((field0.err_diff::<super::operators::SBP4>(&field1) - 4.0).abs() < 1e-3);
-    assert!((field0.err_diff::<super::operators::SBP8>(&field1) - 4.0).abs() < 1e-3);
+    assert!((field0.h2_err::<super::operators::Upwind4>(&field1).powi(2) - 4.0).abs() < 1e-3);
+    assert!((field0.h2_err::<super::operators::Upwind9>(&field1).powi(2) - 4.0).abs() < 1e-3);
+    assert!((field0.h2_err::<super::operators::SBP4>(&field1).powi(2) - 4.0).abs() < 1e-3);
+    assert!((field0.h2_err::<super::operators::SBP8>(&field1).powi(2) - 4.0).abs() < 1e-3);
 }
 
 #[derive(Copy, Clone)]

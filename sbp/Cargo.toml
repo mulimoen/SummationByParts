@@ -10,6 +10,11 @@ approx = "0.3.2"
 packed_simd = "0.3.3"
 json = "0.12.1"
 
+[features]
+# Internal feature flag to gate the expensive tests
+# which should be run only in release builds
+expensive_tests = []
+
 [dev-dependencies]
 criterion = "0.3.0"
 
