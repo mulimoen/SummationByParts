@@ -1,8 +1,9 @@
 #![cfg(feature = "expensive_tests")]
 use ndarray::prelude::*;
 use sbp::euler::*;
+use sbp::Float;
 
-fn run_with_size<SBP: sbp::operators::UpwindOperator>(size: usize) -> f32 {
+fn run_with_size<SBP: sbp::operators::UpwindOperator>(size: usize) -> Float {
     let nx = size;
     let ny = size;
     let x = Array1::linspace(-5.0, 5.0, nx);
@@ -28,7 +29,7 @@ fn run_with_size<SBP: sbp::operators::UpwindOperator>(size: usize) -> f32 {
     sys.vortex(0.0, vortex_params);
 
     let time = 0.2;
-    let dt = 0.2 * f32::min(1.0 / (nx - 1) as f32, 1.0 / (ny - 1) as f32);
+    let dt = 0.2 * Float::min(1.0 / (nx - 1) as Float, 1.0 / (ny - 1) as Float);
 
     let nsteps = (time / dt) as usize;
     for _ in 0..nsteps {
@@ -36,15 +37,15 @@ fn run_with_size<SBP: sbp::operators::UpwindOperator>(size: usize) -> f32 {
     }
 
     let mut verifield = Field::new(ny, nx);
-    verifield.vortex(sys.x(), sys.y(), nsteps as f32 * dt, vortex_params);
+    verifield.vortex(sys.x(), sys.y(), nsteps as Float * dt, vortex_params);
 
     verifield.h2_err::<SBP>(sys.field())
 }
 
 #[test]
 fn convergence() {
-    let sizes = [25, 35, 50, 71, 100, 150];
-    let mut prev: Option<(usize, f32)> = None;
+    let sizes = [25, 35, 50, 71, 100, 150, 200];
+    let mut prev: Option<(usize, Float)> = None;
     println!("Size\tError(h2)\tq");
     for size in &sizes {
         print!("{:3}x{:3}", size, size);
@@ -57,7 +58,8 @@ fn convergence() {
             let (size1, e1) = prev;
             let m1 = size1 * size1;
 
-            let q = f32::log10(e0 / e1) / f32::log10((m0 as f32 / m1 as f32).powf(1.0 / 2.0));
+            let q =
+                Float::log10(e0 / e1) / Float::log10((m0 as Float / m1 as Float).powf(1.0 / 2.0));
             print!("\t{}", q);
         }
         println!();

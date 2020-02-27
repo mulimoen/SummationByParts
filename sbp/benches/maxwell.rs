@@ -1,6 +1,7 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use sbp::maxwell::System;
 use sbp::operators::{SbpOperator, Upwind4, UpwindOperator, SBP4};
+use sbp::Float;
 
 fn advance_system<SBP: SbpOperator>(universe: &mut System<SBP>, n: usize) {
     for _ in 0..n {
@@ -20,8 +21,8 @@ fn performance_benchmark(c: &mut Criterion) {
 
     let w = 40;
     let h = 26;
-    let x = ndarray::Array2::from_shape_fn((h, w), |(_, i)| i as f32 / (w - 1) as f32);
-    let y = ndarray::Array2::from_shape_fn((h, w), |(j, _)| j as f32 / (h - 1) as f32);
+    let x = ndarray::Array2::from_shape_fn((h, w), |(_, i)| i as Float / (w - 1) as Float);
+    let y = ndarray::Array2::from_shape_fn((h, w), |(j, _)| j as Float / (h - 1) as Float);
 
     let mut universe = System::<Upwind4>::new(x.clone(), y.clone());
     group.bench_function("advance", |b| {

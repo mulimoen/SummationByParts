@@ -1,29 +1,31 @@
 #![allow(clippy::excessive_precision)]
 #![allow(clippy::unreadable_literal)]
 
+use crate::Float;
+
 use ndarray::{ArrayView2, ArrayViewMut2};
 
 pub trait SbpOperator {
-    fn diffxi(prev: ArrayView2<f32>, fut: ArrayViewMut2<f32>);
-    fn diffeta(prev: ArrayView2<f32>, fut: ArrayViewMut2<f32>);
-    fn h() -> &'static [f32];
+    fn diffxi(prev: ArrayView2<Float>, fut: ArrayViewMut2<Float>);
+    fn diffeta(prev: ArrayView2<Float>, fut: ArrayViewMut2<Float>);
+    fn h() -> &'static [Float];
 }
 
 pub trait UpwindOperator: SbpOperator {
-    fn dissxi(prev: ArrayView2<f32>, fut: ArrayViewMut2<f32>);
-    fn disseta(prev: ArrayView2<f32>, fut: ArrayViewMut2<f32>);
+    fn dissxi(prev: ArrayView2<Float>, fut: ArrayViewMut2<Float>);
+    fn disseta(prev: ArrayView2<Float>, fut: ArrayViewMut2<Float>);
 }
 
 #[macro_export]
 macro_rules! diff_op_1d {
     ($self: ty, $name: ident, $BLOCK: expr, $DIAG: expr, $symmetric: expr) => {
         impl $self {
-            fn $name(prev: ArrayView1<f32>, mut fut: ArrayViewMut1<f32>) {
+            fn $name(prev: ArrayView1<Float>, mut fut: ArrayViewMut1<Float>) {
                 assert_eq!(prev.shape(), fut.shape());
                 let nx = prev.shape()[0];
                 assert!(nx >= 2 * $BLOCK.len());
 
-                let dx = 1.0 / (nx - 1) as f32;
+                let dx = 1.0 / (nx - 1) as Float;
                 let idx = 1.0 / dx;
 
                 let block = ::ndarray::arr2($BLOCK);

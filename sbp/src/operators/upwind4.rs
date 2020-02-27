@@ -1,12 +1,16 @@
 use super::{SbpOperator, UpwindOperator};
 use crate::diff_op_1d;
+use crate::Float;
 use ndarray::{s, ArrayView1, ArrayView2, ArrayViewMut1, ArrayViewMut2, Axis};
 
 #[derive(Debug)]
 pub struct Upwind4 {}
 
 /// Simdtype used in diff_simd_col
+#[cfg(feature = "f32")]
 type SimdT = packed_simd::f32x8;
+#[cfg(not(feature = "f32"))]
+type SimdT = packed_simd::f64x8;
 
 diff_op_1d!(Upwind4, diff_1d, Upwind4::BLOCK, Upwind4::DIAG, false);
 diff_op_1d!(
@@ -21,44 +25,48 @@ macro_rules! diff_simd_row_7_47 {
     ($self: ident, $name: ident, $BLOCK: expr, $DIAG: expr, $symmetric: expr) => {
         impl $self {
             #[inline(never)]
-            fn $name(prev: ArrayView2<f32>, mut fut: ArrayViewMut2<f32>) {
-                use packed_simd::{f32x8, u32x8};
+            fn $name(prev: ArrayView2<Float>, mut fut: ArrayViewMut2<Float>) {
+                #[cfg(feature = "f32")]
+                type SimdIndex = packed_simd::u32x8;
+                #[cfg(not(feature = "f32"))]
+                type SimdIndex = packed_simd::u64x8;
                 assert_eq!(prev.shape(), fut.shape());
                 assert!(prev.len_of(Axis(1)) >= 2 * $BLOCK.len());
-                assert!(prev.len() >= f32x8::lanes());
+                assert!(prev.len() >= SimdT::lanes());
                 // The prev and fut array must have contigous last dimension
                 assert_eq!(prev.strides()[1], 1);
                 assert_eq!(fut.strides()[1], 1);
 
                 let nx = prev.len_of(Axis(1));
-                let dx = 1.0 / (nx - 1) as f32;
+                let dx = 1.0 / (nx - 1) as Float;
                 let idx = 1.0 / dx;
 
                 for j in 0..prev.len_of(Axis(0)) {
                     use std::slice;
                     let prev =
-                        unsafe { slice::from_raw_parts(prev.uget((j, 0)) as *const f32, nx) };
-                    let fut =
-                        unsafe { slice::from_raw_parts_mut(fut.uget_mut((j, 0)) as *mut f32, nx) };
+                        unsafe { slice::from_raw_parts(prev.uget((j, 0)) as *const Float, nx) };
+                    let fut = unsafe {
+                        slice::from_raw_parts_mut(fut.uget_mut((j, 0)) as *mut Float, nx)
+                    };
                     //let mut fut = fut.slice_mut(s![j, ..]);
 
-                    let first_elems = unsafe { f32x8::from_slice_unaligned_unchecked(prev) };
+                    let first_elems = unsafe { SimdT::from_slice_unaligned_unchecked(prev) };
                     let block = {
                         let bl = $BLOCK;
                         [
-                            f32x8::new(
+                            SimdT::new(
                                 bl[0][0], bl[0][1], bl[0][2], bl[0][3], bl[0][4], bl[0][5],
                                 bl[0][6], 0.0,
                             ),
-                            f32x8::new(
+                            SimdT::new(
                                 bl[1][0], bl[1][1], bl[1][2], bl[1][3], bl[1][4], bl[1][5],
                                 bl[1][6], 0.0,
                             ),
-                            f32x8::new(
+                            SimdT::new(
                                 bl[2][0], bl[2][1], bl[2][2], bl[2][3], bl[2][4], bl[2][5],
                                 bl[2][6], 0.0,
                             ),
-                            f32x8::new(
+                            SimdT::new(
                                 bl[3][0], bl[3][1], bl[3][2], bl[3][3], bl[3][4], bl[3][5],
                                 bl[3][6], 0.0,
                             ),
@@ -71,7 +79,7 @@ macro_rules! diff_simd_row_7_47 {
 
                     let diag = {
                         let diag = $DIAG;
-                        f32x8::new(
+                        SimdT::new(
                             diag[0], diag[1], diag[2], diag[3], diag[4], diag[5], diag[6], 0.0,
                         )
                     };
@@ -79,8 +87,8 @@ macro_rules! diff_simd_row_7_47 {
                         .iter_mut()
                         .skip(block.len())
                         .zip(
-                            prev.windows(f32x8::lanes())
-                                .map(f32x8::from_slice_unaligned)
+                            prev.windows(SimdT::lanes())
+                                .map(SimdT::from_slice_unaligned)
                                 .skip(1),
                         )
                         .take(nx - 2 * block.len())
@@ -89,8 +97,8 @@ macro_rules! diff_simd_row_7_47 {
                     }
 
                     let last_elems =
-                        unsafe { f32x8::from_slice_unaligned_unchecked(&prev[nx - 8..]) }
-                            .shuffle1_dyn(u32x8::new(7, 6, 5, 4, 3, 2, 1, 0));
+                        unsafe { SimdT::from_slice_unaligned_unchecked(&prev[nx - 8..]) }
+                            .shuffle1_dyn(SimdIndex::new(7, 6, 5, 4, 3, 2, 1, 0));
                     if $symmetric {
                         fut[nx - 4] = idx * (block[3] * last_elems).sum();
                         fut[nx - 3] = idx * (block[2] * last_elems).sum();
@@ -121,7 +129,7 @@ macro_rules! diff_simd_col_7_47 {
     ($self: ident, $name: ident, $BLOCK: expr, $DIAG: expr, $symmetric: expr) => {
         impl $self {
             #[inline(never)]
-            fn $name(prev: ArrayView2<f32>, mut fut: ArrayViewMut2<f32>) {
+            fn $name(prev: ArrayView2<Float>, mut fut: ArrayViewMut2<Float>) {
                 use std::slice;
                 assert_eq!(prev.shape(), fut.shape());
                 assert_eq!(prev.stride_of(Axis(0)), 1);
@@ -132,38 +140,38 @@ macro_rules! diff_simd_col_7_47 {
                 assert!(ny >= SimdT::lanes());
                 assert!(ny % SimdT::lanes() == 0);
 
-                let dx = 1.0 / (nx - 1) as f32;
+                let dx = 1.0 / (nx - 1) as Float;
                 let idx = 1.0 / dx;
 
                 for j in (0..ny).step_by(SimdT::lanes()) {
                     let a = unsafe {
                         [
                             SimdT::from_slice_unaligned(slice::from_raw_parts(
-                                prev.uget((j, 0)) as *const f32,
+                                prev.uget((j, 0)) as *const Float,
                                 SimdT::lanes(),
                             )),
                             SimdT::from_slice_unaligned(slice::from_raw_parts(
-                                prev.uget((j, 1)) as *const f32,
+                                prev.uget((j, 1)) as *const Float,
                                 SimdT::lanes(),
                             )),
                             SimdT::from_slice_unaligned(slice::from_raw_parts(
-                                prev.uget((j, 2)) as *const f32,
+                                prev.uget((j, 2)) as *const Float,
                                 SimdT::lanes(),
                             )),
                             SimdT::from_slice_unaligned(slice::from_raw_parts(
-                                prev.uget((j, 3)) as *const f32,
+                                prev.uget((j, 3)) as *const Float,
                                 SimdT::lanes(),
                             )),
                             SimdT::from_slice_unaligned(slice::from_raw_parts(
-                                prev.uget((j, 4)) as *const f32,
+                                prev.uget((j, 4)) as *const Float,
                                 SimdT::lanes(),
                             )),
                             SimdT::from_slice_unaligned(slice::from_raw_parts(
-                                prev.uget((j, 5)) as *const f32,
+                                prev.uget((j, 5)) as *const Float,
                                 SimdT::lanes(),
                             )),
                             SimdT::from_slice_unaligned(slice::from_raw_parts(
-                                prev.uget((j, 6)) as *const f32,
+                                prev.uget((j, 6)) as *const Float,
                                 SimdT::lanes(),
                             )),
                         ]
@@ -180,7 +188,7 @@ macro_rules! diff_simd_col_7_47 {
                                 + a[6] * bl[6]);
                         unsafe {
                             b.write_to_slice_unaligned(slice::from_raw_parts_mut(
-                                fut.uget_mut((j, i)) as *mut f32,
+                                fut.uget_mut((j, i)) as *mut Float,
                                 SimdT::lanes(),
                             ));
                         }
@@ -191,7 +199,7 @@ macro_rules! diff_simd_col_7_47 {
                         // Push a onto circular buffer
                         a = [a[1], a[2], a[3], a[4], a[5], a[6], unsafe {
                             SimdT::from_slice_unaligned(slice::from_raw_parts(
-                                prev.uget((j, i + 3)) as *const f32,
+                                prev.uget((j, i + 3)) as *const Float,
                                 SimdT::lanes(),
                             ))
                         }];
@@ -205,7 +213,7 @@ macro_rules! diff_simd_col_7_47 {
                                 + a[6] * $DIAG[6]);
                         unsafe {
                             b.write_to_slice_unaligned(slice::from_raw_parts_mut(
-                                fut.uget_mut((j, i)) as *mut f32,
+                                fut.uget_mut((j, i)) as *mut Float,
                                 SimdT::lanes(),
                             ));
                         }
@@ -214,31 +222,31 @@ macro_rules! diff_simd_col_7_47 {
                     let a = unsafe {
                         [
                             SimdT::from_slice_unaligned(slice::from_raw_parts(
-                                prev.uget((j, nx - 1)) as *const f32,
+                                prev.uget((j, nx - 1)) as *const Float,
                                 SimdT::lanes(),
                             )),
                             SimdT::from_slice_unaligned(slice::from_raw_parts(
-                                prev.uget((j, nx - 2)) as *const f32,
+                                prev.uget((j, nx - 2)) as *const Float,
                                 SimdT::lanes(),
                             )),
                             SimdT::from_slice_unaligned(slice::from_raw_parts(
-                                prev.uget((j, nx - 3)) as *const f32,
+                                prev.uget((j, nx - 3)) as *const Float,
                                 SimdT::lanes(),
                             )),
                             SimdT::from_slice_unaligned(slice::from_raw_parts(
-                                prev.uget((j, nx - 4)) as *const f32,
+                                prev.uget((j, nx - 4)) as *const Float,
                                 SimdT::lanes(),
                             )),
                             SimdT::from_slice_unaligned(slice::from_raw_parts(
-                                prev.uget((j, nx - 5)) as *const f32,
+                                prev.uget((j, nx - 5)) as *const Float,
                                 SimdT::lanes(),
                             )),
                             SimdT::from_slice_unaligned(slice::from_raw_parts(
-                                prev.uget((j, nx - 6)) as *const f32,
+                                prev.uget((j, nx - 6)) as *const Float,
                                 SimdT::lanes(),
                             )),
                             SimdT::from_slice_unaligned(slice::from_raw_parts(
-                                prev.uget((j, nx - 7)) as *const f32,
+                                prev.uget((j, nx - 7)) as *const Float,
                                 SimdT::lanes(),
                             )),
                         ]
@@ -256,7 +264,7 @@ macro_rules! diff_simd_col_7_47 {
                                 + a[6] * bl[6]);
                         unsafe {
                             b.write_to_slice_unaligned(slice::from_raw_parts_mut(
-                                fut.uget_mut((j, nx - 1 - i)) as *mut f32,
+                                fut.uget_mut((j, nx - 1 - i)) as *mut Float,
                                 SimdT::lanes(),
                             ));
                         }
@@ -278,15 +286,15 @@ diff_simd_col_7_47!(
 
 impl Upwind4 {
     #[rustfmt::skip]
-    const HBLOCK: &'static [f32] = &[
+    const HBLOCK: &'static [Float] = &[
         49.0 / 144.0, 61.0 / 48.0, 41.0 / 48.0, 149.0 / 144.0
     ];
     #[rustfmt::skip]
-    const DIAG: &'static [f32] = &[
+    const DIAG: &'static [Float] = &[
         -1.0 / 24.0, 1.0 / 4.0, -7.0 / 8.0, 0.0, 7.0 / 8.0, -1.0 / 4.0, 1.0 / 24.0
     ];
     #[rustfmt::skip]
-    const BLOCK: &'static [[f32; 7]] = &[
+    const BLOCK: &'static [[Float; 7]] = &[
         [  -72.0 / 49.0, 187.0 / 98.0,   -20.0 / 49.0,   -3.0 / 98.0,           0.0,           0.0,         0.0],
         [-187.0 / 366.0,          0.0,   69.0 / 122.0, -16.0 / 183.0,    2.0 / 61.0,           0.0,         0.0],
         [  20.0 / 123.0, -69.0 / 82.0,            0.0, 227.0 / 246.0,  -12.0 / 41.0,    2.0 / 41.0,         0.0],
@@ -294,7 +302,7 @@ impl Upwind4 {
     ];
 
     #[rustfmt::skip]
-    const DISS_BLOCK: &'static [[f32; 7]; 4] = &[
+    const DISS_BLOCK: &'static [[Float; 7]; 4] = &[
         [-3.0 / 49.0,    9.0 / 49.0,  -9.0 / 49.0,     3.0 / 49.0,          0.0,           0.0,         0.0],
         [ 3.0 / 61.0,  -11.0 / 61.0,  15.0 / 61.0,    -9.0 / 61.0,   2.0 / 61.0,           0.0,         0.0],
         [-3.0 / 41.0,   15.0 / 41.0, -29.0 / 41.0,    27.0 / 41.0, -12.0 / 41.0,    2.0 / 41.0,         0.0],
@@ -302,13 +310,13 @@ impl Upwind4 {
     ];
 
     #[rustfmt::skip]
-    const DISS_DIAG: &'static [f32; 7] = &[
+    const DISS_DIAG: &'static [Float; 7] = &[
         1.0 / 24.0, -1.0 / 4.0, 5.0 / 8.0, -5.0 / 6.0, 5.0 / 8.0, -1.0 / 4.0, 1.0 / 24.0
     ];
 }
 
 impl SbpOperator for Upwind4 {
-    fn diffxi(prev: ArrayView2<f32>, mut fut: ArrayViewMut2<f32>) {
+    fn diffxi(prev: ArrayView2<Float>, mut fut: ArrayViewMut2<Float>) {
         assert_eq!(prev.shape(), fut.shape());
         assert!(prev.shape()[1] >= 2 * Self::BLOCK.len());
 
@@ -329,12 +337,12 @@ impl SbpOperator for Upwind4 {
         }
     }
 
-    fn diffeta(prev: ArrayView2<f32>, fut: ArrayViewMut2<f32>) {
+    fn diffeta(prev: ArrayView2<Float>, fut: ArrayViewMut2<Float>) {
         // transpose then use diffxi
         Self::diffxi(prev.reversed_axes(), fut.reversed_axes());
     }
 
-    fn h() -> &'static [f32] {
+    fn h() -> &'static [Float] {
         Self::HBLOCK
     }
 }
@@ -343,13 +351,13 @@ impl SbpOperator for Upwind4 {
 fn upwind4_test() {
     use ndarray::prelude::*;
     let nx = 20;
-    let dx = 1.0 / (nx - 1) as f32;
-    let mut source: ndarray::Array1<f32> = ndarray::Array1::zeros(nx);
+    let dx = 1.0 / (nx - 1) as Float;
+    let mut source: ndarray::Array1<Float> = ndarray::Array1::zeros(nx);
     let mut res = ndarray::Array1::zeros(nx);
     let mut target = ndarray::Array1::zeros(nx);
 
     for i in 0..nx {
-        source[i] = i as f32 * dx;
+        source[i] = i as Float * dx;
         target[i] = 1.0;
     }
     res.fill(0.0);
@@ -374,7 +382,7 @@ fn upwind4_test() {
     }
 
     for i in 0..nx {
-        let x = i as f32 * dx;
+        let x = i as Float * dx;
         source[i] = x * x;
         target[i] = 2.0 * x;
     }
@@ -400,7 +408,7 @@ fn upwind4_test() {
     }
 
     for i in 0..nx {
-        let x = i as f32 * dx;
+        let x = i as Float * dx;
         source[i] = x * x * x;
         target[i] = 3.0 * x * x;
     }
@@ -428,7 +436,7 @@ fn upwind4_test() {
 }
 
 impl UpwindOperator for Upwind4 {
-    fn dissxi(prev: ArrayView2<f32>, mut fut: ArrayViewMut2<f32>) {
+    fn dissxi(prev: ArrayView2<Float>, mut fut: ArrayViewMut2<Float>) {
         assert_eq!(prev.shape(), fut.shape());
         assert!(prev.shape()[1] >= 2 * Self::BLOCK.len());
 
@@ -449,7 +457,7 @@ impl UpwindOperator for Upwind4 {
         }
     }
 
-    fn disseta(prev: ArrayView2<f32>, fut: ArrayViewMut2<f32>) {
+    fn disseta(prev: ArrayView2<Float>, fut: ArrayViewMut2<Float>) {
         // diffeta = transpose then use dissxi
         Self::dissxi(prev.reversed_axes(), fut.reversed_axes());
     }

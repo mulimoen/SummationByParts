@@ -1,17 +1,18 @@
 use super::grid::Grid;
 use super::operators::SbpOperator;
+use super::Float;
 use ndarray::{Array3, Zip};
 
 pub(crate) fn rk4<'a, F: 'a, SBP, RHS, WB>(
     rhs: RHS,
     prev: &F,
     fut: &mut F,
-    dt: f32,
+    dt: Float,
     grid: &Grid<SBP>,
     k: &mut [F; 4],
     mut wb: &mut WB,
 ) where
-    F: std::ops::Deref<Target = Array3<f32>> + std::ops::DerefMut<Target = Array3<f32>>,
+    F: std::ops::Deref<Target = Array3<Float>> + std::ops::DerefMut<Target = Array3<Float>>,
     SBP: SbpOperator,
     RHS: Fn(&mut F, &F, &Grid<SBP>, &mut WB),
 {

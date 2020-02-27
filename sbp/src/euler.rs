@@ -1,10 +1,11 @@
 use super::grid::Grid;
 use super::integrate;
 use super::operators::{SbpOperator, UpwindOperator};
+use super::Float;
 use ndarray::azip;
 use ndarray::prelude::*;
 
-pub const GAMMA: f32 = 1.4;
+pub const GAMMA: Float = 1.4;
 
 // A collection of buffers that allows one to efficiently
 // move to the next state
@@ -16,7 +17,7 @@ pub struct System<SBP: SbpOperator> {
 }
 
 impl<SBP: SbpOperator> System<SBP> {
-    pub fn new(x: ndarray::Array2<f32>, y: ndarray::Array2<f32>) -> Self {
+    pub fn new(x: ndarray::Array2<Float>, y: ndarray::Array2<Float>) -> Self {
         let grid = Grid::new(x, y).expect(
             "Could not create grid. Different number of elements compared to width*height?",
         );
@@ -29,7 +30,7 @@ impl<SBP: SbpOperator> System<SBP> {
         }
     }
 
-    pub fn advance(&mut self, dt: f32) {
+    pub fn advance(&mut self, dt: Float) {
         let rhs_trad = |k: &mut Field, y: &Field, grid: &_, wb: &mut _| {
             let boundaries = BoundaryTerms {
                 north: y.south(),
@@ -51,14 +52,14 @@ impl<SBP: SbpOperator> System<SBP> {
         std::mem::swap(&mut self.sys.0, &mut self.sys.1);
     }
 
-    pub fn vortex(&mut self, t: f32, vortex_parameters: VortexParameters) {
+    pub fn vortex(&mut self, t: Float, vortex_parameters: VortexParameters) {
         self.sys
             .0
             .vortex(self.grid.x.view(), self.grid.y.view(), t, vortex_parameters);
     }
 
     #[allow(clippy::many_single_char_names)]
-    pub fn init_with_vortex(&mut self, x0: f32, y0: f32) {
+    pub fn init_with_vortex(&mut self, x0: Float, y0: Float) {
         // Should parametrise such that we have radius, drop in pressure at center, etc
         let vortex_parameters = VortexParameters {
             x0,
@@ -80,16 +81,16 @@ impl<SBP: SbpOperator> System<SBP> {
         &self.sys.0
     }
 
-    pub fn x(&self) -> ArrayView2<f32> {
+    pub fn x(&self) -> ArrayView2<Float> {
         self.grid.x.view()
     }
-    pub fn y(&self) -> ArrayView2<f32> {
+    pub fn y(&self) -> ArrayView2<Float> {
         self.grid.y.view()
     }
 }
 
 impl<UO: UpwindOperator> System<UO> {
-    pub fn advance_upwind(&mut self, dt: f32) {
+    pub fn advance_upwind(&mut self, dt: Float) {
         let rhs_upwind = |k: &mut Field, y: &Field, grid: &_, wb: &mut _| {
             let boundaries = BoundaryTerms {
                 north: y.south(),
@@ -114,10 +115,10 @@ impl<UO: UpwindOperator> System<UO> {
 
 #[derive(Clone, Debug)]
 /// A 4 x ny x nx array
-pub struct Field(pub(crate) Array3<f32>);
+pub struct Field(pub(crate) Array3<Float>);
 
 impl std::ops::Deref for Field {
-    type Target = Array3<f32>;
+    type Target = Array3<Float>;
     fn deref(&self) -> &Self::Target {
         &self.0
     }
@@ -143,29 +144,29 @@ impl Field {
         self.0.shape()[1]
     }
 
-    pub fn rho(&self) -> ArrayView2<f32> {
+    pub fn rho(&self) -> ArrayView2<Float> {
         self.slice(s![0, .., ..])
     }
-    pub fn rhou(&self) -> ArrayView2<f32> {
+    pub fn rhou(&self) -> ArrayView2<Float> {
         self.slice(s![1, .., ..])
     }
-    pub fn rhov(&self) -> ArrayView2<f32> {
+    pub fn rhov(&self) -> ArrayView2<Float> {
         self.slice(s![2, .., ..])
     }
-    pub fn e(&self) -> ArrayView2<f32> {
+    pub fn e(&self) -> ArrayView2<Float> {
         self.slice(s![3, .., ..])
     }
 
-    pub fn rho_mut(&mut self) -> ArrayViewMut2<f32> {
+    pub fn rho_mut(&mut self) -> ArrayViewMut2<Float> {
         self.slice_mut(s![0, .., ..])
     }
-    pub fn rhou_mut(&mut self) -> ArrayViewMut2<f32> {
+    pub fn rhou_mut(&mut self) -> ArrayViewMut2<Float> {
         self.slice_mut(s![1, .., ..])
     }
-    pub fn rhov_mut(&mut self) -> ArrayViewMut2<f32> {
+    pub fn rhov_mut(&mut self) -> ArrayViewMut2<Float> {
         self.slice_mut(s![2, .., ..])
     }
-    pub fn e_mut(&mut self) -> ArrayViewMut2<f32> {
+    pub fn e_mut(&mut self) -> ArrayViewMut2<Float> {
         self.slice_mut(s![3, .., ..])
     }
 
@@ -173,10 +174,10 @@ impl Field {
     pub fn components(
         &self,
     ) -> (
-        ArrayView2<f32>,
-        ArrayView2<f32>,
-        ArrayView2<f32>,
-        ArrayView2<f32>,
+        ArrayView2<Float>,
+        ArrayView2<Float>,
+        ArrayView2<Float>,
+        ArrayView2<Float>,
     ) {
         (self.rho(), self.rhou(), self.rhov(), self.e())
     }
@@ -184,10 +185,10 @@ impl Field {
     pub fn components_mut(
         &mut self,
     ) -> (
-        ArrayViewMut2<f32>,
-        ArrayViewMut2<f32>,
-        ArrayViewMut2<f32>,
-        ArrayViewMut2<f32>,
+        ArrayViewMut2<Float>,
+        ArrayViewMut2<Float>,
+        ArrayViewMut2<Float>,
+        ArrayViewMut2<Float>,
     ) {
         let mut iter = self.0.outer_iter_mut();
 
@@ -200,38 +201,38 @@ impl Field {
         (rho, rhou, rhov, e)
     }
 
-    fn north(&self) -> ArrayView2<f32> {
+    fn north(&self) -> ArrayView2<Float> {
         self.slice(s![.., self.ny() - 1, ..])
     }
-    fn south(&self) -> ArrayView2<f32> {
+    fn south(&self) -> ArrayView2<Float> {
         self.slice(s![.., 0, ..])
     }
-    fn east(&self) -> ArrayView2<f32> {
+    fn east(&self) -> ArrayView2<Float> {
         self.slice(s![.., .., self.nx() - 1])
     }
-    fn west(&self) -> ArrayView2<f32> {
+    fn west(&self) -> ArrayView2<Float> {
         self.slice(s![.., .., 0])
     }
-    fn north_mut(&mut self) -> ArrayViewMut2<f32> {
+    fn north_mut(&mut self) -> ArrayViewMut2<Float> {
         let ny = self.ny();
         self.slice_mut(s![.., ny - 1, ..])
     }
-    fn south_mut(&mut self) -> ArrayViewMut2<f32> {
+    fn south_mut(&mut self) -> ArrayViewMut2<Float> {
         self.slice_mut(s![.., 0, ..])
     }
-    fn east_mut(&mut self) -> ArrayViewMut2<f32> {
+    fn east_mut(&mut self) -> ArrayViewMut2<Float> {
         let nx = self.nx();
         self.slice_mut(s![.., .., nx - 1])
     }
-    fn west_mut(&mut self) -> ArrayViewMut2<f32> {
+    fn west_mut(&mut self) -> ArrayViewMut2<Float> {
         self.slice_mut(s![.., .., 0])
     }
 
     pub fn vortex(
         &mut self,
-        x: ArrayView2<f32>,
-        y: ArrayView2<f32>,
-        t: f32,
+        x: ArrayView2<Float>,
+        y: ArrayView2<Float>,
+        t: Float,
         vortex_param: VortexParameters,
     ) {
         assert_eq!(x.shape(), y.shape());
@@ -251,14 +252,18 @@ impl Field {
                x in x,
                y in y)
         {
+            #[cfg(feature = "f32")]
             use std::f32::consts::PI;
+            #[cfg(not(feature = "f32"))]
+            use std::f64::consts::PI;
+
             let dx = (x - vortex_param.x0) - t;
             let dy = y - vortex_param.y0;
             let f = (1.0 - (dx*dx + dy*dy))/(rstar*rstar);
 
-            *rho = f32::powf(1.0 - eps*eps*(GAMMA - 1.0)*m*m/(8.0*PI*PI*p_inf*rstar*rstar)*f.exp(), 1.0/(GAMMA - 1.0));
+            *rho = Float::powf(1.0 - eps*eps*(GAMMA - 1.0)*m*m/(8.0*PI*PI*p_inf*rstar*rstar)*f.exp(), 1.0/(GAMMA - 1.0));
             assert!(*rho > 0.0);
-            let p = f32::powf(*rho, GAMMA)*p_inf;
+            let p = Float::powf(*rho, GAMMA)*p_inf;
             assert!(p > 0.0);
             let u = 1.0 - eps*dy/(2.0*PI*p_inf.sqrt()*rstar*rstar)*(f/2.0).exp();
             let v =       eps*dx/(2.0*PI*p_inf.sqrt()*rstar*rstar)*(f/2.0).exp();
@@ -271,7 +276,7 @@ impl Field {
 
 impl Field {
     /// sqrt((self-other)^T*H*(self-other))
-    pub fn h2_err<SBP: SbpOperator>(&self, other: &Self) -> f32 {
+    pub fn h2_err<SBP: SbpOperator>(&self, other: &Self) -> Float {
         assert_eq!(self.nx(), other.nx());
         assert_eq!(self.ny(), other.ny());
 
@@ -285,7 +290,7 @@ impl Field {
 
         // This chains the h block into the form [h, 1, 1, 1, rev(h)],
         // and multiplies with a factor
-        let itermaker = move |n: usize, factor: f32| {
+        let itermaker = move |n: usize, factor: Float| {
             h.iter()
                 .copied()
                 .chain(std::iter::repeat(1.0).take(n - 2 * h.len()))
@@ -293,12 +298,12 @@ impl Field {
                 .map(move |x| x * factor)
         };
 
-        let hxiterator = itermaker(self.nx(), 1.0 / (self.nx() - 1) as f32);
+        let hxiterator = itermaker(self.nx(), 1.0 / (self.nx() - 1) as Float);
         // Repeating to get the form
         // [[hx0, hx1, ..., hxn], [hx0, hx1, ..., hxn], ..., [hx0, hx1, ..., hxn]]
         let hxiterator = hxiterator.into_iter().cycle().take(self.nx() * self.ny());
 
-        let hyiterator = itermaker(self.ny(), 1.0 / (self.ny() - 1) as f32);
+        let hyiterator = itermaker(self.ny(), 1.0 / (self.ny() - 1) as Float);
         // Repeating to get the form
         // [[hy0, hy0, ..., hy0], [hy1, hy1, ..., hy1], ..., [hym, hym, ..., hym]]
         let hyiterator = hyiterator
@@ -312,7 +317,7 @@ impl Field {
             .zip(self.0.iter())
             .zip(other.0.iter())
             .map(|(((hx, hy), r0), r1)| (*r0 - *r1).powi(2) * hx * hy)
-            .sum::<f32>()
+            .sum::<Float>()
             .sqrt()
     }
 }
@@ -333,14 +338,14 @@ fn h2_diff() {
 
 #[derive(Copy, Clone)]
 pub struct VortexParameters {
-    pub x0: f32,
-    pub y0: f32,
-    pub rstar: f32,
-    pub eps: f32,
-    pub mach: f32,
+    pub x0: Float,
+    pub y0: Float,
+    pub rstar: Float,
+    pub eps: Float,
+    pub mach: Float,
 }
 
-fn pressure(gamma: f32, rho: f32, rhou: f32, rhov: f32, e: f32) -> f32 {
+fn pressure(gamma: Float, rho: Float, rhou: Float, rhov: Float, e: Float) -> Float {
     (gamma - 1.0) * (e - (rhou * rhou + rhov * rhov) / (2.0 * rho))
 }
 
@@ -534,10 +539,10 @@ fn fluxes<SBP: SbpOperator>(k: (&mut Field, &mut Field), y: &Field, grid: &Grid<
 
 #[derive(Clone, Debug)]
 pub struct BoundaryTerms<'a> {
-    pub north: ArrayView2<'a, f32>,
-    pub south: ArrayView2<'a, f32>,
-    pub east: ArrayView2<'a, f32>,
-    pub west: ArrayView2<'a, f32>,
+    pub north: ArrayView2<'a, Float>,
+    pub south: ArrayView2<'a, Float>,
+    pub east: ArrayView2<'a, Float>,
+    pub west: ArrayView2<'a, Float>,
 }
 
 #[allow(non_snake_case)]
@@ -550,7 +555,7 @@ fn SAT_characteristics<SBP: SbpOperator>(
 ) {
     // North boundary
     {
-        let hi = (k.ny() - 1) as f32 * SBP::h()[0];
+        let hi = (k.ny() - 1) as Float * SBP::h()[0];
         let sign = -1.0;
         let tau = 1.0;
         let slice = s![y.ny() - 1, ..];
@@ -568,7 +573,7 @@ fn SAT_characteristics<SBP: SbpOperator>(
     }
     // South boundary
     {
-        let hi = (k.ny() - 1) as f32 * SBP::h()[0];
+        let hi = (k.ny() - 1) as Float * SBP::h()[0];
         let sign = 1.0;
         let tau = -1.0;
         let slice = s![0, ..];
@@ -586,7 +591,7 @@ fn SAT_characteristics<SBP: SbpOperator>(
     }
     // West Boundary
     {
-        let hi = (k.nx() - 1) as f32 * SBP::h()[0];
+        let hi = (k.nx() - 1) as Float * SBP::h()[0];
         let sign = 1.0;
         let tau = -1.0;
         let slice = s![.., 0];
@@ -604,7 +609,7 @@ fn SAT_characteristics<SBP: SbpOperator>(
     }
     // East Boundary
     {
-        let hi = (k.nx() - 1) as f32 * SBP::h()[0];
+        let hi = (k.nx() - 1) as Float * SBP::h()[0];
         let sign = -1.0;
         let tau = 1.0;
         let slice = s![.., y.nx() - 1];
@@ -627,15 +632,15 @@ fn SAT_characteristics<SBP: SbpOperator>(
 #[allow(clippy::too_many_arguments)]
 /// Boundary conditions (SAT)
 fn SAT_characteristic(
-    mut k: ArrayViewMut2<f32>,
-    y: ArrayView2<f32>,
-    z: ArrayView2<f32>, // Size 4 x n (all components in line)
-    hi: f32,
-    sign: f32,
-    tau: f32,
-    detj: ArrayView1<f32>,
-    detj_d_dx: ArrayView1<f32>,
-    detj_d_dy: ArrayView1<f32>,
+    mut k: ArrayViewMut2<Float>,
+    y: ArrayView2<Float>,
+    z: ArrayView2<Float>, // Size 4 x n (all components in line)
+    hi: Float,
+    sign: Float,
+    tau: Float,
+    detj: ArrayView1<Float>,
+    detj_d_dx: ArrayView1<Float>,
+    detj_d_dy: ArrayView1<Float>,
 ) {
     assert_eq!(detj.shape(), detj_d_dx.shape());
     assert_eq!(detj.shape(), detj_d_dy.shape());
@@ -660,7 +665,7 @@ fn SAT_characteristic(
         let ky_ = detj_d_dy / detj;
 
         let (kx, ky) = {
-            let r = f32::hypot(kx_, ky_);
+            let r = Float::hypot(kx_, ky_);
             (kx_ / r, ky_ / r)
         };
 
@@ -690,8 +695,8 @@ fn SAT_characteristic(
         let L = [
             U,
             U,
-            U + c * f32::hypot(kx_, ky_),
-            U - c * f32::hypot(kx_, ky_),
+            U + c * Float::hypot(kx_, ky_),
+            U - c * Float::hypot(kx_, ky_),
         ];
         let beta = 1.0 / (2.0 * c * c);
         let TI = [

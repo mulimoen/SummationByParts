@@ -1,7 +1,9 @@
+use crate::Float;
+
 #[derive(Debug, Clone)]
 pub struct SimpleGrid {
-    pub x: ndarray::Array2<f32>,
-    pub y: ndarray::Array2<f32>,
+    pub x: ndarray::Array2<Float>,
+    pub y: ndarray::Array2<Float>,
     pub name: Option<String>,
     pub dire: Option<String>,
     pub dirw: Option<String>,
@@ -32,9 +34,9 @@ pub fn json_to_grids(json: &str) -> Result<Vec<SimpleGrid>, String> {
         enum ArrayForm {
             /// Only know the one dimension, will broadcast to
             /// two dimensions once we know about both dims
-            Array1(ndarray::Array1<f32>),
+            Array1(ndarray::Array1<Float>),
             /// The usize is the inner dimension (nx)
-            Array2(ndarray::Array2<f32>),
+            Array2(ndarray::Array2<Float>),
         }
         if grid.is_empty() {
             return Err(format!("empty object"));
@@ -54,12 +56,12 @@ pub fn json_to_grids(json: &str) -> Result<Vec<SimpleGrid>, String> {
                     assert_eq!(name, "linspace");
 
                     let start = iter.next();
-                    let start: f32 = match start {
+                    let start: Float = match start {
                         Some(x) => x.parse().map_err(|e| format!("linspace: {}", e))?,
                         None => return Err(format!("")),
                     };
                     let end = iter.next();
-                    let end: f32 = match end {
+                    let end: Float = match end {
                         Some(x) => x.parse().map_err(|e| format!("linspace: {}", e))?,
                         None => return Err(format!("")),
                     };
@@ -85,10 +87,10 @@ pub fn json_to_grids(json: &str) -> Result<Vec<SimpleGrid>, String> {
                 if !x[0].is_array() {
                     let v = x
                         .members()
-                        .map(|x: &JsonValue| -> Result<f32, String> {
+                        .map(|x: &JsonValue| -> Result<Float, String> {
                             Ok(x.as_number().ok_or_else(|| format!("Array contained something that could not be converted to an array"))?.into())
                         })
-                        .collect::<Result<Vec<f32>, _>>()?;
+                        .collect::<Result<Vec<Float>, _>>()?;
                     Ok(ArrayForm::Array1(ndarray::Array::from(v)))
                 } else {
                     let arrlen2 = x[0].len();

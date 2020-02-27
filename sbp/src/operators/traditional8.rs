@@ -1,5 +1,6 @@
 use super::SbpOperator;
 use crate::diff_op_1d;
+use crate::Float;
 use ndarray::{s, ArrayView1, ArrayView2, ArrayViewMut1, ArrayViewMut2};
 
 #[derive(Debug)]
@@ -9,15 +10,15 @@ diff_op_1d!(SBP8, diff_1d, SBP8::BLOCK, SBP8::DIAG, false);
 
 impl SBP8 {
     #[rustfmt::skip]
-    const HBLOCK: &'static [f32] = &[
+    const HBLOCK: &'static [Float] = &[
         2.94890676177879e-01, 1.52572062389771e+00, 2.57452876984127e-01, 1.79811370149912e+00, 4.12708057760141e-01, 1.27848462301587e+00, 9.23295579805997e-01, 1.00933386085916e+00
     ];
     #[rustfmt::skip]
-    const DIAG: &'static [f32] = &[
+    const DIAG: &'static [Float] = &[
         3.57142857142857e-03, -3.80952380952381e-02, 2.00000000000000e-01, -8.00000000000000e-01, -0.00000000000000e+00, 8.00000000000000e-01, -2.00000000000000e-01, 3.80952380952381e-02, -3.57142857142857e-03
     ];
     #[rustfmt::skip]
-    const BLOCK: &'static [[f32; 12]] = &[
+    const BLOCK: &'static [[Float; 12]] = &[
         [-1.69554360443190e+00, 2.24741246341404e+00, -3.38931922601500e-02, -7.81028168126749e-01, 2.54881486107905e-02, 3.43865227388873e-01, -8.62858162633335e-02, -2.00150583315761e-02, 0.00000000000000e+00, 0.00000000000000e+00, 0.00000000000000e+00, 0.00000000000000e+00],
         [-4.34378988266985e-01, 0.00000000000000e+00, 9.18511925072956e-02, 4.94008626807984e-01, -2.46151762937235e-02, -1.86759403432935e-01, 5.27267838475813e-02, 7.16696483080115e-03, 0.00000000000000e+00, 0.00000000000000e+00, 0.00000000000000e+00, 0.00000000000000e+00],
         [3.88218088704253e-02, -5.44329744454984e-01, 0.00000000000000e+00, 3.89516189693211e-01, 1.36433486528546e-01, 1.03290582800845e-01, -1.79720579323281e-01, 5.59882558852296e-02, 0.00000000000000e+00, 0.00000000000000e+00, 0.00000000000000e+00, 0.00000000000000e+00],
@@ -30,7 +31,7 @@ impl SBP8 {
 }
 
 impl SbpOperator for SBP8 {
-    fn diffxi(prev: ArrayView2<f32>, mut fut: ArrayViewMut2<f32>) {
+    fn diffxi(prev: ArrayView2<Float>, mut fut: ArrayViewMut2<Float>) {
         assert_eq!(prev.shape(), fut.shape());
         assert!(prev.shape()[1] >= 2 * Self::BLOCK.len());
 
@@ -39,12 +40,12 @@ impl SbpOperator for SBP8 {
         }
     }
 
-    fn diffeta(prev: ArrayView2<f32>, fut: ArrayViewMut2<f32>) {
+    fn diffeta(prev: ArrayView2<Float>, fut: ArrayViewMut2<Float>) {
         // transpose then use diffxi
         Self::diffxi(prev.reversed_axes(), fut.reversed_axes());
     }
 
-    fn h() -> &'static [f32] {
+    fn h() -> &'static [Float] {
         Self::HBLOCK
     }
 }

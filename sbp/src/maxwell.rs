@@ -1,14 +1,15 @@
 use super::grid::Grid;
 use super::integrate;
 use super::operators::{SbpOperator, UpwindOperator};
+use crate::Float;
 use ndarray::azip;
 use ndarray::prelude::*;
 
 #[derive(Clone, Debug)]
-pub struct Field(pub(crate) Array3<f32>);
+pub struct Field(pub(crate) Array3<Float>);
 
 impl std::ops::Deref for Field {
-    type Target = Array3<f32>;
+    type Target = Array3<Float>;
     fn deref(&self) -> &Self::Target {
         &self.0
     }
@@ -34,29 +35,33 @@ impl Field {
         self.0.shape()[1]
     }
 
-    pub fn ex(&self) -> ArrayView2<f32> {
+    pub fn ex(&self) -> ArrayView2<Float> {
         self.slice(s![0, .., ..])
     }
-    pub fn hz(&self) -> ArrayView2<f32> {
+    pub fn hz(&self) -> ArrayView2<Float> {
         self.slice(s![1, .., ..])
     }
-    pub fn ey(&self) -> ArrayView2<f32> {
+    pub fn ey(&self) -> ArrayView2<Float> {
         self.slice(s![2, .., ..])
     }
 
-    pub fn ex_mut(&mut self) -> ArrayViewMut2<f32> {
+    pub fn ex_mut(&mut self) -> ArrayViewMut2<Float> {
         self.slice_mut(s![0, .., ..])
     }
-    pub fn hz_mut(&mut self) -> ArrayViewMut2<f32> {
+    pub fn hz_mut(&mut self) -> ArrayViewMut2<Float> {
         self.slice_mut(s![1, .., ..])
     }
-    pub fn ey_mut(&mut self) -> ArrayViewMut2<f32> {
+    pub fn ey_mut(&mut self) -> ArrayViewMut2<Float> {
         self.slice_mut(s![2, .., ..])
     }
 
     pub fn components_mut(
         &mut self,
-    ) -> (ArrayViewMut2<f32>, ArrayViewMut2<f32>, ArrayViewMut2<f32>) {
+    ) -> (
+        ArrayViewMut2<Float>,
+        ArrayViewMut2<Float>,
+        ArrayViewMut2<Float>,
+    ) {
         let mut iter = self.0.outer_iter_mut();
 
         let ex = iter.next().unwrap();
@@ -76,7 +81,7 @@ pub struct System<SBP: SbpOperator> {
 }
 
 impl<SBP: SbpOperator> System<SBP> {
-    pub fn new(x: Array2<f32>, y: Array2<f32>) -> Self {
+    pub fn new(x: Array2<Float>, y: Array2<Float>) -> Self {
         assert_eq!(x.shape(), y.shape());
         let ny = x.shape()[0];
         let nx = x.shape()[1];
@@ -94,7 +99,7 @@ impl<SBP: SbpOperator> System<SBP> {
         &self.sys.0
     }
 
-    pub fn set_gaussian(&mut self, x0: f32, y0: f32) {
+    pub fn set_gaussian(&mut self, x0: Float, y0: Float) {
         let (ex, hz, ey) = self.sys.0.components_mut();
         ndarray::azip!(
             (ex in ex, hz in hz, ey in ey,
@@ -106,7 +111,7 @@ impl<SBP: SbpOperator> System<SBP> {
         });
     }
 
-    pub fn advance(&mut self, dt: f32) {
+    pub fn advance(&mut self, dt: Float) {
         integrate::rk4(
             RHS,
             &self.sys.0,
@@ -122,7 +127,7 @@ impl<SBP: SbpOperator> System<SBP> {
 
 impl<UO: UpwindOperator> System<UO> {
     /// Using artificial dissipation with the upwind operator
-    pub fn advance_upwind(&mut self, dt: f32) {
+    pub fn advance_upwind(&mut self, dt: Float) {
         integrate::rk4(
             RHS_upwind,
             &self.sys.0,
@@ -136,14 +141,18 @@ impl<UO: UpwindOperator> System<UO> {
     }
 }
 
-fn gaussian(x: f32, x0: f32, y: f32, y0: f32) -> f32 {
-    use std::f32;
+fn gaussian(x: Float, x0: Float, y: Float, y0: Float) -> Float {
+    #[cfg(feature = "f32")]
+    use std::f32::consts::PI;
+    #[cfg(not(feature = "f32"))]
+    use std::f64::consts::PI;
+
     let x = x - x0;
     let y = y - y0;
 
     let sigma = 0.05;
 
-    1.0 / (2.0 * f32::consts::PI * sigma * sigma) * (-(x * x + y * y) / (2.0 * sigma * sigma)).exp()
+    1.0 / (2.0 * PI * sigma * sigma) * (-(x * x + y * y) / (2.0 * sigma * sigma)).exp()
 }
 
 #[allow(non_snake_case)]
@@ -166,7 +175,7 @@ fn RHS<SBP: SbpOperator>(
     k: &mut Field,
     y: &Field,
     grid: &Grid<SBP>,
-    tmp: &mut (Array2<f32>, Array2<f32>, Array2<f32>, Array2<f32>),
+    tmp: &mut (Array2<Float>, Array2<Float>, Array2<Float>, Array2<Float>),
 ) {
     fluxes(k, y, grid, tmp);
 
@@ -189,7 +198,7 @@ fn RHS_upwind<UO: UpwindOperator>(
     k: &mut Field,
     y: &Field,
     grid: &Grid<UO>,
-    tmp: &mut (Array2<f32>, Array2<f32>, Array2<f32>, Array2<f32>),
+    tmp: &mut (Array2<Float>, Array2<Float>, Array2<Float>, Array2<Float>),
 ) {
     fluxes(k, y, grid, tmp);
     dissipation(k, y, grid, tmp);
@@ -212,7 +221,7 @@ fn fluxes<SBP: SbpOperator>(
     k: &mut Field,
     y: &Field,
     grid: &Grid<SBP>,
-    tmp: &mut (Array2<f32>, Array2<f32>, Array2<f32>, Array2<f32>),
+    tmp: &mut (Array2<Float>, Array2<Float>, Array2<Float>, Array2<Float>),
 ) {
     // ex = hz_y
     {
@@ -286,7 +295,7 @@ fn dissipation<UO: UpwindOperator>(
     k: &mut Field,
     y: &Field,
     grid: &Grid<UO>,
-    tmp: &mut (Array2<f32>, Array2<f32>, Array2<f32>, Array2<f32>),
+    tmp: &mut (Array2<Float>, Array2<Float>, Array2<Float>, Array2<Float>),
 ) {
     // ex component
     {
@@ -295,7 +304,7 @@ fn dissipation<UO: UpwindOperator>(
                         &ky in &grid.detj_dxi_dy,
                         &ex in &y.ex(),
                         &ey in &y.ey()) {
-            let r = f32::hypot(kx, ky);
+            let r = Float::hypot(kx, ky);
             *a = ky*ky/r * ex + -kx*ky/r*ey;
         });
         UO::dissxi(tmp.0.view(), tmp.1.view_mut());
@@ -305,7 +314,7 @@ fn dissipation<UO: UpwindOperator>(
                     &ky in &grid.detj_deta_dy,
                     &ex in &y.ex(),
                     &ey in &y.ey()) {
-            let r = f32::hypot(kx, ky);
+            let r = Float::hypot(kx, ky);
             *b = ky*ky/r * ex + -kx*ky/r*ey;
         });
         UO::disseta(tmp.2.view(), tmp.3.view_mut());
@@ -321,7 +330,7 @@ fn dissipation<UO: UpwindOperator>(
                         &kx in &grid.detj_dxi_dx,
                         &ky in &grid.detj_dxi_dy,
                         &hz in &y.hz()) {
-            let r = f32::hypot(kx, ky);
+            let r = Float::hypot(kx, ky);
             *a = r * hz;
         });
         UO::dissxi(tmp.0.view(), tmp.1.view_mut());
@@ -330,7 +339,7 @@ fn dissipation<UO: UpwindOperator>(
                         &kx in &grid.detj_deta_dx,
                         &ky in &grid.detj_deta_dy,
                         &hz in &y.hz()) {
-            let r = f32::hypot(kx, ky);
+            let r = Float::hypot(kx, ky);
             *b = r * hz;
         });
         UO::disseta(tmp.2.view(), tmp.3.view_mut());
@@ -347,7 +356,7 @@ fn dissipation<UO: UpwindOperator>(
                         &ky in &grid.detj_dxi_dy,
                         &ex in &y.ex(),
                         &ey in &y.ey()) {
-            let r = f32::hypot(kx, ky);
+            let r = Float::hypot(kx, ky);
             *a = -kx*ky/r * ex + kx*kx/r*ey;
         });
         UO::dissxi(tmp.0.view(), tmp.1.view_mut());
@@ -357,7 +366,7 @@ fn dissipation<UO: UpwindOperator>(
                     &ky in &grid.detj_deta_dy,
                     &ex in &y.ex(),
                     &ey in &y.ey()) {
-            let r = f32::hypot(kx, ky);
+            let r = Float::hypot(kx, ky);
             *b = -kx*ky/r * ex + kx*kx/r*ey;
         });
         UO::disseta(tmp.2.view(), tmp.3.view_mut());
@@ -392,7 +401,7 @@ fn SAT_characteristics<SBP: SbpOperator>(
     let ny = y.ny();
     let nx = y.nx();
 
-    fn positive_flux(kx: f32, ky: f32) -> [[f32; 3]; 3] {
+    fn positive_flux(kx: Float, ky: Float) -> [[Float; 3]; 3] {
         let r = (kx * kx + ky * ky).sqrt();
         [
             [ky * ky / r / 2.0, ky / 2.0, -kx * ky / r / 2.0],
@@ -400,7 +409,7 @@ fn SAT_characteristics<SBP: SbpOperator>(
             [-kx * ky / r / 2.0, -kx / 2.0, kx * kx / r / 2.0],
         ]
     }
-    fn negative_flux(kx: f32, ky: f32) -> [[f32; 3]; 3] {
+    fn negative_flux(kx: Float, ky: Float) -> [[Float; 3]; 3] {
         let r = (kx * kx + ky * ky).sqrt();
         [
             [-ky * ky / r / 2.0, ky / 2.0, kx * ky / r / 2.0],
@@ -414,7 +423,7 @@ fn SAT_characteristics<SBP: SbpOperator>(
             Boundary::This => y.slice(s![.., .., 0]),
         };
         // East boundary
-        let hinv = 1.0 / (SBP::h()[0] / (nx - 1) as f32);
+        let hinv = 1.0 / (SBP::h()[0] / (nx - 1) as Float);
         for ((((mut k, v), g), &kx), &ky) in k
             .slice_mut(s![.., .., nx - 1])
             .gencolumns_mut()
@@ -448,7 +457,7 @@ fn SAT_characteristics<SBP: SbpOperator>(
         let g = match boundaries.east {
             Boundary::This => y.slice(s![.., .., nx - 1]),
         };
-        let hinv = 1.0 / (SBP::h()[0] / (nx - 1) as f32);
+        let hinv = 1.0 / (SBP::h()[0] / (nx - 1) as Float);
         for ((((mut k, v), g), &kx), &ky) in k
             .slice_mut(s![.., .., 0])
             .gencolumns_mut()
@@ -487,7 +496,7 @@ fn SAT_characteristics<SBP: SbpOperator>(
         let g = match boundaries.north {
             Boundary::This => y.slice(s![.., 0, ..]),
         };
-        let hinv = 1.0 / (SBP::h()[0] / (ny - 1) as f32);
+        let hinv = 1.0 / (SBP::h()[0] / (ny - 1) as Float);
         for ((((mut k, v), g), &kx), &ky) in k
             .slice_mut(s![.., ny - 1, ..])
             .gencolumns_mut()
@@ -520,7 +529,7 @@ fn SAT_characteristics<SBP: SbpOperator>(
         let g = match boundaries.south {
             Boundary::This => y.slice(s![.., ny - 1, ..]),
         };
-        let hinv = 1.0 / (SBP::h()[0] / (ny - 1) as f32);
+        let hinv = 1.0 / (SBP::h()[0] / (ny - 1) as Float);
         for ((((mut k, v), g), &kx), &ky) in k
             .slice_mut(s![.., 0, ..])
             .gencolumns_mut()
@@ -560,7 +569,7 @@ fn SAT_characteristics<SBP: SbpOperator>(
 #[derive(Clone, Debug)]
 pub struct WorkBuffers {
     k: [Field; 4],
-    tmp: (Array2<f32>, Array2<f32>, Array2<f32>, Array2<f32>),
+    tmp: (Array2<Float>, Array2<Float>, Array2<Float>, Array2<Float>),
 }
 
 impl WorkBuffers {

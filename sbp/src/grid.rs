@@ -1,3 +1,4 @@
+use crate::Float;
 use ndarray::Array2;
 
 #[derive(Debug, Clone)]
@@ -5,20 +6,20 @@ pub struct Grid<SBP>
 where
     SBP: super::operators::SbpOperator,
 {
-    pub(crate) x: Array2<f32>,
-    pub(crate) y: Array2<f32>,
+    pub(crate) x: Array2<Float>,
+    pub(crate) y: Array2<Float>,
 
-    pub(crate) detj: Array2<f32>,
-    pub(crate) detj_dxi_dx: Array2<f32>,
-    pub(crate) detj_dxi_dy: Array2<f32>,
-    pub(crate) detj_deta_dx: Array2<f32>,
-    pub(crate) detj_deta_dy: Array2<f32>,
+    pub(crate) detj: Array2<Float>,
+    pub(crate) detj_dxi_dx: Array2<Float>,
+    pub(crate) detj_dxi_dy: Array2<Float>,
+    pub(crate) detj_deta_dx: Array2<Float>,
+    pub(crate) detj_deta_dy: Array2<Float>,
 
     operator: std::marker::PhantomData<SBP>,
 }
 
 impl<SBP: super::operators::SbpOperator> Grid<SBP> {
-    pub fn new(x: Array2<f32>, y: Array2<f32>) -> Result<Self, ndarray::ShapeError> {
+    pub fn new(x: Array2<Float>, y: Array2<Float>) -> Result<Self, ndarray::ShapeError> {
         assert_eq!(x.shape(), y.shape());
         let ny = x.shape()[0];
         let nx = x.shape()[1];

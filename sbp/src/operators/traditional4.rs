@@ -1,5 +1,6 @@
 use super::SbpOperator;
 use crate::diff_op_1d;
+use crate::Float;
 use ndarray::{s, ArrayView1, ArrayView2, ArrayViewMut1, ArrayViewMut2};
 
 #[derive(Debug)]
@@ -9,15 +10,15 @@ diff_op_1d!(SBP4, diff_1d, SBP4::BLOCK, SBP4::DIAG, false);
 
 impl SBP4 {
     #[rustfmt::skip]
-    const HBLOCK: &'static [f32] = &[
+    const HBLOCK: &'static [Float] = &[
         17.0 / 48.0, 59.0 / 48.0, 43.0 / 48.0, 49.0 / 48.0,
     ];
     #[rustfmt::skip]
-    const DIAG: &'static [f32] = &[
+    const DIAG: &'static [Float] = &[
         1.0 / 12.0, -2.0 / 3.0, 0.0, 2.0 / 3.0, -1.0 / 12.0,
     ];
     #[rustfmt::skip]
-    const BLOCK: &'static [[f32; 6]] = &[
+    const BLOCK: &'static [[Float; 6]] = &[
         [-1.41176470588235e+00, 1.73529411764706e+00, -2.35294117647059e-01, -8.82352941176471e-02, 0.00000000000000e+00, 0.00000000000000e+00],
         [-5.00000000000000e-01, 0.00000000000000e+00, 5.00000000000000e-01, 0.00000000000000e+00, 0.00000000000000e+00, 0.00000000000000e+00],
         [9.30232558139535e-02, -6.86046511627907e-01, 0.00000000000000e+00, 6.86046511627907e-01, -9.30232558139535e-02, 0.00000000000000e+00],
@@ -26,7 +27,7 @@ impl SBP4 {
 }
 
 impl SbpOperator for SBP4 {
-    fn diffxi(prev: ArrayView2<f32>, mut fut: ArrayViewMut2<f32>) {
+    fn diffxi(prev: ArrayView2<Float>, mut fut: ArrayViewMut2<Float>) {
         assert_eq!(prev.shape(), fut.shape());
         assert!(prev.shape()[1] >= 2 * Self::BLOCK.len());
 
@@ -35,12 +36,12 @@ impl SbpOperator for SBP4 {
         }
     }
 
-    fn diffeta(prev: ArrayView2<f32>, fut: ArrayViewMut2<f32>) {
+    fn diffeta(prev: ArrayView2<Float>, fut: ArrayViewMut2<Float>) {
         // transpose then use diffxi
         Self::diffxi(prev.reversed_axes(), fut.reversed_axes());
     }
 
-    fn h() -> &'static [f32] {
+    fn h() -> &'static [Float] {
         Self::HBLOCK
     }
 }

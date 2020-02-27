@@ -1,5 +1,6 @@
 use super::{SbpOperator, UpwindOperator};
 use crate::diff_op_1d;
+use crate::Float;
 use ndarray::{s, ArrayView1, ArrayView2, ArrayViewMut1, ArrayViewMut2};
 
 #[derive(Debug)]
@@ -16,15 +17,15 @@ diff_op_1d!(
 
 impl Upwind9 {
     #[rustfmt::skip]
-    const HBLOCK: &'static [f32] = &[
+    const HBLOCK: &'static [Float] = &[
         1070017.0/3628800.0, 5537111.0/3628800.0, 103613.0/403200.0, 261115.0/145152.0, 298951.0/725760.0, 515677.0/403200.0, 3349879.0/3628800.0, 3662753.0/3628800.0
     ];
     #[rustfmt::skip]
-    const DIAG: &'static [f32] = &[
+    const DIAG: &'static [Float] = &[
         -1.0/1260.0, 5.0/504.0, -5.0/84.0, 5.0/21.0, -5.0/6.0, 0.0, 5.0/6.0, -5.0/21.0, 5.0/84.0, -5.0/504.0, 1.0/1260.0,
     ];
     #[rustfmt::skip]
-    const BLOCK: &'static [[f32; 13]] = &[
+    const BLOCK: &'static [[Float; 13]] = &[
         [-1.69567399396458e+00, 2.29023358159400e+00, -2.16473500425698e-01, -5.05879766354449e-01, -1.01161106778154e-01, 2.59147072064383e-01, 1.93922119400659e-02, -4.95844980755642e-02, 0.00000000000000e+00, 0.00000000000000e+00, 0.00000000000000e+00, 0.00000000000000e+00, 0.00000000000000e+00],
         [-4.42575354959737e-01, 0.00000000000000e+00, 1.91582959381899e-01, 2.82222626681305e-01, 1.12083989713257e-01, -1.51334868892111e-01, -2.23600502721044e-02, 3.03806983474913e-02, 0.00000000000000e+00, 0.00000000000000e+00, 0.00000000000000e+00, 0.00000000000000e+00, 0.00000000000000e+00],
         [2.48392603571843e-01, -1.13758367065272e+00, 0.00000000000000e+00, 1.95334726810969e+00, -1.58879011773212e+00, 3.93797129320378e-01, 2.52140821030291e-01, -1.21304033647356e-01, 0.00000000000000e+00, 0.00000000000000e+00, 0.00000000000000e+00, 0.00000000000000e+00, 0.00000000000000e+00],
@@ -36,7 +37,7 @@ impl Upwind9 {
     ];
 
     #[rustfmt::skip]
-    const DISS_BLOCK: &'static [[f32; 13]] = &[
+    const DISS_BLOCK: &'static [[Float; 13]] = &[
         [-3.99020778658945e-04, 2.05394169917502e-03, -4.24493243399805e-03, 4.38126393542801e-03, -2.18883813216888e-03, 2.98565988131608e-04, 1.38484104084115e-04, -3.94643819928825e-05, 0.00000000000000e+00, 0.00000000000000e+00, 0.00000000000000e+00, 0.00000000000000e+00, 0.00000000000000e+00],
         [3.96913216138553e-04, -2.28230530115522e-03, 5.43069719436758e-03, -6.81086901935894e-03, 4.69064759201504e-03, -1.61429862514855e-03, 1.62083873811316e-04, 2.71310693302277e-05, 0.00000000000000e+00, 0.00000000000000e+00, 0.00000000000000e+00, 0.00000000000000e+00, 0.00000000000000e+00],
         [-4.87084939816571e-03, 3.22464611075207e-02, -9.06094757860846e-02, 1.39830191253413e-01, -1.27675500367419e-01, 6.87310321912961e-02, -2.00917702215270e-02, 2.43991122096699e-03, 0.00000000000000e+00, 0.00000000000000e+00, 0.00000000000000e+00, 0.00000000000000e+00, 0.00000000000000e+00],
@@ -48,13 +49,13 @@ impl Upwind9 {
     ];
 
     #[rustfmt::skip]
-    const DISS_DIAG: &'static [f32] = &[
+    const DISS_DIAG: &'static [Float] = &[
         1.0/1260.0, -1.0/126.0, 1.0/28.0, -2.0/21.0, 1.0/6.0, -1.0/5.0, 1.0/6.0, -2.0/21.0, 1.0/28.0, -1.0/126.0, 1.0/1260.0,
     ];
 }
 
 impl SbpOperator for Upwind9 {
-    fn diffxi(prev: ArrayView2<f32>, mut fut: ArrayViewMut2<f32>) {
+    fn diffxi(prev: ArrayView2<Float>, mut fut: ArrayViewMut2<Float>) {
         assert_eq!(prev.shape(), fut.shape());
         assert!(prev.shape()[1] >= 2 * Self::BLOCK.len());
 
@@ -63,18 +64,18 @@ impl SbpOperator for Upwind9 {
         }
     }
 
-    fn diffeta(prev: ArrayView2<f32>, fut: ArrayViewMut2<f32>) {
+    fn diffeta(prev: ArrayView2<Float>, fut: ArrayViewMut2<Float>) {
         // transpose then use diffxi
         Self::diffxi(prev.reversed_axes(), fut.reversed_axes());
     }
 
-    fn h() -> &'static [f32] {
+    fn h() -> &'static [Float] {
         Self::HBLOCK
     }
 }
 
 impl UpwindOperator for Upwind9 {
-    fn dissxi(prev: ArrayView2<f32>, mut fut: ArrayViewMut2<f32>) {
+    fn dissxi(prev: ArrayView2<Float>, mut fut: ArrayViewMut2<Float>) {
         assert_eq!(prev.shape(), fut.shape());
         assert!(prev.shape()[1] >= 2 * Self::BLOCK.len());
 
@@ -83,7 +84,7 @@ impl UpwindOperator for Upwind9 {
         }
     }
 
-    fn disseta(prev: ArrayView2<f32>, fut: ArrayViewMut2<f32>) {
+    fn disseta(prev: ArrayView2<Float>, fut: ArrayViewMut2<Float>) {
         // diffeta = transpose then use dissxi
         Self::dissxi(prev.reversed_axes(), fut.reversed_axes());
     }
