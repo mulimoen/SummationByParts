@@ -252,10 +252,7 @@ impl Field {
                x in x,
                y in y)
         {
-            #[cfg(feature = "f32")]
-            use std::f32::consts::PI;
-            #[cfg(not(feature = "f32"))]
-            use std::f64::consts::PI;
+            use crate::consts::PI;
 
             let dx = (x - vortex_param.x0) - t;
             let dy = y - vortex_param.y0;

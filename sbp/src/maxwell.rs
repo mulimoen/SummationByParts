@@ -142,10 +142,7 @@ impl<UO: UpwindOperator> System<UO> {
 }
 
 fn gaussian(x: Float, x0: Float, y: Float, y0: Float) -> Float {
-    #[cfg(feature = "f32")]
-    use std::f32::consts::PI;
-    #[cfg(not(feature = "f32"))]
-    use std::f64::consts::PI;
+    use crate::consts::PI;
 
     let x = x - x0;
     let y = y - y0;

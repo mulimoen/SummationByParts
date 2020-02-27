@@ -26,10 +26,6 @@ macro_rules! diff_simd_row_7_47 {
         impl $self {
             #[inline(never)]
             fn $name(prev: ArrayView2<Float>, mut fut: ArrayViewMut2<Float>) {
-                #[cfg(feature = "f32")]
-                type SimdIndex = packed_simd::u32x8;
-                #[cfg(not(feature = "f32"))]
-                type SimdIndex = packed_simd::u64x8;
                 assert_eq!(prev.shape(), fut.shape());
                 assert!(prev.len_of(Axis(1)) >= 2 * $BLOCK.len());
                 assert!(prev.len() >= SimdT::lanes());
@@ -98,7 +94,7 @@ macro_rules! diff_simd_row_7_47 {
 
                     let last_elems =
                         unsafe { SimdT::from_slice_unaligned_unchecked(&prev[nx - 8..]) }
-                            .shuffle1_dyn(SimdIndex::new(7, 6, 5, 4, 3, 2, 1, 0));
+                            .shuffle1_dyn([7, 6, 5, 4, 3, 2, 1, 0].into());
                     if $symmetric {
                         fut[nx - 4] = idx * (block[3] * last_elems).sum();
                         fut[nx - 3] = idx * (block[2] * last_elems).sum();
