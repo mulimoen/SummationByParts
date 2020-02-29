@@ -78,3 +78,47 @@ mod traditional4;
 pub use traditional4::SBP4;
 mod traditional8;
 pub use traditional8::SBP8;
+
+#[cfg(test)]
+pub(crate) mod testing {
+    use super::*;
+    use ndarray::prelude::*;
+    pub(crate) fn grid_eval<F: Fn(Float, Float) -> Float>(
+        n: (usize, usize),
+        f: F,
+    ) -> Array2<Float> {
+        let nx = n.1;
+        let dx = 1.0 / (nx - 1) as Float;
+        let ny = n.0;
+        let dy = 1.0 / (ny - 1) as Float;
+        Array2::from_shape_fn(n, |(j, i)| {
+            let x = dx * i as Float;
+            let y = dy * j as Float;
+            f(x, y)
+        })
+    }
+
+    pub(crate) fn check_operator_on<SBP, F, FX, FY>(
+        n: (usize, usize),
+        f: F,
+        dfdx: FX,
+        dfdy: FY,
+        eps: Float,
+    ) where
+        SBP: SbpOperator,
+        F: Fn(Float, Float) -> Float,
+        FX: Fn(Float, Float) -> Float,
+        FY: Fn(Float, Float) -> Float,
+    {
+        let mut y = Array2::zeros(n);
+        let x = grid_eval(n, f);
+
+        y.fill(0.0);
+        SBP::diffxi(x.view(), y.view_mut());
+        approx::assert_abs_diff_eq!(&y, &grid_eval(n, dfdx), epsilon = eps);
+
+        y.fill(0.0);
+        SBP::diffeta(x.view(), y.view_mut());
+        approx::assert_abs_diff_eq!(&y, &grid_eval(n, dfdy), epsilon = eps);
+    }
+}
