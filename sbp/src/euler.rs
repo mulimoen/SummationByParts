@@ -31,13 +31,14 @@ impl<SBP: SbpOperator> System<SBP> {
     }
 
     pub fn advance(&mut self, dt: Float) {
-        let rhs_trad = |k: &mut Field, y: &Field, grid: &_, wb: &mut _| {
-            let boundaries = BoundaryTerms {
-                north: y.south(),
-                south: y.north(),
-                west: y.east(),
-                east: y.west(),
-            };
+        let bc = BoundaryCharacteristics {
+            north: BoundaryCharacteristic::This,
+            south: BoundaryCharacteristic::This,
+            east: BoundaryCharacteristic::This,
+            west: BoundaryCharacteristic::This,
+        };
+        let rhs_trad = |k: &mut Field, y: &Field, grid: &Grid<_>, wb: &mut _| {
+            let boundaries = boundary_extractor(y, grid, &bc);
             RHS_trad(k, y, grid, &boundaries, wb)
         };
         integrate::rk4(
@@ -91,13 +92,14 @@ impl<SBP: SbpOperator> System<SBP> {
 
 impl<UO: UpwindOperator> System<UO> {
     pub fn advance_upwind(&mut self, dt: Float) {
-        let rhs_upwind = |k: &mut Field, y: &Field, grid: &_, wb: &mut _| {
-            let boundaries = BoundaryTerms {
-                north: y.south(),
-                south: y.north(),
-                west: y.east(),
-                east: y.west(),
-            };
+        let bc = BoundaryCharacteristics {
+            north: BoundaryCharacteristic::This,
+            south: BoundaryCharacteristic::This,
+            east: BoundaryCharacteristic::This,
+            west: BoundaryCharacteristic::This,
+        };
+        let rhs_upwind = |k: &mut Field, y: &Field, grid: &Grid<_>, wb: &mut _| {
+            let boundaries = boundary_extractor(y, grid, &bc);
             RHS_upwind(k, y, grid, &boundaries, wb)
         };
         integrate::rk4(
@@ -240,34 +242,18 @@ impl Field {
         assert_eq!(x.shape()[0], self.ny());
 
         let (rho, rhou, rhov, e) = self.components_mut();
+        let n = rho.len();
 
-        let eps = vortex_param.eps;
-        let m = vortex_param.mach;
-        let rstar = vortex_param.rstar;
-        let p_inf = 1.0 / (GAMMA * m * m);
-        azip!((rho in rho,
-               rhou in rhou,
-               rhov in rhov,
-               e in e,
-               x in x,
-               y in y)
-        {
-            use crate::consts::PI;
-
-            let dx = (x - vortex_param.x0) - t;
-            let dy = y - vortex_param.y0;
-            let f = (1.0 - (dx*dx + dy*dy))/(rstar*rstar);
-
-            *rho = Float::powf(1.0 - eps*eps*(GAMMA - 1.0)*m*m/(8.0*PI*PI*p_inf*rstar*rstar)*f.exp(), 1.0/(GAMMA - 1.0));
-            assert!(*rho > 0.0);
-            let p = Float::powf(*rho, GAMMA)*p_inf;
-            assert!(p > 0.0);
-            let u = 1.0 - eps*dy/(2.0*PI*p_inf.sqrt()*rstar*rstar)*(f/2.0).exp();
-            let v =       eps*dx/(2.0*PI*p_inf.sqrt()*rstar*rstar)*(f/2.0).exp();
-            *rhou = *rho*u;
-            *rhov = *rho*v;
-            *e = p/(GAMMA - 1.0) + *rho*(u*u + v*v)/2.0;
-        });
+        vortex(
+            rho.into_shape((n,)).unwrap(),
+            rhou.into_shape((n,)).unwrap(),
+            rhov.into_shape((n,)).unwrap(),
+            e.into_shape((n,)).unwrap(),
+            x.into_shape((n,)).unwrap(),
+            y.into_shape((n,)).unwrap(),
+            t,
+            vortex_param,
+        )
     }
 }
 
@@ -333,13 +319,59 @@ fn h2_diff() {
     assert!((field0.h2_err::<super::operators::SBP8>(&field1).powi(2) - 4.0).abs() < 1e-3);
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub struct VortexParameters {
     pub x0: Float,
     pub y0: Float,
     pub rstar: Float,
     pub eps: Float,
     pub mach: Float,
+}
+
+pub fn vortex(
+    rho: ArrayViewMut1<Float>,
+    rhou: ArrayViewMut1<Float>,
+    rhov: ArrayViewMut1<Float>,
+    e: ArrayViewMut1<Float>,
+    x: ArrayView1<Float>,
+    y: ArrayView1<Float>,
+    t: Float,
+    vortex_param: VortexParameters,
+) {
+    assert_eq!(rho.len(), rhou.len());
+    assert_eq!(rho.len(), rhov.len());
+    assert_eq!(rho.len(), e.len());
+    assert_eq!(rho.len(), x.len());
+    assert_eq!(rho.len(), y.len());
+    assert_eq!(x.shape(), y.shape());
+
+    let eps = vortex_param.eps;
+    let m = vortex_param.mach;
+    let rstar = vortex_param.rstar;
+    let p_inf = 1.0 / (GAMMA * m * m);
+    azip!((rho in rho,
+           rhou in rhou,
+           rhov in rhov,
+           e in e,
+           x in x,
+           y in y)
+    {
+        use crate::consts::PI;
+
+        let dx = (x - vortex_param.x0) - t;
+        let dy = y - vortex_param.y0;
+        let f = (1.0 - (dx*dx + dy*dy))/(rstar*rstar);
+
+        *rho = Float::powf(1.0 - eps*eps*(GAMMA - 1.0)*m*m/(8.0*PI*PI*p_inf*rstar*rstar)*f.exp(), 1.0/(GAMMA - 1.0));
+        assert!(*rho > 0.0);
+        let p = Float::powf(*rho, GAMMA)*p_inf;
+        assert!(p > 0.0);
+        let u = 1.0 - eps*dy/(2.0*PI*p_inf.sqrt()*rstar*rstar)*(f/2.0).exp();
+        let v =       eps*dx/(2.0*PI*p_inf.sqrt()*rstar*rstar)*(f/2.0).exp();
+        *rhou = *rho*u;
+        *rhov = *rho*v;
+        *e = p/(GAMMA - 1.0) + *rho*(u*u + v*v)/2.0;
+    });
 }
 
 fn pressure(gamma: Float, rho: Float, rhou: Float, rhov: Float, e: Float) -> Float {
@@ -540,6 +572,47 @@ pub struct BoundaryTerms<'a> {
     pub south: ArrayView2<'a, Float>,
     pub east: ArrayView2<'a, Float>,
     pub west: ArrayView2<'a, Float>,
+}
+
+#[derive(Clone, Debug)]
+pub enum BoundaryCharacteristic {
+    This,
+    // Grid(usize),
+    Vortex(VortexParameters),
+    // Vortices(Vec<VortexParameters>),
+}
+
+#[derive(Clone, Debug)]
+pub struct BoundaryCharacteristics {
+    north: BoundaryCharacteristic,
+    south: BoundaryCharacteristic,
+    east: BoundaryCharacteristic,
+    west: BoundaryCharacteristic,
+}
+
+fn boundary_extractor<'a, SBP: SbpOperator>(
+    field: &'a Field,
+    _grid: &Grid<SBP>,
+    bc: &BoundaryCharacteristics,
+) -> BoundaryTerms<'a> {
+    BoundaryTerms {
+        north: match bc.north {
+            BoundaryCharacteristic::This => field.south(),
+            BoundaryCharacteristic::Vortex(_params) => todo!(),
+        },
+        south: match bc.south {
+            BoundaryCharacteristic::This => field.north(),
+            BoundaryCharacteristic::Vortex(_params) => todo!(),
+        },
+        west: match bc.west {
+            BoundaryCharacteristic::This => field.east(),
+            BoundaryCharacteristic::Vortex(_params) => todo!(),
+        },
+        east: match bc.east {
+            BoundaryCharacteristic::This => field.west(),
+            BoundaryCharacteristic::Vortex(_params) => todo!(),
+        },
+    }
 }
 
 #[allow(non_snake_case)]

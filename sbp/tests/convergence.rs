@@ -42,14 +42,13 @@ fn run_with_size<SBP: sbp::operators::UpwindOperator>(size: usize) -> Float {
     verifield.h2_err::<SBP>(sys.field())
 }
 
-#[test]
-fn convergence() {
+fn convergence<SBP: sbp::operators::UpwindOperator>() {
     let sizes = [25, 35, 50, 71, 100, 150, 200];
     let mut prev: Option<(usize, Float)> = None;
     println!("Size\tError(h2)\tq");
     for size in &sizes {
         print!("{:3}x{:3}", size, size);
-        let e = run_with_size::<sbp::operators::Upwind4>(*size);
+        let e = run_with_size::<SBP>(*size);
         print!("\t{:.10}", e);
         if let Some(prev) = prev.take() {
             let m0 = size * size;
@@ -65,5 +64,14 @@ fn convergence() {
         println!();
         prev = Some((*size, e));
     }
-    panic!();
+}
+
+#[test]
+fn convergence_upwind4() {
+    convergence::<sbp::operators::Upwind4>();
+}
+
+#[test]
+fn convergence_upwind9() {
+    convergence::<sbp::operators::Upwind9>();
 }
