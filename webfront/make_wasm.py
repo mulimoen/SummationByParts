@@ -5,6 +5,7 @@ from subprocess import check_call
 from shutil import copyfile, copytree
 import tempfile
 import pathlib
+import os
 
 if __name__ == "__main__":
     parser = ArgumentParser(description="Build js and wasm")
@@ -25,10 +26,12 @@ if __name__ == "__main__":
 
     target_triple = "wasm32-unknown-unknown"
     command = ["cargo", "build", "--target", target_triple]
+    env = os.environ.copy()
     if args.release:
+        env["RUSTFLAGS"] = "-C opt-level=3 -C codegen-units=1 -C lto=fat"
         command.append("--release")
 
-    check_call(command)
+    check_call(command, env=env)
 
     target = (
         pathlib.Path("../target")
