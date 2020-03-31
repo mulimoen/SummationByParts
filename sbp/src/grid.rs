@@ -73,4 +73,11 @@ impl<SBP: super::operators::SbpOperator> Grid<SBP> {
     pub fn ny(&self) -> usize {
         self.x.shape()[0]
     }
+
+    pub fn x(&self) -> ndarray::ArrayView2<Float> {
+        self.x.view()
+    }
+    pub fn y(&self) -> ndarray::ArrayView2<Float> {
+        self.y.view()
+    }
 }

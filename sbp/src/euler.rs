@@ -203,16 +203,16 @@ impl Field {
         (rho, rhou, rhov, e)
     }
 
-    fn north(&self) -> ArrayView2<Float> {
+    pub fn north(&self) -> ArrayView2<Float> {
         self.slice(s![.., self.ny() - 1, ..])
     }
-    fn south(&self) -> ArrayView2<Float> {
+    pub fn south(&self) -> ArrayView2<Float> {
         self.slice(s![.., 0, ..])
     }
-    fn east(&self) -> ArrayView2<Float> {
+    pub fn east(&self) -> ArrayView2<Float> {
         self.slice(s![.., .., self.nx() - 1])
     }
-    fn west(&self) -> ArrayView2<Float> {
+    pub fn west(&self) -> ArrayView2<Float> {
         self.slice(s![.., .., 0])
     }
     fn north_mut(&mut self) -> ArrayViewMut2<Float> {
@@ -413,7 +413,7 @@ pub(crate) fn RHS_trad<SBP: SbpOperator>(
 }
 
 #[allow(non_snake_case)]
-pub(crate) fn RHS_upwind<UO: UpwindOperator>(
+pub fn RHS_upwind<UO: UpwindOperator>(
     k: &mut Field,
     y: &Field,
     grid: &Grid<UO>,
