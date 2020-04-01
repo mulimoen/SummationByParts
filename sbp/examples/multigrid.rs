@@ -118,6 +118,7 @@ impl<T: operators::UpwindOperator> System<T> {
                                 *y1 = y0 + dt / 6.0 * (k1 + 2.0 * k2 + 2.0 * k3 + k4)
                             });
                     }
+                    std::mem::swap(&mut self.fnext, &mut self.fnow);
                     return;
                 }
                 _ => {
@@ -127,28 +128,28 @@ impl<T: operators::UpwindOperator> System<T> {
 
             let bt = vec![
                 euler::BoundaryTerms {
-                    north: self.fnext[1].north(),
-                    south: self.fnext[1].south(),
+                    north: self.fnext[1].south(),
+                    south: self.fnext[1].north(),
                     east: self.fnext[3].west(),
                     west: self.fnext[3].east(),
                 },
                 euler::BoundaryTerms {
-                    north: self.fnext[0].north(),
-                    south: self.fnext[0].south(),
+                    north: self.fnext[0].south(),
+                    south: self.fnext[0].north(),
                     east: self.fnext[2].west(),
                     west: self.fnext[2].east(),
                 },
                 euler::BoundaryTerms {
-                    north: self.fnext[3].north(),
-                    south: self.fnext[3].south(),
-                    east: self.fnext[0].west(),
-                    west: self.fnext[0].east(),
-                },
-                euler::BoundaryTerms {
-                    north: self.fnext[2].north(),
-                    south: self.fnext[2].south(),
+                    north: self.fnext[3].south(),
+                    south: self.fnext[3].north(),
                     east: self.fnext[1].west(),
                     west: self.fnext[1].east(),
+                },
+                euler::BoundaryTerms {
+                    north: self.fnext[2].south(),
+                    south: self.fnext[2].north(),
+                    east: self.fnext[0].west(),
+                    west: self.fnext[0].east(),
                 },
             ];
 
@@ -166,7 +167,7 @@ impl<T: operators::UpwindOperator> System<T> {
     }
 }
 
-fn mesh(x: (f64, f64, usize), y: (f64, f64, usize)) -> (Array2<f64>, Array2<f64>) {
+fn mesh(y: (f64, f64, usize), x: (f64, f64, usize)) -> (Array2<f64>, Array2<f64>) {
     let arrx = Array1::linspace(x.0, x.1, x.2);
     let arry = Array1::linspace(y.0, y.1, y.2);
 
@@ -174,25 +175,26 @@ fn mesh(x: (f64, f64, usize), y: (f64, f64, usize)) -> (Array2<f64>, Array2<f64>
     let mut gy = arry.broadcast((x.2, y.2)).unwrap();
     gy.swap_axes(0, 1);
 
-    (gx.into_owned(), gy.into_owned())
+    (gy.into_owned(), gx.into_owned())
 }
 
 fn main() {
-    let n = 20;
+    let nx = 32;
+    let ny = 31;
 
     let mut grids = Vec::with_capacity(4);
 
-    let (x0, y0) = mesh((-5.0, 0.0, n), (0.0, 5.0, n));
-    grids.push(grid::Grid::<operators::Upwind4>::new(x0, y0).unwrap());
+    let (y0, x0) = mesh((0.0, 5.0, ny), (-5.0, 0.0, nx));
+    grids.push(grid::Grid::<operators::Upwind9>::new(x0, y0).unwrap());
 
-    let (x1, y1) = mesh((-5.0, 0.0, n), (-5.0, 0.0, n));
-    grids.push(grid::Grid::<operators::Upwind4>::new(x1, y1).unwrap());
+    let (y1, x1) = mesh((-5.0, 0.0, ny), (-5.0, 0.0, nx));
+    grids.push(grid::Grid::<operators::Upwind9>::new(x1, y1).unwrap());
 
-    let (x2, y2) = mesh((0.0, 5.0, n), (-5.0, 0.0, n));
-    grids.push(grid::Grid::<operators::Upwind4>::new(x2, y2).unwrap());
+    let (y2, x2) = mesh((-5.0, 0.0, ny), (0.0, 5.0, nx));
+    grids.push(grid::Grid::<operators::Upwind9>::new(x2, y2).unwrap());
 
-    let (x3, y3) = mesh((0.0, 5.0, n), (0.0, 5.0, n));
-    grids.push(grid::Grid::<operators::Upwind4>::new(x3, y3).unwrap());
+    let (y3, x3) = mesh((0.0, 5.0, ny), (0.0, 5.0, nx));
+    grids.push(grid::Grid::<operators::Upwind9>::new(x3, y3).unwrap());
 
     let mut sys = System::new(grids);
     sys.vortex(
@@ -205,32 +207,42 @@ fn main() {
             eps: 1.0,
         },
     );
-    sys.advance(0.05);
+    let t = 0.2;
+    let dt = 0.1 / (std::cmp::max(nx, ny) as Float);
+    for _ in 0..(t / dt) as _ {
+        sys.advance(dt);
+    }
 
-    /*
-    let bt0 = euler::BoundaryTerms {
-        north: sys1.field().north(),
-        south: sys1.field().south(),
-        east: sys3.field().west(),
-        west: sys3.field().east(),
-    };
-    let bt1 = euler::BoundaryTerms {
-        north: sys0.field().north(),
-        south: sys0.field().south(),
-        east: sys2.field().west(),
-        west: sys2.field().east(),
-    };
-    let bt2 = euler::BoundaryTerms {
-        north: sys3.field().north(),
-        south: sys3.field().south(),
-        east: sys0.field().west(),
-        west: sys0.field().east(),
-    };
-    let bt3 = euler::BoundaryTerms {
-        north: sys2.field().north(),
-        south: sys2.field().south(),
-        east: sys1.field().west(),
-        west: sys1.field().east(),
-    };
-    */
+    println!("{}", sys.fnow[0].e()[(0, 0)]);
+    dump_to_file(&sys);
+}
+
+fn dump_to_file<T: sbp::operators::UpwindOperator>(sys: &System<T>) {
+    use std::io::prelude::*;
+    let file = std::fs::File::create("output").unwrap();
+    let mut file = std::io::BufWriter::new(file);
+    let ngrids = sys.grids.len();
+    file.write_all(&(ngrids as u32).to_le_bytes()).unwrap();
+    for (grid, s) in sys.grids.iter().zip(&sys.fnow) {
+        file.write_all(&(grid.ny() as u32).to_le_bytes()).unwrap();
+        file.write_all(&(grid.nx() as u32).to_le_bytes()).unwrap();
+        for x in grid.x().as_slice().unwrap() {
+            file.write_all(&(x.to_le_bytes())).unwrap();
+        }
+        for y in grid.y().as_slice().unwrap() {
+            file.write_all(&(y.to_le_bytes())).unwrap();
+        }
+        for rho in s.rho().as_slice().unwrap() {
+            file.write_all(&(rho.to_le_bytes())).unwrap();
+        }
+        for rhou in s.rhou().as_slice().unwrap() {
+            file.write_all(&(rhou.to_le_bytes())).unwrap();
+        }
+        for rhov in s.rhov().as_slice().unwrap() {
+            file.write_all(&(rhov.to_le_bytes())).unwrap();
+        }
+        for e in s.e().as_slice().unwrap() {
+            file.write_all(&(e.to_le_bytes())).unwrap();
+        }
+    }
 }
