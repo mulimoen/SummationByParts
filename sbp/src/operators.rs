@@ -5,7 +5,7 @@ use crate::Float;
 
 use ndarray::{ArrayView2, ArrayViewMut2};
 
-pub trait SbpOperator {
+pub trait SbpOperator: Send + Sync {
     fn diffxi(prev: ArrayView2<Float>, fut: ArrayViewMut2<Float>);
     fn diffeta(prev: ArrayView2<Float>, fut: ArrayViewMut2<Float>);
     fn h() -> &'static [Float];
