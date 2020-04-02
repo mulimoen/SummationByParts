@@ -158,6 +158,8 @@ impl<T: operators::UpwindOperator> System<T> {
 #[derive(Debug, StructOpt)]
 struct Options {
     json: std::path::PathBuf,
+    #[structopt(long, help = "Disable the progressbar")]
+    no_progressbar: bool,
 }
 
 fn main() {
@@ -189,6 +191,7 @@ fn main() {
     for grid in jgrids {
         grids.push(grid::Grid::new(grid.x, grid.y).unwrap());
     }
+    let integration_time: f64 = json["integration_time"].as_number().unwrap().into();
 
     let mut sys = System::new(grids, bt);
     sys.vortex(
@@ -207,11 +210,24 @@ fn main() {
         let max_ny = sys.grids.iter().map(|g| g.ny()).max().unwrap();
         std::cmp::max(max_nx, max_ny)
     };
-    let t: f64 = json["integration_time"].as_number().unwrap().into();
     let dt = 0.2 / (max_n as Float);
-    for _ in 0..(t / dt) as _ {
+
+    let ntime = (integration_time / dt).round() as usize;
+
+    let bar = if opt.no_progressbar {
+        indicatif::ProgressBar::hidden()
+    } else {
+        let bar = indicatif::ProgressBar::new(ntime as _);
+        bar.with_style(
+            indicatif::ProgressStyle::default_bar()
+                .template("{wide_bar:.cyan/blue} {pos}/{len} ({eta})"),
+        )
+    };
+    for _ in 0..ntime {
+        bar.inc(1);
         sys.advance(dt);
     }
+    bar.finish();
 
     dump_to_file(&sys);
 }

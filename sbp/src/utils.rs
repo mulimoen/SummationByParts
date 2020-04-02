@@ -1,4 +1,5 @@
 use crate::Float;
+use json::JsonValue;
 
 #[derive(Debug, Clone)]
 pub struct SimpleGrid {
@@ -27,8 +28,7 @@ pub struct SimpleGrid {
 /// Optional parameters:
 /// * name (for relating boundaries)
 /// * dir{e,w,n,s} (for boundary terms)
-pub fn json_to_grids(json: json::JsonValue) -> Result<Vec<SimpleGrid>, String> {
-    use json::JsonValue;
+pub fn json_to_grids(json: JsonValue) -> Result<Vec<SimpleGrid>, String> {
     fn json_to_grid(mut grid: JsonValue) -> Result<SimpleGrid, String> {
         #[derive(Debug)]
         enum ArrayForm {
