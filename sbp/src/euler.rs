@@ -577,17 +577,17 @@ pub struct BoundaryTerms<'a> {
 #[derive(Clone, Debug)]
 pub enum BoundaryCharacteristic {
     This,
-    // Grid(usize),
+    Grid(usize),
     Vortex(VortexParameters),
     // Vortices(Vec<VortexParameters>),
 }
 
 #[derive(Clone, Debug)]
 pub struct BoundaryCharacteristics {
-    north: BoundaryCharacteristic,
-    south: BoundaryCharacteristic,
-    east: BoundaryCharacteristic,
-    west: BoundaryCharacteristic,
+    pub north: BoundaryCharacteristic,
+    pub south: BoundaryCharacteristic,
+    pub east: BoundaryCharacteristic,
+    pub west: BoundaryCharacteristic,
 }
 
 fn boundary_extractor<'a, SBP: SbpOperator>(
@@ -599,18 +599,22 @@ fn boundary_extractor<'a, SBP: SbpOperator>(
         north: match bc.north {
             BoundaryCharacteristic::This => field.south(),
             BoundaryCharacteristic::Vortex(_params) => todo!(),
+            BoundaryCharacteristic::Grid(_) => panic!("Only working on self grid"),
         },
         south: match bc.south {
             BoundaryCharacteristic::This => field.north(),
             BoundaryCharacteristic::Vortex(_params) => todo!(),
+            BoundaryCharacteristic::Grid(_) => panic!("Only working on self grid"),
         },
         west: match bc.west {
             BoundaryCharacteristic::This => field.east(),
             BoundaryCharacteristic::Vortex(_params) => todo!(),
+            BoundaryCharacteristic::Grid(_) => panic!("Only working on self grid"),
         },
         east: match bc.east {
             BoundaryCharacteristic::This => field.west(),
             BoundaryCharacteristic::Vortex(_params) => todo!(),
+            BoundaryCharacteristic::Grid(_) => panic!("Only working on self grid"),
         },
     }
 }

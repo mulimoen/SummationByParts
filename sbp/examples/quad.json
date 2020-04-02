@@ -1,0 +1,41 @@
+{
+    "grids": [
+        {
+            "name": "grid0",
+            "x": "linspace:-5:0:50",
+            "y": "linspace:0:5:50",
+            "dirS": "grid1",
+            "dirN": "grid1",
+            "dirE": "grid3",
+            "dirW": "grid3"
+        },
+        {
+            "name": "grid1",
+            "x": "linspace:-5:0:50",
+            "y": "linspace:-5:0:50",
+            "dirS": "grid0",
+            "dirN": "grid0",
+            "dirE": "grid2",
+            "dirW": "grid2"
+        },
+        {
+            "name": "grid2",
+            "x": "linspace:0:5:50",
+            "y": "linspace:-5:0:50",
+            "dirS": "grid3",
+            "dirN": "grid3",
+            "dirE": "grid1",
+            "dirW": "grid1"
+        },
+        {
+            "name": "grid3",
+            "x": "linspace:0:5:50",
+            "y": "linspace:0:5:50",
+            "dirS": "grid2",
+            "dirN": "grid2",
+            "dirE": "grid0",
+            "dirW": "grid0"
+        }
+    ],
+    "integration_time": 2.0
+}

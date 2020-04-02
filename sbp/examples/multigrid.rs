@@ -1,22 +1,6 @@
-use ndarray::prelude::*;
+use sbp::utils::json_to_grids;
 use sbp::*;
-
-/*
- * A 2D grid divided in four parts, spanning the rectangle [-5, 5] x [-5, 5]
- *
- * / \ y
- *  |
- *  | 5.0   000     333
- *  |       000     333
- *  |       000     333
- *  | 0.0
- *  |       111     222
- *  |       111     222
- *  |-5.0   111     222
- *  |
- *  |     -5.0  0.0  5.0       x
- *    ------------------------->
- */
+use structopt::StructOpt;
 
 struct System<T: operators::UpwindOperator> {
     fnow: Vec<euler::Field>,
@@ -31,10 +15,11 @@ struct System<T: operators::UpwindOperator> {
     )>,
     k: [Vec<euler::Field>; 4],
     grids: Vec<grid::Grid<T>>,
+    bt: Vec<euler::BoundaryCharacteristics>,
 }
 
 impl<T: operators::UpwindOperator> System<T> {
-    fn new(grids: Vec<grid::Grid<T>>) -> Self {
+    fn new(grids: Vec<grid::Grid<T>>, bt: Vec<euler::BoundaryCharacteristics>) -> Self {
         let fnow = grids
             .iter()
             .map(|g| euler::Field::new(g.ny(), g.nx()))
@@ -55,6 +40,7 @@ impl<T: operators::UpwindOperator> System<T> {
             k,
             wb,
             grids,
+            bt,
         }
     }
 
@@ -126,35 +112,37 @@ impl<T: operators::UpwindOperator> System<T> {
                 }
             }
 
-            let bt = vec![
-                euler::BoundaryTerms {
-                    north: self.fnext[1].south(),
-                    south: self.fnext[1].north(),
-                    east: self.fnext[3].west(),
-                    west: self.fnext[3].east(),
-                },
-                euler::BoundaryTerms {
-                    north: self.fnext[0].south(),
-                    south: self.fnext[0].north(),
-                    east: self.fnext[2].west(),
-                    west: self.fnext[2].east(),
-                },
-                euler::BoundaryTerms {
-                    north: self.fnext[3].south(),
-                    south: self.fnext[3].north(),
-                    east: self.fnext[1].west(),
-                    west: self.fnext[1].east(),
-                },
-                euler::BoundaryTerms {
-                    north: self.fnext[2].south(),
-                    south: self.fnext[2].north(),
-                    east: self.fnext[0].west(),
-                    west: self.fnext[0].east(),
-                },
-            ];
+            let fields = &self.fnext;
 
-            for ((((prev, fut), grid), wb), bt) in self
-                .fnext
+            let bt = self
+                .bt
+                .iter()
+                .enumerate()
+                .map(|(i, bt)| euler::BoundaryTerms {
+                    north: match bt.north {
+                        euler::BoundaryCharacteristic::This => fields[i].south(),
+                        euler::BoundaryCharacteristic::Grid(g) => fields[g].south(),
+                        euler::BoundaryCharacteristic::Vortex(_) => todo!(),
+                    },
+                    south: match bt.south {
+                        euler::BoundaryCharacteristic::This => fields[i].north(),
+                        euler::BoundaryCharacteristic::Grid(g) => fields[g].north(),
+                        euler::BoundaryCharacteristic::Vortex(_) => todo!(),
+                    },
+                    west: match bt.west {
+                        euler::BoundaryCharacteristic::This => fields[i].east(),
+                        euler::BoundaryCharacteristic::Grid(g) => fields[g].east(),
+                        euler::BoundaryCharacteristic::Vortex(_) => todo!(),
+                    },
+                    east: match bt.east {
+                        euler::BoundaryCharacteristic::This => fields[i].west(),
+                        euler::BoundaryCharacteristic::Grid(g) => fields[g].west(),
+                        euler::BoundaryCharacteristic::Vortex(_) => todo!(),
+                    },
+                })
+                .collect::<Vec<_>>();
+
+            for ((((prev, fut), grid), wb), bt) in fields
                 .iter()
                 .zip(fnext)
                 .zip(&self.grids)
@@ -167,36 +155,42 @@ impl<T: operators::UpwindOperator> System<T> {
     }
 }
 
-fn mesh(y: (f64, f64, usize), x: (f64, f64, usize)) -> (Array2<f64>, Array2<f64>) {
-    let arrx = Array1::linspace(x.0, x.1, x.2);
-    let arry = Array1::linspace(y.0, y.1, y.2);
-
-    let gx = arrx.broadcast((y.2, x.2)).unwrap();
-    let mut gy = arry.broadcast((x.2, y.2)).unwrap();
-    gy.swap_axes(0, 1);
-
-    (gy.into_owned(), gx.into_owned())
+#[derive(Debug, StructOpt)]
+struct Options {
+    json: std::path::PathBuf,
 }
 
 fn main() {
-    let nx = 32;
-    let ny = 31;
+    let opt = Options::from_args();
+    let filecontents = std::fs::read_to_string(&opt.json).unwrap();
 
-    let mut grids = Vec::with_capacity(4);
+    let json = json::parse(&filecontents).unwrap();
+    let jgrids = json_to_grids(json["grids"].clone()).unwrap();
 
-    let (y0, x0) = mesh((0.0, 5.0, ny), (-5.0, 0.0, nx));
-    grids.push(grid::Grid::<operators::Upwind9>::new(x0, y0).unwrap());
+    let mut bt = Vec::with_capacity(jgrids.len());
+    let determine_bc = |dir| match dir {
+        Some(dir) => euler::BoundaryCharacteristic::Grid(
+            jgrids
+                .iter()
+                .position(|other| other.name.as_ref().map_or(false, |name| name == dir))
+                .unwrap(),
+        ),
+        None => euler::BoundaryCharacteristic::This,
+    };
+    for grid in &jgrids {
+        bt.push(euler::BoundaryCharacteristics {
+            north: determine_bc(grid.dirn.as_ref()),
+            south: determine_bc(grid.dirs.as_ref()),
+            east: determine_bc(grid.dire.as_ref()),
+            west: determine_bc(grid.dirw.as_ref()),
+        });
+    }
+    let mut grids: Vec<grid::Grid<operators::Upwind4>> = Vec::with_capacity(jgrids.len());
+    for grid in jgrids {
+        grids.push(grid::Grid::new(grid.x, grid.y).unwrap());
+    }
 
-    let (y1, x1) = mesh((-5.0, 0.0, ny), (-5.0, 0.0, nx));
-    grids.push(grid::Grid::<operators::Upwind9>::new(x1, y1).unwrap());
-
-    let (y2, x2) = mesh((-5.0, 0.0, ny), (0.0, 5.0, nx));
-    grids.push(grid::Grid::<operators::Upwind9>::new(x2, y2).unwrap());
-
-    let (y3, x3) = mesh((0.0, 5.0, ny), (0.0, 5.0, nx));
-    grids.push(grid::Grid::<operators::Upwind9>::new(x3, y3).unwrap());
-
-    let mut sys = System::new(grids);
+    let mut sys = System::new(grids, bt);
     sys.vortex(
         0.0,
         euler::VortexParameters {
@@ -207,13 +201,18 @@ fn main() {
             eps: 1.0,
         },
     );
-    let t = 0.2;
-    let dt = 0.1 / (std::cmp::max(nx, ny) as Float);
+
+    let max_n = {
+        let max_nx = sys.grids.iter().map(|g| g.nx()).max().unwrap();
+        let max_ny = sys.grids.iter().map(|g| g.ny()).max().unwrap();
+        std::cmp::max(max_nx, max_ny)
+    };
+    let t: f64 = json["integration_time"].as_number().unwrap().into();
+    let dt = 0.2 / (max_n as Float);
     for _ in 0..(t / dt) as _ {
         sys.advance(dt);
     }
 
-    println!("{}", sys.fnow[0].e()[(0, 0)]);
     dump_to_file(&sys);
 }
 

@@ -27,7 +27,7 @@ pub struct SimpleGrid {
 /// Optional parameters:
 /// * name (for relating boundaries)
 /// * dir{e,w,n,s} (for boundary terms)
-pub fn json_to_grids(json: &str) -> Result<Vec<SimpleGrid>, String> {
+pub fn json_to_grids(json: json::JsonValue) -> Result<Vec<SimpleGrid>, String> {
     use json::JsonValue;
     fn json_to_grid(mut grid: JsonValue) -> Result<SimpleGrid, String> {
         #[derive(Debug)]
@@ -184,9 +184,7 @@ pub fn json_to_grids(json: &str) -> Result<Vec<SimpleGrid>, String> {
         })
     }
 
-    let js = json::parse(&json).map_err(|e| format!("{}", e))?;
-
-    match js {
+    match json {
         JsonValue::Array(a) => a
             .into_iter()
             .map(|g| json_to_grid(g))
