@@ -193,17 +193,10 @@ fn main() {
     }
     let integration_time: f64 = json["integration_time"].as_number().unwrap().into();
 
+    let vortexparams = utils::json_to_vortex(json["vortex"].clone());
+
     let mut sys = System::new(grids, bt);
-    sys.vortex(
-        0.0,
-        euler::VortexParameters {
-            x0: 0.0,
-            y0: 0.0,
-            mach: 0.5,
-            rstar: 0.5,
-            eps: 1.0,
-        },
-    );
+    sys.vortex(0.0, vortexparams);
 
     let max_n = {
         let max_nx = sys.grids.iter().map(|g| g.nx()).max().unwrap();

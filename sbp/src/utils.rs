@@ -246,3 +246,26 @@ fn parse_err() {
     json_to_grids(r#"{"x": "linspace:1.2:3.1:412.2", "y": [0.1, 0.2]}"#).unwrap_err();
     json_to_grids(r#"{"x": [-2, -3, "dfd"], "y": [0.1, 0.2]}"#).unwrap_err();
 }
+
+pub fn json_to_vortex(mut json: JsonValue) -> super::euler::VortexParameters {
+    let x0 = json.remove("x0").as_number().unwrap().into();
+    let y0 = json.remove("y0").as_number().unwrap().into();
+    let mach = json.remove("mach").as_number().unwrap().into();
+    let rstar = json.remove("rstar").as_number().unwrap().into();
+    let eps = json.remove("eps").as_number().unwrap().into();
+
+    if !json.is_empty() {
+        eprintln!("Found unused items when parsing vortex");
+        for (name, val) in json.entries() {
+            eprintln!("\t{} {}", name, val.dump());
+        }
+    }
+
+    super::euler::VortexParameters {
+        x0,
+        y0,
+        mach,
+        rstar,
+        eps,
+    }
+}

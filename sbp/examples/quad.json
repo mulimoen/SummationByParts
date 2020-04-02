@@ -37,5 +37,12 @@
             "dirW": "grid0"
         }
     ],
-    "integration_time": 2.0
+    "integration_time": 2.0,
+    "vortex": {
+        "x0": 0.0,
+        "y0": 0.0,
+        "mach": 0.5,
+        "rstar": 0.5,
+        "eps": 1.0
+    }
 }
