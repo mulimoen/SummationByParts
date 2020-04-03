@@ -2,13 +2,16 @@ use crate::Float;
 use ndarray::Array2;
 
 #[derive(Debug, Clone)]
-pub struct Grid<SBP>
+pub struct Grid {
+    pub(crate) x: Array2<Float>,
+    pub(crate) y: Array2<Float>,
+}
+
+#[derive(Debug, Clone)]
+pub struct Metrics<SBP>
 where
     SBP: super::operators::SbpOperator,
 {
-    pub(crate) x: Array2<Float>,
-    pub(crate) y: Array2<Float>,
-
     pub(crate) detj: Array2<Float>,
     pub(crate) detj_dxi_dx: Array2<Float>,
     pub(crate) detj_dxi_dy: Array2<Float>,
@@ -18,11 +21,39 @@ where
     operator: std::marker::PhantomData<SBP>,
 }
 
-impl<SBP: super::operators::SbpOperator> Grid<SBP> {
+impl Grid {
     pub fn new(x: Array2<Float>, y: Array2<Float>) -> Result<Self, ndarray::ShapeError> {
         assert_eq!(x.shape(), y.shape());
-        let ny = x.shape()[0];
-        let nx = x.shape()[1];
+
+        Ok(Self { x, y })
+    }
+    pub fn nx(&self) -> usize {
+        self.x.shape()[1]
+    }
+    pub fn ny(&self) -> usize {
+        self.x.shape()[0]
+    }
+
+    pub fn x(&self) -> ndarray::ArrayView2<Float> {
+        self.x.view()
+    }
+    pub fn y(&self) -> ndarray::ArrayView2<Float> {
+        self.y.view()
+    }
+
+    pub fn metrics<SBP: super::operators::SbpOperator>(
+        &self,
+    ) -> Result<Metrics<SBP>, ndarray::ShapeError> {
+        Metrics::new(self)
+    }
+}
+
+impl<SBP: super::operators::SbpOperator> Metrics<SBP> {
+    fn new(grid: &Grid) -> Result<Self, ndarray::ShapeError> {
+        let ny = grid.ny();
+        let nx = grid.nx();
+        let x = &grid.x;
+        let y = &grid.y;
 
         let mut dx_dxi = Array2::zeros((ny, nx));
         SBP::diffxi(x.view(), dx_dxi.view_mut());
@@ -57,8 +88,6 @@ impl<SBP: super::operators::SbpOperator> Grid<SBP> {
         let detj_deta_dy = dx_dxi;
 
         Ok(Self {
-            x,
-            y,
             detj,
             detj_dxi_dx,
             detj_dxi_dy,
@@ -66,18 +95,5 @@ impl<SBP: super::operators::SbpOperator> Grid<SBP> {
             detj_deta_dy,
             operator: std::marker::PhantomData,
         })
-    }
-    pub fn nx(&self) -> usize {
-        self.x.shape()[1]
-    }
-    pub fn ny(&self) -> usize {
-        self.x.shape()[0]
-    }
-
-    pub fn x(&self) -> ndarray::ArrayView2<Float> {
-        self.x.view()
-    }
-    pub fn y(&self) -> ndarray::ArrayView2<Float> {
-        self.y.view()
     }
 }

@@ -1,4 +1,4 @@
-use super::grid::Grid;
+use super::grid::{Grid, Metrics};
 use super::operators::SbpOperator;
 use super::Float;
 use ndarray::{Array3, Zip};
@@ -8,13 +8,14 @@ pub(crate) fn rk4<'a, F: 'a, SBP, RHS, WB>(
     prev: &F,
     fut: &mut F,
     dt: Float,
-    grid: &Grid<SBP>,
+    grid: &Grid,
+    metrics: &Metrics<SBP>,
     k: &mut [F; 4],
     mut wb: &mut WB,
 ) where
     F: std::ops::Deref<Target = Array3<Float>> + std::ops::DerefMut<Target = Array3<Float>>,
     SBP: SbpOperator,
-    RHS: Fn(&mut F, &F, &Grid<SBP>, &mut WB),
+    RHS: Fn(&mut F, &F, &Grid, &Metrics<SBP>, &mut WB),
 {
     assert_eq!(prev.shape(), fut.shape());
 
@@ -48,6 +49,6 @@ pub(crate) fn rk4<'a, F: 'a, SBP, RHS, WB>(
             }
         };
 
-        rhs(&mut k[i], &fut, grid, &mut wb);
+        rhs(&mut k[i], &fut, grid, metrics, &mut wb);
     }
 }

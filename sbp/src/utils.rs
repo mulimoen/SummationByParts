@@ -1,10 +1,10 @@
+use crate::grid::Grid;
 use crate::Float;
 use json::JsonValue;
 
 #[derive(Debug, Clone)]
-pub struct SimpleGrid {
-    pub x: ndarray::Array2<Float>,
-    pub y: ndarray::Array2<Float>,
+pub struct ExtendedGrid {
+    pub grid: Grid,
     pub name: Option<String>,
     pub dire: Option<String>,
     pub dirw: Option<String>,
@@ -28,8 +28,8 @@ pub struct SimpleGrid {
 /// Optional parameters:
 /// * name (for relating boundaries)
 /// * dir{e,w,n,s} (for boundary terms)
-pub fn json_to_grids(json: JsonValue) -> Result<Vec<SimpleGrid>, String> {
-    fn json_to_grid(mut grid: JsonValue) -> Result<SimpleGrid, String> {
+pub fn json_to_grids(json: JsonValue) -> Result<Vec<ExtendedGrid>, String> {
+    fn json_to_grid(mut grid: JsonValue) -> Result<ExtendedGrid, String> {
         #[derive(Debug)]
         enum ArrayForm {
             /// Only know the one dimension, will broadcast to
@@ -173,9 +173,8 @@ pub fn json_to_grids(json: JsonValue) -> Result<Vec<SimpleGrid>, String> {
             }
         }
 
-        Ok(SimpleGrid {
-            x,
-            y,
+        Ok(ExtendedGrid {
+            grid: Grid::new(x, y).unwrap(),
             name,
             dire,
             dirw,
@@ -195,56 +194,73 @@ pub fn json_to_grids(json: JsonValue) -> Result<Vec<SimpleGrid>, String> {
 
 #[test]
 fn parse_linspace() {
-    let grids =
-        json_to_grids(r#"[{"name": "main", "x": "linspace:0:10:20", "y": "linspace:0:10:21"}]"#)
-            .unwrap();
+    let grids = json_to_grids(
+        json::parse(r#"[{"name": "main", "x": "linspace:0:10:20", "y": "linspace:0:10:21"}]"#)
+            .unwrap(),
+    )
+    .unwrap();
     assert_eq!(grids.len(), 1);
-    assert_eq!(grids[0].x.shape(), [21, 20]);
-    assert_eq!(grids[0].y.shape(), [21, 20]);
+    assert_eq!(grids[0].grid.x.shape(), [21, 20]);
+    assert_eq!(grids[0].grid.y.shape(), [21, 20]);
     assert_eq!(grids[0].name.as_ref().unwrap(), "main");
-    let grids =
-        json_to_grids(r#"{"name": "main", "x": "linspace:0:10:20", "y": "linspace:0:10:21"}"#)
-            .unwrap();
+    let grids = json_to_grids(
+        json::parse(r#"{"name": "main", "x": "linspace:0:10:20", "y": "linspace:0:10:21"}"#)
+            .unwrap(),
+    )
+    .unwrap();
     assert_eq!(grids.len(), 1);
-    assert_eq!(grids[0].x.shape(), [21, 20]);
-    assert_eq!(grids[0].y.shape(), [21, 20]);
+    assert_eq!(grids[0].grid.x.shape(), [21, 20]);
+    assert_eq!(grids[0].grid.y.shape(), [21, 20]);
     assert_eq!(grids[0].name.as_ref().unwrap(), "main");
 }
 
 #[test]
 fn parse_1d() {
-    let grids = json_to_grids(r#"{"x": [1, 2, 3, 4, 5.1, 3], "y": [1, 2]}"#).unwrap();
+    let grids =
+        json_to_grids(json::parse(r#"{"x": [1, 2, 3, 4, 5.1, 3], "y": [1, 2]}"#).unwrap()).unwrap();
     assert_eq!(grids.len(), 1);
     let grid = &grids[0];
-    assert_eq!(grid.x.shape(), &[2, 6]);
-    assert_eq!(grid.x.shape(), grid.y.shape());
+    assert_eq!(grid.grid.x.shape(), &[2, 6]);
+    assert_eq!(grid.grid.x.shape(), grid.grid.y.shape());
 }
 
 #[test]
 fn parse_2d() {
-    let grids = json_to_grids(r#"{"x": [[1, 2], [3, 4], [5.1, 3]], "y": [1, 2, 3]}"#).unwrap();
-    assert_eq!(grids.len(), 1);
-    let grid = &grids[0];
-    assert_eq!(grid.x.shape(), &[3, 2]);
-    assert_eq!(grid.x.shape(), grid.y.shape());
-    json_to_grids(r#"{"x": [[1, 2], [3, 4], [5.1, 3], [1]], "y": [1, 2, 3]}"#).unwrap_err();
-    json_to_grids(r#"{"y": [[1, 2], [3, 4], [5.1, 3], [1]], "x": [1, 2, 3]}"#).unwrap_err();
     let grids =
-        json_to_grids(r#"{"x": [[1, 2], [3, 4], [5.1, 3]], "y": [[1, 2], [3, 4], [5, 6]]}"#)
+        json_to_grids(json::parse(r#"{"x": [[1, 2], [3, 4], [5.1, 3]], "y": [1, 2, 3]}"#).unwrap())
             .unwrap();
     assert_eq!(grids.len(), 1);
-    json_to_grids(r#"{"x": [[1, 2], [3, 4], [5.1, 3]], "y": [[1, 2], [3, 4], [5]]}"#).unwrap_err();
+    let grid = &grids[0];
+    assert_eq!(grid.grid.x.shape(), &[3, 2]);
+    assert_eq!(grid.grid.x.shape(), grid.grid.y.shape());
+    json_to_grids(
+        json::parse(r#"{"x": [[1, 2], [3, 4], [5.1, 3], [1]], "y": [1, 2, 3]}"#).unwrap(),
+    )
+    .unwrap_err();
+    json_to_grids(
+        json::parse(r#"{"y": [[1, 2], [3, 4], [5.1, 3], [1]], "x": [1, 2, 3]}"#).unwrap(),
+    )
+    .unwrap_err();
+    let grids = json_to_grids(
+        json::parse(r#"{"x": [[1, 2], [3, 4], [5.1, 3]], "y": [[1, 2], [3, 4], [5, 6]]}"#).unwrap(),
+    )
+    .unwrap();
+    assert_eq!(grids.len(), 1);
+    json_to_grids(
+        json::parse(r#"{"x": [[1, 2], [3, 4], [5.1, 3]], "y": [[1, 2], [3, 4], [5]]}"#).unwrap(),
+    )
+    .unwrap_err();
 }
 
 #[test]
 fn parse_err() {
-    json_to_grids(r#"[{"#).unwrap_err();
-    json_to_grids(r#"{}"#).unwrap_err();
-    json_to_grids(r#"0.45"#).unwrap_err();
-    json_to_grids(r#"{"x": "linspace", "y": [0.1, 0.2]}"#).unwrap_err();
-    json_to_grids(r#"{"x": "linspace:::", "y": [0.1, 0.2]}"#).unwrap_err();
-    json_to_grids(r#"{"x": "linspace:1.2:3.1:412.2", "y": [0.1, 0.2]}"#).unwrap_err();
-    json_to_grids(r#"{"x": [-2, -3, "dfd"], "y": [0.1, 0.2]}"#).unwrap_err();
+    json_to_grids(json::parse(r#"{}"#).unwrap()).unwrap_err();
+    json_to_grids(json::parse(r#"0.45"#).unwrap()).unwrap_err();
+    json_to_grids(json::parse(r#"{"x": "linspace", "y": [0.1, 0.2]}"#).unwrap()).unwrap_err();
+    json_to_grids(json::parse(r#"{"x": "linspace:::", "y": [0.1, 0.2]}"#).unwrap()).unwrap_err();
+    json_to_grids(json::parse(r#"{"x": "linspace:1.2:3.1:412.2", "y": [0.1, 0.2]}"#).unwrap())
+        .unwrap_err();
+    json_to_grids(json::parse(r#"{"x": [-2, -3, "dfd"], "y": [0.1, 0.2]}"#).unwrap()).unwrap_err();
 }
 
 pub fn json_to_vortex(mut json: JsonValue) -> super::euler::VortexParameters {

@@ -1,4 +1,4 @@
-use super::grid::Grid;
+use super::grid::{Grid, Metrics};
 use super::integrate;
 use super::operators::{SbpOperator, UpwindOperator};
 use super::Float;
@@ -13,7 +13,7 @@ pub const GAMMA: Float = 1.4;
 pub struct System<SBP: SbpOperator> {
     sys: (Field, Field),
     wb: WorkBuffers,
-    grid: Grid<SBP>,
+    grid: (Grid, Metrics<SBP>),
 }
 
 impl<SBP: SbpOperator> System<SBP> {
@@ -21,11 +21,12 @@ impl<SBP: SbpOperator> System<SBP> {
         let grid = Grid::new(x, y).expect(
             "Could not create grid. Different number of elements compared to width*height?",
         );
+        let metrics = grid.metrics().unwrap();
         let nx = grid.nx();
         let ny = grid.ny();
         Self {
             sys: (Field::new(ny, nx), Field::new(ny, nx)),
-            grid,
+            grid: (grid, metrics),
             wb: WorkBuffers::new(ny, nx),
         }
     }
@@ -37,16 +38,17 @@ impl<SBP: SbpOperator> System<SBP> {
             east: BoundaryCharacteristic::This,
             west: BoundaryCharacteristic::This,
         };
-        let rhs_trad = |k: &mut Field, y: &Field, grid: &Grid<_>, wb: &mut _| {
+        let rhs_trad = |k: &mut Field, y: &Field, grid: &Grid, metrics: &Metrics<_>, wb: &mut _| {
             let boundaries = boundary_extractor(y, grid, &bc);
-            RHS_trad(k, y, grid, &boundaries, wb)
+            RHS_trad(k, y, metrics, &boundaries, wb)
         };
         integrate::rk4(
             rhs_trad,
             &self.sys.0,
             &mut self.sys.1,
             dt,
-            &self.grid,
+            &self.grid.0,
+            &self.grid.1,
             &mut self.wb.k,
             &mut self.wb.tmp,
         );
@@ -56,7 +58,7 @@ impl<SBP: SbpOperator> System<SBP> {
     pub fn vortex(&mut self, t: Float, vortex_parameters: VortexParameters) {
         self.sys
             .0
-            .vortex(self.grid.x.view(), self.grid.y.view(), t, vortex_parameters);
+            .vortex(self.grid.0.x(), self.grid.0.y(), t, vortex_parameters);
     }
 
     #[allow(clippy::many_single_char_names)]
@@ -70,12 +72,9 @@ impl<SBP: SbpOperator> System<SBP> {
             mach: 0.5,
         };
 
-        self.sys.0.vortex(
-            self.grid.x.view(),
-            self.grid.y.view(),
-            0.0,
-            vortex_parameters,
-        )
+        self.sys
+            .0
+            .vortex(self.grid.0.x(), self.grid.0.y(), 0.0, vortex_parameters)
     }
 
     pub fn field(&self) -> &Field {
@@ -83,10 +82,10 @@ impl<SBP: SbpOperator> System<SBP> {
     }
 
     pub fn x(&self) -> ArrayView2<Float> {
-        self.grid.x.view()
+        self.grid.0.x.view()
     }
     pub fn y(&self) -> ArrayView2<Float> {
-        self.grid.y.view()
+        self.grid.0.y.view()
     }
 }
 
@@ -98,16 +97,18 @@ impl<UO: UpwindOperator> System<UO> {
             east: BoundaryCharacteristic::This,
             west: BoundaryCharacteristic::This,
         };
-        let rhs_upwind = |k: &mut Field, y: &Field, grid: &Grid<_>, wb: &mut _| {
-            let boundaries = boundary_extractor(y, grid, &bc);
-            RHS_upwind(k, y, grid, &boundaries, wb)
-        };
+        let rhs_upwind =
+            |k: &mut Field, y: &Field, grid: &Grid, metrics: &Metrics<_>, wb: &mut _| {
+                let boundaries = boundary_extractor(y, grid, &bc);
+                RHS_upwind(k, y, metrics, &boundaries, wb)
+            };
         integrate::rk4(
             rhs_upwind,
             &self.sys.0,
             &mut self.sys.1,
             dt,
-            &self.grid,
+            &self.grid.0,
+            &self.grid.1,
             &mut self.wb.k,
             &mut self.wb.tmp,
         );
@@ -382,13 +383,13 @@ fn pressure(gamma: Float, rho: Float, rhou: Float, rhov: Float, e: Float) -> Flo
 pub(crate) fn RHS_trad<SBP: SbpOperator>(
     k: &mut Field,
     y: &Field,
-    grid: &Grid<SBP>,
+    metrics: &Metrics<SBP>,
     boundaries: &BoundaryTerms,
     tmp: &mut (Field, Field, Field, Field, Field, Field),
 ) {
     let ehat = &mut tmp.0;
     let fhat = &mut tmp.1;
-    fluxes((ehat, fhat), y, grid);
+    fluxes((ehat, fhat), y, metrics);
     let dE = &mut tmp.2;
     let dF = &mut tmp.3;
 
@@ -405,24 +406,24 @@ pub(crate) fn RHS_trad<SBP: SbpOperator>(
     azip!((out in &mut k.0,
                     eflux in &dE.0,
                     fflux in &dF.0,
-                    detj in &grid.detj.broadcast((4, y.ny(), y.nx())).unwrap()) {
+                    detj in &metrics.detj.broadcast((4, y.ny(), y.nx())).unwrap()) {
         *out = (-eflux - fflux)/detj
     });
 
-    SAT_characteristics(k, y, grid, boundaries);
+    SAT_characteristics(k, y, metrics, boundaries);
 }
 
 #[allow(non_snake_case)]
 pub fn RHS_upwind<UO: UpwindOperator>(
     k: &mut Field,
     y: &Field,
-    grid: &Grid<UO>,
+    metrics: &Metrics<UO>,
     boundaries: &BoundaryTerms,
     tmp: &mut (Field, Field, Field, Field, Field, Field),
 ) {
     let ehat = &mut tmp.0;
     let fhat = &mut tmp.1;
-    fluxes((ehat, fhat), y, grid);
+    fluxes((ehat, fhat), y, metrics);
     let dE = &mut tmp.2;
     let dF = &mut tmp.3;
 
@@ -438,25 +439,25 @@ pub fn RHS_upwind<UO: UpwindOperator>(
 
     let ad_xi = &mut tmp.4;
     let ad_eta = &mut tmp.5;
-    upwind_dissipation((ad_xi, ad_eta), y, grid, (&mut tmp.0, &mut tmp.1));
+    upwind_dissipation((ad_xi, ad_eta), y, metrics, (&mut tmp.0, &mut tmp.1));
 
     azip!((out in &mut k.0,
                     eflux in &dE.0,
                     fflux in &dF.0,
                     ad_xi in &ad_xi.0,
                     ad_eta in &ad_eta.0,
-                    detj in &grid.detj.broadcast((4, y.ny(), y.nx())).unwrap()) {
+                    detj in &metrics.detj.broadcast((4, y.ny(), y.nx())).unwrap()) {
         *out = (-eflux - fflux + ad_xi + ad_eta)/detj
     });
 
-    SAT_characteristics(k, y, grid, boundaries);
+    SAT_characteristics(k, y, metrics, boundaries);
 }
 
 #[allow(clippy::many_single_char_names)]
 fn upwind_dissipation<UO: UpwindOperator>(
     k: (&mut Field, &mut Field),
     y: &Field,
-    grid: &Grid<UO>,
+    metrics: &Metrics<UO>,
     tmp: (&mut Field, &mut Field),
 ) {
     let n = y.nx() * y.ny();
@@ -471,11 +472,11 @@ fn upwind_dissipation<UO: UpwindOperator>(
         .axis_iter(ndarray::Axis(1))
         .zip(tmp0.axis_iter_mut(ndarray::Axis(1)))
         .zip(tmp1.axis_iter_mut(ndarray::Axis(1)))
-        .zip(grid.detj.iter())
-        .zip(grid.detj_dxi_dx.iter())
-        .zip(grid.detj_dxi_dy.iter())
-        .zip(grid.detj_deta_dx.iter())
-        .zip(grid.detj_deta_dy.iter())
+        .zip(metrics.detj.iter())
+        .zip(metrics.detj_dxi_dx.iter())
+        .zip(metrics.detj_dxi_dy.iter())
+        .zip(metrics.detj_deta_dx.iter())
+        .zip(metrics.detj_deta_dy.iter())
     {
         let rho = y[0];
         assert!(rho > 0.0);
@@ -520,11 +521,11 @@ fn upwind_dissipation<UO: UpwindOperator>(
     UO::disseta(tmp.1.e(), k.1.e_mut());
 }
 
-fn fluxes<SBP: SbpOperator>(k: (&mut Field, &mut Field), y: &Field, grid: &Grid<SBP>) {
-    let j_dxi_dx = grid.detj_dxi_dx.view();
-    let j_dxi_dy = grid.detj_dxi_dy.view();
-    let j_deta_dx = grid.detj_deta_dx.view();
-    let j_deta_dy = grid.detj_deta_dy.view();
+fn fluxes<SBP: SbpOperator>(k: (&mut Field, &mut Field), y: &Field, metrics: &Metrics<SBP>) {
+    let j_dxi_dx = metrics.detj_dxi_dx.view();
+    let j_dxi_dy = metrics.detj_dxi_dy.view();
+    let j_deta_dx = metrics.detj_deta_dx.view();
+    let j_deta_dy = metrics.detj_deta_dy.view();
 
     let rho = y.rho();
     let rhou = y.rhou();
@@ -590,9 +591,9 @@ pub struct BoundaryCharacteristics {
     pub west: BoundaryCharacteristic,
 }
 
-fn boundary_extractor<'a, SBP: SbpOperator>(
+fn boundary_extractor<'a>(
     field: &'a Field,
-    _grid: &Grid<SBP>,
+    _grid: &Grid,
     bc: &BoundaryCharacteristics,
 ) -> BoundaryTerms<'a> {
     BoundaryTerms {
@@ -624,7 +625,7 @@ fn boundary_extractor<'a, SBP: SbpOperator>(
 fn SAT_characteristics<SBP: SbpOperator>(
     k: &mut Field,
     y: &Field,
-    grid: &Grid<SBP>,
+    metrics: &Metrics<SBP>,
     boundaries: &BoundaryTerms,
 ) {
     // North boundary
@@ -640,9 +641,9 @@ fn SAT_characteristics<SBP: SbpOperator>(
             hi,
             sign,
             tau,
-            grid.detj.slice(slice),
-            grid.detj_deta_dx.slice(slice),
-            grid.detj_deta_dy.slice(slice),
+            metrics.detj.slice(slice),
+            metrics.detj_deta_dx.slice(slice),
+            metrics.detj_deta_dy.slice(slice),
         );
     }
     // South boundary
@@ -658,9 +659,9 @@ fn SAT_characteristics<SBP: SbpOperator>(
             hi,
             sign,
             tau,
-            grid.detj.slice(slice),
-            grid.detj_deta_dx.slice(slice),
-            grid.detj_deta_dy.slice(slice),
+            metrics.detj.slice(slice),
+            metrics.detj_deta_dx.slice(slice),
+            metrics.detj_deta_dy.slice(slice),
         );
     }
     // West Boundary
@@ -676,9 +677,9 @@ fn SAT_characteristics<SBP: SbpOperator>(
             hi,
             sign,
             tau,
-            grid.detj.slice(slice),
-            grid.detj_dxi_dx.slice(slice),
-            grid.detj_dxi_dy.slice(slice),
+            metrics.detj.slice(slice),
+            metrics.detj_dxi_dx.slice(slice),
+            metrics.detj_dxi_dy.slice(slice),
         );
     }
     // East Boundary
@@ -694,9 +695,9 @@ fn SAT_characteristics<SBP: SbpOperator>(
             hi,
             sign,
             tau,
-            grid.detj.slice(slice),
-            grid.detj_dxi_dx.slice(slice),
-            grid.detj_dxi_dy.slice(slice),
+            metrics.detj.slice(slice),
+            metrics.detj_dxi_dx.slice(slice),
+            metrics.detj_dxi_dy.slice(slice),
         );
     }
 }

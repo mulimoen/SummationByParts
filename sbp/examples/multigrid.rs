@@ -14,12 +14,13 @@ struct System<T: operators::UpwindOperator> {
         euler::Field,
     )>,
     k: [Vec<euler::Field>; 4],
-    grids: Vec<grid::Grid<T>>,
+    grids: Vec<grid::Grid>,
+    metrics: Vec<grid::Metrics<T>>,
     bt: Vec<euler::BoundaryCharacteristics>,
 }
 
 impl<T: operators::UpwindOperator> System<T> {
-    fn new(grids: Vec<grid::Grid<T>>, bt: Vec<euler::BoundaryCharacteristics>) -> Self {
+    fn new(grids: Vec<grid::Grid>, bt: Vec<euler::BoundaryCharacteristics>) -> Self {
         let fnow = grids
             .iter()
             .map(|g| euler::Field::new(g.ny(), g.nx()))
@@ -33,6 +34,7 @@ impl<T: operators::UpwindOperator> System<T> {
             })
             .collect();
         let k = [fnow.clone(), fnow.clone(), fnow.clone(), fnow.clone()];
+        let metrics = grids.iter().map(|g| g.metrics().unwrap()).collect();
 
         Self {
             fnow,
@@ -40,6 +42,7 @@ impl<T: operators::UpwindOperator> System<T> {
             k,
             wb,
             grids,
+            metrics,
             bt,
         }
     }
@@ -142,14 +145,14 @@ impl<T: operators::UpwindOperator> System<T> {
                 })
                 .collect::<Vec<_>>();
 
-            for ((((prev, fut), grid), wb), bt) in fields
+            for ((((prev, fut), metrics), wb), bt) in fields
                 .iter()
                 .zip(fnext)
-                .zip(&self.grids)
+                .zip(&self.metrics)
                 .zip(&mut self.wb)
                 .zip(bt)
             {
-                euler::RHS_upwind(fut, prev, grid, &bt, wb)
+                euler::RHS_upwind(fut, prev, metrics, &bt, wb)
             }
         }
     }
@@ -257,14 +260,14 @@ impl<T: operators::UpwindOperator> System<T> {
                         },
                     })
                     .collect::<Vec<_>>();
-                for ((((prev, fut), grid), wb), bt) in fields
+                for ((((prev, fut), metrics), wb), bt) in fields
                     .iter()
                     .zip(&mut self.k[i])
-                    .zip(&self.grids)
+                    .zip(&self.metrics)
                     .zip(&mut self.wb)
                     .zip(bt)
                 {
-                    s.spawn(move |_| euler::RHS_upwind(fut, prev, grid, &bt, wb));
+                    s.spawn(move |_| euler::RHS_upwind(fut, prev, metrics, &bt, wb));
                 }
             });
         }
@@ -307,15 +310,13 @@ fn main() {
             west: determine_bc(grid.dirw.as_ref()),
         });
     }
-    let mut grids: Vec<grid::Grid<operators::Upwind4>> = Vec::with_capacity(jgrids.len());
-    for grid in jgrids {
-        grids.push(grid::Grid::new(grid.x, grid.y).unwrap());
-    }
+    let grids = jgrids.into_iter().map(|egrid| egrid.grid).collect();
+
     let integration_time: f64 = json["integration_time"].as_number().unwrap().into();
 
     let vortexparams = utils::json_to_vortex(json["vortex"].clone());
 
-    let mut sys = System::new(grids, bt);
+    let mut sys = System::<sbp::operators::Upwind4>::new(grids, bt);
     sys.vortex(0.0, vortexparams);
 
     let max_n = {
