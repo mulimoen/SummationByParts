@@ -274,10 +274,12 @@ impl<T: operators::UpwindOperator> System<T> {
 #[derive(Debug, StructOpt)]
 struct Options {
     json: std::path::PathBuf,
-    #[structopt(long, help = "Disable the progressbar")]
+    /// Disable the progressbar
+    #[structopt(long)]
     no_progressbar: bool,
-    #[structopt(short, long, help = "Number of simultaneous threads")]
-    jobs: Option<usize>,
+    /// Number of simultaneous threads
+    #[structopt(short, long)]
+    jobs: Option<Option<usize>>,
 }
 
 fn main() {
@@ -326,12 +328,13 @@ fn main() {
     let ntime = (integration_time / dt).round() as usize;
 
     let pool = if let Some(j) = opt.jobs {
-        Some(
-            rayon::ThreadPoolBuilder::new()
-                .num_threads(j)
-                .build()
-                .unwrap(),
-        )
+        let builder = rayon::ThreadPoolBuilder::new();
+        let builder = if let Some(j) = j {
+            builder.num_threads(j)
+        } else {
+            builder
+        };
+        Some(builder.build().unwrap())
     } else {
         None
     };
