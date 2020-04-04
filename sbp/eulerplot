@@ -2,6 +2,7 @@
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 import numpy as np
+import h5py
 
 import os
 
@@ -193,6 +194,29 @@ def plot_pressure(grids, save: bool, filename="figure.png"):
 
 
 def read_from_file(filename):
+    grids = []
+
+    file = h5py.File(filename, "r")
+
+    for groupname in file:
+        group = file[groupname]
+        if not isinstance(group, h5py.Group):
+            continue
+        grids.append(
+            {
+                "x": group["x"][:],
+                "y": group["y"][:],
+                "rho": group["rho"][-1, :, :],
+                "rhou": group["rhou"][-1, :, :],
+                "rhov": group["rhov"][-1, :, :],
+                "e": group["e"][-1, :, :],
+            }
+        )
+
+    return grids
+
+
+def read_from_legacy_file(filename):
     grids = []
 
     with open(filename, "rb") as f:

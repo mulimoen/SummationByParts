@@ -13,3 +13,7 @@ members = [
 
 [profile.bench]
 debug = true
+
+[patch]
+[patch.crates-io]
+hdf5 = { git = "https://github.com/mulimoen/hdf5-rust.git", branch = "feature/resizable_idx" }

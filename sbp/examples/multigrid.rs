@@ -283,6 +283,12 @@ struct Options {
     /// Number of simultaneous threads
     #[structopt(short, long)]
     jobs: Option<Option<usize>>,
+    /// Name of output file
+    #[structopt(default_value = "output")]
+    output: std::path::PathBuf,
+    /// Output on the legacy format
+    #[structopt(long)]
+    legacy: bool,
 }
 
 fn main() {
@@ -326,7 +332,7 @@ fn main() {
     };
     let dt = 0.2 / (max_n as Float);
 
-    let ntime = (integration_time / dt).round() as usize;
+    let ntime = (integration_time / dt).round() as u64;
 
     let pool = if let Some(j) = opt.jobs {
         let builder = rayon::ThreadPoolBuilder::new();
@@ -339,6 +345,15 @@ fn main() {
     } else {
         None
     };
+
+    let output = if opt.legacy {
+        None
+    } else {
+        Some(create_hdf(&opt.output, sys.grids.as_slice()).unwrap())
+    };
+    if let Some(file) = output.as_ref() {
+        add_timestep_to_file(&file, 0, sys.fnow.as_slice()).unwrap();
+    }
 
     let bar = if opt.no_progressbar {
         indicatif::ProgressBar::hidden()
@@ -359,12 +374,19 @@ fn main() {
     }
     bar.finish();
 
-    dump_to_file(&sys);
+    if let Some(file) = output.as_ref() {
+        add_timestep_to_file(&file, ntime, sys.fnow.as_slice()).unwrap();
+    } else {
+        legacy_output(&opt.output, &sys);
+    }
 }
 
-fn dump_to_file<T: sbp::operators::UpwindOperator>(sys: &System<T>) {
+fn legacy_output<T: sbp::operators::UpwindOperator, P: AsRef<std::path::Path>>(
+    path: &P,
+    sys: &System<T>,
+) {
     use std::io::prelude::*;
-    let file = std::fs::File::create("output").unwrap();
+    let file = std::fs::File::create(path).unwrap();
     let mut file = std::io::BufWriter::new(file);
     let ngrids = sys.grids.len();
     file.write_all(&(ngrids as u32).to_le_bytes()).unwrap();
@@ -390,4 +412,86 @@ fn dump_to_file<T: sbp::operators::UpwindOperator>(sys: &System<T>) {
             file.write_all(&(e.to_le_bytes())).unwrap();
         }
     }
+}
+
+fn create_hdf<P: AsRef<std::path::Path>>(
+    path: P,
+    grids: &[sbp::grid::Grid],
+) -> Result<hdf5::File, Box<dyn std::error::Error>> {
+    let gzip = 7;
+
+    let file = hdf5::File::create(path.as_ref())?;
+    let _tds = file
+        .new_dataset::<u64>()
+        .resizable(true)
+        .chunk((1,))
+        .create("t", (0,))?;
+
+    for (i, grid) in grids.iter().enumerate() {
+        let g = file.create_group(&i.to_string())?;
+        g.link_soft("/t", "t").unwrap();
+
+        let add_dim = |name| {
+            g.new_dataset::<f64>()
+                .gzip(gzip)
+                .create(name, (grid.ny(), grid.nx()))
+        };
+        let xds = add_dim("x")?;
+        xds.write(grid.x())?;
+        let yds = add_dim("y")?;
+        yds.write(grid.y())?;
+
+        let add_var = |name| {
+            g.new_dataset::<f64>()
+                .gzip(gzip)
+                .chunk((1, grid.ny(), grid.nx()))
+                .resizable_idx(&[true, false, false])
+                .create(name, (0, grid.ny(), grid.nx()))
+        };
+        add_var("rho")?;
+        add_var("rhou")?;
+        add_var("rhov")?;
+        add_var("e")?;
+    }
+
+    Ok(file)
+}
+
+fn add_timestep_to_file(
+    file: &hdf5::File,
+    t: u64,
+    fields: &[euler::Field],
+) -> Result<(), Box<dyn std::error::Error>> {
+    let tds = file.dataset("t")?;
+    let tpos = tds.size();
+    tds.resize((tpos + 1,))?;
+    tds.write_slice(&[t], ndarray::s![tpos..tpos + 1])?;
+
+    for (i, fnow) in fields.iter().enumerate() {
+        let g = file.group(&i.to_string())?;
+        let (tpos, ny, nx) = {
+            let ds = g.dataset("rho")?;
+            let shape = ds.shape();
+            (shape[0], shape[1], shape[2])
+        };
+
+        let rhods = g.dataset("rho")?;
+        let rhouds = g.dataset("rhou")?;
+        let rhovds = g.dataset("rhov")?;
+        let eds = g.dataset("e")?;
+
+        let (rho, rhou, rhov, e) = fnow.components();
+        rhods.resize((tpos + 1, ny, nx))?;
+        rhods.write_slice(rho, ndarray::s![tpos, .., ..])?;
+
+        rhouds.resize((tpos + 1, ny, nx))?;
+        rhouds.write_slice(rhou, ndarray::s![tpos, .., ..])?;
+
+        rhovds.resize((tpos + 1, ny, nx))?;
+        rhovds.write_slice(rhov, ndarray::s![tpos, .., ..])?;
+
+        eds.resize((tpos + 1, ny, nx))?;
+        eds.write_slice(e, ndarray::s![tpos, .., ..])?;
+    }
+    Ok(())
 }
