@@ -32,3 +32,6 @@ harness = false
 name = "euler"
 harness = false
 
+[[example]]
+name = "multigrid"
+path = "examples/multigrid/bin.rs"
