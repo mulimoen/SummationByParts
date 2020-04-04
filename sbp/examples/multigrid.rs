@@ -318,7 +318,7 @@ fn main() {
     }
     let grids = jgrids.into_iter().map(|egrid| egrid.grid).collect();
 
-    let integration_time: f64 = json["integration_time"].as_number().unwrap().into();
+    let integration_time: Float = json["integration_time"].as_number().unwrap().into();
 
     let vortexparams = utils::json_to_vortex(json["vortex"].clone());
 
@@ -432,7 +432,7 @@ fn create_hdf<P: AsRef<std::path::Path>>(
         g.link_soft("/t", "t").unwrap();
 
         let add_dim = |name| {
-            g.new_dataset::<f64>()
+            g.new_dataset::<Float>()
                 .gzip(gzip)
                 .create(name, (grid.ny(), grid.nx()))
         };
@@ -442,7 +442,7 @@ fn create_hdf<P: AsRef<std::path::Path>>(
         yds.write(grid.y())?;
 
         let add_var = |name| {
-            g.new_dataset::<f64>()
+            g.new_dataset::<Float>()
                 .gzip(gzip)
                 .chunk((1, grid.ny(), grid.nx()))
                 .resizable_idx(&[true, false, false])
