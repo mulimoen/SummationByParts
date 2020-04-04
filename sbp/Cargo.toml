@@ -8,7 +8,7 @@ edition = "2018"
 ndarray = { version = "0.13.0", features = ["approx"] }
 approx = "0.3.2"
 packed_simd = "0.3.3"
-json = "0.12.1"
+json = "0.12.4"
 
 [features]
 # Internal feature flag to gate the expensive tests
@@ -18,7 +18,7 @@ expensive_tests = []
 f32 = []
 
 [dev-dependencies]
-criterion = "0.3.0"
+criterion = "0.3.1"
 structopt = "0.3.12"
 indicatif = "0.14.0"
 rayon = "1.3.0"
