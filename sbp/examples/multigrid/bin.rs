@@ -155,52 +155,7 @@ impl<T: operators::UpwindOperator> System<T> {
             }
 
             let fields = &self.fnext;
-
-            let bt = self
-                .bt
-                .iter()
-                .zip(&mut self.eb)
-                .zip(&self.grids)
-                .enumerate()
-                .map(|(i, ((bt, eb), grid))| euler::BoundaryTerms {
-                    north: match bt.north {
-                        euler::BoundaryCharacteristic::This => fields[i].south(),
-                        euler::BoundaryCharacteristic::Grid(g) => fields[g].south(),
-                        euler::BoundaryCharacteristic::Vortex(v) => {
-                            let field = eb.n.as_mut().unwrap();
-                            vortexify(field.view_mut(), grid.north(), v, time);
-                            field.view()
-                        }
-                    },
-                    south: match bt.south {
-                        euler::BoundaryCharacteristic::This => fields[i].north(),
-                        euler::BoundaryCharacteristic::Grid(g) => fields[g].north(),
-                        euler::BoundaryCharacteristic::Vortex(v) => {
-                            let field = eb.s.as_mut().unwrap();
-                            vortexify(field.view_mut(), grid.south(), v, time);
-                            field.view()
-                        }
-                    },
-                    west: match bt.west {
-                        euler::BoundaryCharacteristic::This => fields[i].east(),
-                        euler::BoundaryCharacteristic::Grid(g) => fields[g].east(),
-                        euler::BoundaryCharacteristic::Vortex(v) => {
-                            let field = eb.w.as_mut().unwrap();
-                            vortexify(field.view_mut(), grid.west(), v, time);
-                            field.view()
-                        }
-                    },
-                    east: match bt.east {
-                        euler::BoundaryCharacteristic::This => fields[i].west(),
-                        euler::BoundaryCharacteristic::Grid(g) => fields[g].west(),
-                        euler::BoundaryCharacteristic::Vortex(v) => {
-                            let field = eb.e.as_mut().unwrap();
-                            vortexify(field.view_mut(), grid.east(), v, time);
-                            field.view()
-                        }
-                    },
-                })
-                .collect::<Vec<_>>();
+            let bt = extract_boundaries(&fields, &mut self.bt, &mut self.eb, &self.grids, time);
 
             for ((((prev, fut), metrics), wb), bt) in fields
                 .iter()
@@ -295,51 +250,7 @@ impl<T: operators::UpwindOperator> System<T> {
 
             s.scope(|s| {
                 let fields = &self.fnext;
-                let bt = self
-                    .bt
-                    .iter()
-                    .zip(&mut self.eb)
-                    .zip(&self.grids)
-                    .enumerate()
-                    .map(|(i, ((bt, eb), grid))| euler::BoundaryTerms {
-                        north: match bt.north {
-                            euler::BoundaryCharacteristic::This => fields[i].south(),
-                            euler::BoundaryCharacteristic::Grid(g) => fields[g].south(),
-                            euler::BoundaryCharacteristic::Vortex(v) => {
-                                let field = eb.n.as_mut().unwrap();
-                                vortexify(field.view_mut(), grid.north(), v, time);
-                                field.view()
-                            }
-                        },
-                        south: match bt.south {
-                            euler::BoundaryCharacteristic::This => fields[i].north(),
-                            euler::BoundaryCharacteristic::Grid(g) => fields[g].north(),
-                            euler::BoundaryCharacteristic::Vortex(v) => {
-                                let field = eb.s.as_mut().unwrap();
-                                vortexify(field.view_mut(), grid.south(), v, time);
-                                field.view()
-                            }
-                        },
-                        west: match bt.west {
-                            euler::BoundaryCharacteristic::This => fields[i].east(),
-                            euler::BoundaryCharacteristic::Grid(g) => fields[g].east(),
-                            euler::BoundaryCharacteristic::Vortex(v) => {
-                                let field = eb.w.as_mut().unwrap();
-                                vortexify(field.view_mut(), grid.west(), v, time);
-                                field.view()
-                            }
-                        },
-                        east: match bt.east {
-                            euler::BoundaryCharacteristic::This => fields[i].west(),
-                            euler::BoundaryCharacteristic::Grid(g) => fields[g].west(),
-                            euler::BoundaryCharacteristic::Vortex(v) => {
-                                let field = eb.e.as_mut().unwrap();
-                                vortexify(field.view_mut(), grid.east(), v, time);
-                                field.view()
-                            }
-                        },
-                    })
-                    .collect::<Vec<_>>();
+                let bt = extract_boundaries(&fields, &mut self.bt, &mut self.eb, &self.grids, time);
                 for ((((prev, fut), metrics), wb), bt) in fields
                     .iter()
                     .zip(&mut self.k[i])
@@ -353,6 +264,59 @@ impl<T: operators::UpwindOperator> System<T> {
         }
     }
 }
+
+fn extract_boundaries<'a>(
+    fields: &'a [euler::Field],
+    bt: &[euler::BoundaryCharacteristics],
+    eb: &'a mut [MaybeBoundary],
+    grids: &[grid::Grid],
+    time: Float,
+) -> Vec<euler::BoundaryTerms<'a>> {
+    bt.iter()
+        .zip(eb)
+        .zip(grids)
+        .zip(fields)
+        .map(|(((bt, eb), grid), field)| euler::BoundaryTerms {
+            north: match bt.north {
+                euler::BoundaryCharacteristic::This => field.south(),
+                euler::BoundaryCharacteristic::Grid(g) => fields[g].south(),
+                euler::BoundaryCharacteristic::Vortex(v) => {
+                    let field = eb.n.as_mut().unwrap();
+                    vortexify(field.view_mut(), grid.north(), v, time);
+                    field.view()
+                }
+            },
+            south: match bt.south {
+                euler::BoundaryCharacteristic::This => field.north(),
+                euler::BoundaryCharacteristic::Grid(g) => fields[g].north(),
+                euler::BoundaryCharacteristic::Vortex(v) => {
+                    let field = eb.s.as_mut().unwrap();
+                    vortexify(field.view_mut(), grid.south(), v, time);
+                    field.view()
+                }
+            },
+            west: match bt.west {
+                euler::BoundaryCharacteristic::This => field.east(),
+                euler::BoundaryCharacteristic::Grid(g) => fields[g].east(),
+                euler::BoundaryCharacteristic::Vortex(v) => {
+                    let field = eb.w.as_mut().unwrap();
+                    vortexify(field.view_mut(), grid.west(), v, time);
+                    field.view()
+                }
+            },
+            east: match bt.east {
+                euler::BoundaryCharacteristic::This => field.west(),
+                euler::BoundaryCharacteristic::Grid(g) => fields[g].west(),
+                euler::BoundaryCharacteristic::Vortex(v) => {
+                    let field = eb.e.as_mut().unwrap();
+                    vortexify(field.view_mut(), grid.east(), v, time);
+                    field.view()
+                }
+            },
+        })
+        .collect()
+}
+
 #[derive(Debug, Clone)]
 struct MaybeBoundary {
     n: Option<ndarray::Array2<Float>>,
