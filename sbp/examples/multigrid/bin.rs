@@ -422,10 +422,10 @@ fn main() {
     let output = if opt.legacy {
         None
     } else {
-        Some(create_hdf(&opt.output, sys.grids.as_slice()).unwrap())
+        Some(File::create(&opt.output, sys.grids.as_slice()).unwrap())
     };
     if let Some(file) = output.as_ref() {
-        add_timestep_to_file(&file, 0, sys.fnow.as_slice()).unwrap();
+        file.add_timestep(0, sys.fnow.as_slice()).unwrap();
     }
 
     let bar = progressbar(opt.no_progressbar, ntime);
@@ -440,7 +440,7 @@ fn main() {
     bar.finish();
 
     if let Some(file) = output.as_ref() {
-        add_timestep_to_file(&file, ntime, sys.fnow.as_slice()).unwrap();
+        file.add_timestep(ntime, sys.fnow.as_slice()).unwrap();
     } else {
         legacy_output(&opt.output, &sys);
     }
@@ -491,84 +491,90 @@ fn legacy_output<T: sbp::operators::UpwindOperator, P: AsRef<std::path::Path>>(
     }
 }
 
-fn create_hdf<P: AsRef<std::path::Path>>(
-    path: P,
-    grids: &[sbp::grid::Grid],
-) -> Result<hdf5::File, Box<dyn std::error::Error>> {
-    let gzip = 7;
+#[derive(Debug, Clone)]
+struct File(hdf5::File);
 
-    let file = hdf5::File::create(path.as_ref())?;
-    let _tds = file
-        .new_dataset::<u64>()
-        .resizable(true)
-        .chunk((1,))
-        .create("t", (0,))?;
+impl File {
+    fn create<P: AsRef<std::path::Path>>(
+        path: P,
+        grids: &[sbp::grid::Grid],
+    ) -> Result<Self, Box<dyn std::error::Error>> {
+        let file = hdf5::File::create(path.as_ref())?;
+        let _tds = file
+            .new_dataset::<u64>()
+            .resizable(true)
+            .chunk((1,))
+            .create("t", (0,))?;
 
-    for (i, grid) in grids.iter().enumerate() {
-        let g = file.create_group(&i.to_string())?;
-        g.link_soft("/t", "t").unwrap();
+        for (i, grid) in grids.iter().enumerate() {
+            let g = file.create_group(&i.to_string())?;
+            g.link_soft("/t", "t").unwrap();
 
-        let add_dim = |name| {
-            g.new_dataset::<Float>()
-                .gzip(gzip)
-                .create(name, (grid.ny(), grid.nx()))
-        };
-        let xds = add_dim("x")?;
-        xds.write(grid.x())?;
-        let yds = add_dim("y")?;
-        yds.write(grid.y())?;
+            let add_dim = |name| {
+                g.new_dataset::<Float>()
+                    .chunk((grid.ny(), grid.nx()))
+                    .gzip(9)
+                    .create(name, (grid.ny(), grid.nx()))
+            };
+            let xds = add_dim("x")?;
+            xds.write(grid.x())?;
+            let yds = add_dim("y")?;
+            yds.write(grid.y())?;
 
-        let add_var = |name| {
-            g.new_dataset::<Float>()
-                .gzip(gzip)
-                .chunk((1, grid.ny(), grid.nx()))
-                .resizable_idx(&[true, false, false])
-                .create(name, (0, grid.ny(), grid.nx()))
-        };
-        add_var("rho")?;
-        add_var("rhou")?;
-        add_var("rhov")?;
-        add_var("e")?;
+            let add_var = |name| {
+                g.new_dataset::<Float>()
+                    .gzip(3)
+                    .shuffle(true)
+                    .chunk((1, grid.ny(), grid.nx()))
+                    .resizable_idx(&[true, false, false])
+                    .create(name, (0, grid.ny(), grid.nx()))
+            };
+            add_var("rho")?;
+            add_var("rhou")?;
+            add_var("rhov")?;
+            add_var("e")?;
+        }
+
+        Ok(Self(file))
     }
 
-    Ok(file)
-}
+    fn add_timestep(
+        &self,
+        t: u64,
+        fields: &[euler::Field],
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        let file = &self.0;
+        let tds = file.dataset("t")?;
+        let tpos = tds.size();
+        tds.resize((tpos + 1,))?;
+        tds.write_slice(&[t], ndarray::s![tpos..tpos + 1])?;
 
-fn add_timestep_to_file(
-    file: &hdf5::File,
-    t: u64,
-    fields: &[euler::Field],
-) -> Result<(), Box<dyn std::error::Error>> {
-    let tds = file.dataset("t")?;
-    let tpos = tds.size();
-    tds.resize((tpos + 1,))?;
-    tds.write_slice(&[t], ndarray::s![tpos..tpos + 1])?;
+        for (i, fnow) in fields.iter().enumerate() {
+            let g = file.group(&i.to_string())?;
+            let (tpos, ny, nx) = {
+                let ds = g.dataset("rho")?;
+                let shape = ds.shape();
+                (shape[0], shape[1], shape[2])
+            };
 
-    for (i, fnow) in fields.iter().enumerate() {
-        let g = file.group(&i.to_string())?;
-        let (tpos, ny, nx) = {
-            let ds = g.dataset("rho")?;
-            let shape = ds.shape();
-            (shape[0], shape[1], shape[2])
-        };
+            let rhods = g.dataset("rho")?;
+            let rhouds = g.dataset("rhou")?;
+            let rhovds = g.dataset("rhov")?;
+            let eds = g.dataset("e")?;
 
-        let rhods = g.dataset("rho")?;
-        let rhouds = g.dataset("rhou")?;
-        let rhovds = g.dataset("rhov")?;
-        let eds = g.dataset("e")?;
+            let (rho, rhou, rhov, e) = fnow.components();
+            rhods.resize((tpos + 1, ny, nx))?;
+            rhods.write_slice(rho, ndarray::s![tpos, .., ..])?;
 
-        let (rho, rhou, rhov, e) = fnow.components();
-        rhods.resize((tpos + 1, ny, nx))?;
-        rhods.write_slice(rho, ndarray::s![tpos, .., ..])?;
+            rhouds.resize((tpos + 1, ny, nx))?;
+            rhouds.write_slice(rhou, ndarray::s![tpos, .., ..])?;
 
-        rhouds.resize((tpos + 1, ny, nx))?;
-        rhouds.write_slice(rhou, ndarray::s![tpos, .., ..])?;
+            rhovds.resize((tpos + 1, ny, nx))?;
+            rhovds.write_slice(rhov, ndarray::s![tpos, .., ..])?;
 
-        rhovds.resize((tpos + 1, ny, nx))?;
-        rhovds.write_slice(rhov, ndarray::s![tpos, .., ..])?;
-
-        eds.resize((tpos + 1, ny, nx))?;
-        eds.write_slice(e, ndarray::s![tpos, .., ..])?;
+            eds.resize((tpos + 1, ny, nx))?;
+            eds.write_slice(e, ndarray::s![tpos, .., ..])?;
+        }
+        Ok(())
     }
-    Ok(())
 }
