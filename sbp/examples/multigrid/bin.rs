@@ -428,15 +428,7 @@ fn main() {
         add_timestep_to_file(&file, 0, sys.fnow.as_slice()).unwrap();
     }
 
-    let bar = if opt.no_progressbar {
-        indicatif::ProgressBar::hidden()
-    } else {
-        let bar = indicatif::ProgressBar::new(ntime as _);
-        bar.with_style(
-            indicatif::ProgressStyle::default_bar()
-                .template("{wide_bar:.cyan/blue} {pos}/{len} ({eta})"),
-        )
-    };
+    let bar = progressbar(opt.no_progressbar, ntime);
     for _ in 0..ntime {
         bar.inc(1);
         if let Some(pool) = pool.as_ref() {
@@ -451,6 +443,18 @@ fn main() {
         add_timestep_to_file(&file, ntime, sys.fnow.as_slice()).unwrap();
     } else {
         legacy_output(&opt.output, &sys);
+    }
+}
+
+fn progressbar(dummy: bool, ntime: u64) -> indicatif::ProgressBar {
+    if dummy {
+        indicatif::ProgressBar::hidden()
+    } else {
+        let bar = indicatif::ProgressBar::new(ntime);
+        bar.with_style(
+            indicatif::ProgressStyle::default_bar()
+                .template("{wide_bar:.cyan/blue} {pos}/{len} ({eta})"),
+        )
     }
 }
 
