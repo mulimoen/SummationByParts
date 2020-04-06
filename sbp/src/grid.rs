@@ -46,6 +46,31 @@ impl Grid {
     ) -> Result<Metrics<SBP>, ndarray::ShapeError> {
         Metrics::new(self)
     }
+
+    pub fn north(&self) -> (ndarray::ArrayView1<Float>, ndarray::ArrayView1<Float>) {
+        (
+            self.y.slice(ndarray::s![self.ny() - 1, ..]),
+            self.x.slice(ndarray::s![self.ny() - 1, ..]),
+        )
+    }
+    pub fn south(&self) -> (ndarray::ArrayView1<Float>, ndarray::ArrayView1<Float>) {
+        (
+            self.y.slice(ndarray::s![0, ..]),
+            self.x.slice(ndarray::s![0, ..]),
+        )
+    }
+    pub fn west(&self) -> (ndarray::ArrayView1<Float>, ndarray::ArrayView1<Float>) {
+        (
+            self.y.slice(ndarray::s![.., 0]),
+            self.x.slice(ndarray::s![.., 0]),
+        )
+    }
+    pub fn east(&self) -> (ndarray::ArrayView1<Float>, ndarray::ArrayView1<Float>) {
+        (
+            self.y.slice(ndarray::s![.., self.nx() - 1]),
+            self.x.slice(ndarray::s![.., self.nx() - 1]),
+        )
+    }
 }
 
 impl<SBP: super::operators::SbpOperator> Metrics<SBP> {
