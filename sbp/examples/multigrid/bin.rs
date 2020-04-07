@@ -272,6 +272,9 @@ struct Options {
     /// Name of output file
     #[structopt(default_value = "output.hdf")]
     output: std::path::PathBuf,
+    /// Number of outputs to save
+    #[structopt(long, short)]
+    number_of_outputs: Option<u64>,
 }
 
 fn main() {
@@ -337,13 +340,24 @@ fn main() {
         .unwrap()
     };
 
+    let should_output = |itime| {
+        opt.number_of_outputs.map_or(false, |num_out| {
+            if num_out == 0 {
+                false
+            } else {
+                itime % (std::cmp::max(ntime / (num_out - 1), 1)) == 0
+            }
+        })
+    };
+
     let output = File::create(&opt.output, sys.grids.as_slice()).unwrap();
     let mut output = OutputThread::new(output);
 
-    output.add_timestep(0, &sys.fnow);
-
     let bar = progressbar(opt.no_progressbar, ntime);
-    for _ in 0..ntime {
+    for itime in 0..ntime {
+        if should_output(itime) {
+            output.add_timestep(itime, &sys.fnow);
+        }
         bar.inc(1);
         sys.advance(dt, &pool);
     }
