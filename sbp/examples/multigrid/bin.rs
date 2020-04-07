@@ -352,11 +352,8 @@ struct Options {
     #[structopt(short, long)]
     jobs: Option<Option<usize>>,
     /// Name of output file
-    #[structopt(default_value = "output")]
+    #[structopt(default_value = "output.hdf")]
     output: std::path::PathBuf,
-    /// Output on the legacy format
-    #[structopt(long)]
-    legacy: bool,
 }
 
 fn main() {
@@ -419,14 +416,8 @@ fn main() {
         None
     };
 
-    let output = if opt.legacy {
-        None
-    } else {
-        Some(File::create(&opt.output, sys.grids.as_slice()).unwrap())
-    };
-    if let Some(file) = output.as_ref() {
-        file.add_timestep(0, sys.fnow.as_slice()).unwrap();
-    }
+    let output = File::create(&opt.output, sys.grids.as_slice()).unwrap();
+    output.add_timestep(0, sys.fnow.as_slice()).unwrap();
 
     let bar = progressbar(opt.no_progressbar, ntime);
     for _ in 0..ntime {
@@ -439,11 +430,7 @@ fn main() {
     }
     bar.finish();
 
-    if let Some(file) = output.as_ref() {
-        file.add_timestep(ntime, sys.fnow.as_slice()).unwrap();
-    } else {
-        legacy_output(&opt.output, &sys);
-    }
+    output.add_timestep(ntime, sys.fnow.as_slice()).unwrap();
 }
 
 fn progressbar(dummy: bool, ntime: u64) -> indicatif::ProgressBar {
@@ -455,39 +442,6 @@ fn progressbar(dummy: bool, ntime: u64) -> indicatif::ProgressBar {
             indicatif::ProgressStyle::default_bar()
                 .template("{wide_bar:.cyan/blue} {pos}/{len} ({eta})"),
         )
-    }
-}
-
-fn legacy_output<T: sbp::operators::UpwindOperator, P: AsRef<std::path::Path>>(
-    path: &P,
-    sys: &System<T>,
-) {
-    use std::io::prelude::*;
-    let file = std::fs::File::create(path).unwrap();
-    let mut file = std::io::BufWriter::new(file);
-    let ngrids = sys.grids.len();
-    file.write_all(&(ngrids as u32).to_le_bytes()).unwrap();
-    for (grid, s) in sys.grids.iter().zip(&sys.fnow) {
-        file.write_all(&(grid.ny() as u32).to_le_bytes()).unwrap();
-        file.write_all(&(grid.nx() as u32).to_le_bytes()).unwrap();
-        for x in grid.x().as_slice().unwrap() {
-            file.write_all(&(x.to_le_bytes())).unwrap();
-        }
-        for y in grid.y().as_slice().unwrap() {
-            file.write_all(&(y.to_le_bytes())).unwrap();
-        }
-        for rho in s.rho().as_slice().unwrap() {
-            file.write_all(&(rho.to_le_bytes())).unwrap();
-        }
-        for rhou in s.rhou().as_slice().unwrap() {
-            file.write_all(&(rhou.to_le_bytes())).unwrap();
-        }
-        for rhov in s.rhov().as_slice().unwrap() {
-            file.write_all(&(rhov.to_le_bytes())).unwrap();
-        }
-        for e in s.e().as_slice().unwrap() {
-            file.write_all(&(e.to_le_bytes())).unwrap();
-        }
     }
 }
 

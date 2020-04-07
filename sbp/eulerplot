@@ -216,39 +216,6 @@ def read_from_file(filename):
     return grids
 
 
-def read_from_legacy_file(filename):
-    grids = []
-
-    with open(filename, "rb") as f:
-        ngrids = int(np.fromfile(f, dtype=np.uint32, count=1))
-        for i in range(ngrids):
-            (neta, nxi) = np.fromfile(f, dtype=np.uint32, count=2)
-
-            x = np.fromfile(f, dtype=np.double, count=neta * nxi)
-            x = x.reshape((neta, nxi))
-
-            y = np.fromfile(f, dtype=np.double, count=neta * nxi)
-            y = y.reshape((neta, nxi))
-
-            rho = np.fromfile(f, dtype=np.double, count=neta * nxi)
-            rho = rho.reshape((neta, nxi))
-
-            rhou = np.fromfile(f, dtype=np.double, count=neta * nxi)
-            rhou = rhou.reshape((neta, nxi))
-
-            rhov = np.fromfile(f, dtype=np.double, count=neta * nxi)
-            rhov = rhov.reshape((neta, nxi))
-
-            e = np.fromfile(f, dtype=np.double, count=neta * nxi)
-            e = e.reshape((neta, nxi))
-
-            grids.append(
-                {"x": x, "y": y, "rho": rho, "rhou": rhou, "rhov": rhov, "e": e}
-            )
-
-    return grids
-
-
 if __name__ == "__main__":
     parser = ArgumentParser(description="Plot a solution from the eulersolver")
     parser.add_argument("filename", metavar="filename", type=str)
