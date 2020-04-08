@@ -1,19 +1,13 @@
 use super::{SbpOperator, UpwindOperator};
 use crate::diff_op_1d;
 use crate::Float;
-use ndarray::{s, ArrayView1, ArrayView2, ArrayViewMut1, ArrayViewMut2};
+use ndarray::{s, ArrayView1, ArrayViewMut1};
 
 #[derive(Debug)]
 pub struct Upwind9 {}
 
-diff_op_1d!(Upwind9, diff_1d, Upwind9::BLOCK, Upwind9::DIAG, false);
-diff_op_1d!(
-    Upwind9,
-    diss_1d,
-    Upwind9::DISS_BLOCK,
-    Upwind9::DISS_DIAG,
-    true
-);
+diff_op_1d!(diff_1d, Upwind9::BLOCK, Upwind9::DIAG, false);
+diff_op_1d!(diss_1d, Upwind9::DISS_BLOCK, Upwind9::DISS_DIAG, true);
 
 impl Upwind9 {
     #[rustfmt::skip]
@@ -55,18 +49,8 @@ impl Upwind9 {
 }
 
 impl SbpOperator for Upwind9 {
-    fn diffxi(prev: ArrayView2<Float>, mut fut: ArrayViewMut2<Float>) {
-        assert_eq!(prev.shape(), fut.shape());
-        assert!(prev.shape()[1] >= 2 * Self::BLOCK.len());
-
-        for (r0, r1) in prev.outer_iter().zip(fut.outer_iter_mut()) {
-            Self::diff_1d(r0, r1);
-        }
-    }
-
-    fn diffeta(prev: ArrayView2<Float>, fut: ArrayViewMut2<Float>) {
-        // transpose then use diffxi
-        Self::diffxi(prev.reversed_axes(), fut.reversed_axes());
+    fn diff1d(prev: ArrayView1<Float>, fut: ArrayViewMut1<Float>) {
+        diff_1d(prev, fut)
     }
 
     fn h() -> &'static [Float] {
@@ -75,18 +59,8 @@ impl SbpOperator for Upwind9 {
 }
 
 impl UpwindOperator for Upwind9 {
-    fn dissxi(prev: ArrayView2<Float>, mut fut: ArrayViewMut2<Float>) {
-        assert_eq!(prev.shape(), fut.shape());
-        assert!(prev.shape()[1] >= 2 * Self::BLOCK.len());
-
-        for (r0, r1) in prev.outer_iter().zip(fut.outer_iter_mut()) {
-            Self::diss_1d(r0, r1);
-        }
-    }
-
-    fn disseta(prev: ArrayView2<Float>, fut: ArrayViewMut2<Float>) {
-        // diffeta = transpose then use dissxi
-        Self::dissxi(prev.reversed_axes(), fut.reversed_axes());
+    fn diss1d(prev: ArrayView1<Float>, fut: ArrayViewMut1<Float>) {
+        diss_1d(prev, fut)
     }
 }
 

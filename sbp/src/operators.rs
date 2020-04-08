@@ -3,68 +3,82 @@
 
 use crate::Float;
 
-use ndarray::{ArrayView2, ArrayViewMut2};
+use ndarray::{ArrayView1, ArrayView2, ArrayViewMut1, ArrayViewMut2};
 
 pub trait SbpOperator: Send + Sync {
-    fn diffxi(prev: ArrayView2<Float>, fut: ArrayViewMut2<Float>);
-    fn diffeta(prev: ArrayView2<Float>, fut: ArrayViewMut2<Float>);
+    fn diff1d(prev: ArrayView1<Float>, fut: ArrayViewMut1<Float>);
+    fn diffxi(prev: ArrayView2<Float>, mut fut: ArrayViewMut2<Float>) {
+        assert_eq!(prev.shape(), fut.shape());
+        for (r0, r1) in prev.outer_iter().zip(fut.outer_iter_mut()) {
+            Self::diff1d(r0, r1);
+        }
+    }
+    fn diffeta(prev: ArrayView2<Float>, fut: ArrayViewMut2<Float>) {
+        Self::diffxi(prev.reversed_axes(), fut.reversed_axes())
+    }
     fn h() -> &'static [Float];
 }
 
 pub trait UpwindOperator: SbpOperator {
-    fn dissxi(prev: ArrayView2<Float>, fut: ArrayViewMut2<Float>);
-    fn disseta(prev: ArrayView2<Float>, fut: ArrayViewMut2<Float>);
+    fn diss1d(prev: ArrayView1<Float>, fut: ArrayViewMut1<Float>);
+    fn dissxi(prev: ArrayView2<Float>, mut fut: ArrayViewMut2<Float>) {
+        assert_eq!(prev.shape(), fut.shape());
+        for (r0, r1) in prev.outer_iter().zip(fut.outer_iter_mut()) {
+            Self::diss1d(r0, r1);
+        }
+    }
+    fn disseta(prev: ArrayView2<Float>, fut: ArrayViewMut2<Float>) {
+        Self::dissxi(prev.reversed_axes(), fut.reversed_axes())
+    }
 }
 
 #[macro_export]
 macro_rules! diff_op_1d {
-    ($self: ty, $name: ident, $BLOCK: expr, $DIAG: expr, $symmetric: expr) => {
-        impl $self {
-            fn $name(prev: ArrayView1<Float>, mut fut: ArrayViewMut1<Float>) {
-                assert_eq!(prev.shape(), fut.shape());
-                let nx = prev.shape()[0];
-                assert!(nx >= 2 * $BLOCK.len());
+    ($name: ident, $BLOCK: expr, $DIAG: expr, $symmetric: expr) => {
+        fn $name(prev: ArrayView1<Float>, mut fut: ArrayViewMut1<Float>) {
+            assert_eq!(prev.shape(), fut.shape());
+            let nx = prev.shape()[0];
+            assert!(nx >= 2 * $BLOCK.len());
 
-                let dx = 1.0 / (nx - 1) as Float;
-                let idx = 1.0 / dx;
+            let dx = 1.0 / (nx - 1) as Float;
+            let idx = 1.0 / dx;
 
-                let block = ::ndarray::arr2($BLOCK);
-                let diag = ::ndarray::arr1($DIAG);
+            let block = ::ndarray::arr2($BLOCK);
+            let diag = ::ndarray::arr1($DIAG);
 
 
-                let first_elems = prev.slice(::ndarray::s!(..block.len_of(::ndarray::Axis(1))));
-                for (bl, f) in block.outer_iter().zip(&mut fut) {
-                    let diff = first_elems.dot(&bl);
-                    *f = diff * idx;
-                }
+            let first_elems = prev.slice(::ndarray::s!(..block.len_of(::ndarray::Axis(1))));
+            for (bl, f) in block.outer_iter().zip(&mut fut) {
+                let diff = first_elems.dot(&bl);
+                *f = diff * idx;
+            }
 
-                // The window needs to be aligned to the diagonal elements,
-                // based on the block size
-                let window_elems_to_skip =
-                    block.len_of(::ndarray::Axis(0)) - ((diag.len() - 1) / 2);
+            // The window needs to be aligned to the diagonal elements,
+            // based on the block size
+            let window_elems_to_skip =
+                block.len_of(::ndarray::Axis(0)) - ((diag.len() - 1) / 2);
 
-                for (window, f) in prev
-                    .windows(diag.len())
-                    .into_iter()
-                    .skip(window_elems_to_skip)
-                    .zip(fut.iter_mut().skip(block.len_of(::ndarray::Axis(0))))
-                    .take(nx - 2 * block.len_of(::ndarray::Axis(0)))
-                {
-                    let diff = diag.dot(&window);
-                    *f = diff * idx;
-                }
+            for (window, f) in prev
+                .windows(diag.len())
+                .into_iter()
+                .skip(window_elems_to_skip)
+                .zip(fut.iter_mut().skip(block.len_of(::ndarray::Axis(0))))
+                .take(nx - 2 * block.len_of(::ndarray::Axis(0)))
+            {
+                let diff = diag.dot(&window);
+                *f = diff * idx;
+            }
 
-                let last_elems = prev.slice(::ndarray::s!(nx - block.len_of(::ndarray::Axis(1))..;-1));
-                for (bl, f) in block.outer_iter()
-                    .zip(&mut fut.slice_mut(s![nx - block.len_of(::ndarray::Axis(0))..;-1]))
-                {
-                    let diff = if $symmetric {
-                        bl.dot(&last_elems)
-                    } else {
-                        -bl.dot(&last_elems)
-                    };
-                    *f = diff * idx;
-                }
+            let last_elems = prev.slice(::ndarray::s!(nx - block.len_of(::ndarray::Axis(1))..;-1));
+            for (bl, f) in block.outer_iter()
+                .zip(&mut fut.slice_mut(s![nx - block.len_of(::ndarray::Axis(0))..;-1]))
+            {
+                let diff = if $symmetric {
+                    bl.dot(&last_elems)
+                } else {
+                    -bl.dot(&last_elems)
+                };
+                *f = diff * idx;
             }
         }
     };

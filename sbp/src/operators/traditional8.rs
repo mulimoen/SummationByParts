@@ -1,12 +1,12 @@
 use super::SbpOperator;
 use crate::diff_op_1d;
 use crate::Float;
-use ndarray::{s, ArrayView1, ArrayView2, ArrayViewMut1, ArrayViewMut2};
+use ndarray::{s, ArrayView1, ArrayViewMut1};
 
 #[derive(Debug)]
 pub struct SBP8 {}
 
-diff_op_1d!(SBP8, diff_1d, SBP8::BLOCK, SBP8::DIAG, false);
+diff_op_1d!(diff_1d, SBP8::BLOCK, SBP8::DIAG, false);
 
 impl SBP8 {
     #[rustfmt::skip]
@@ -31,18 +31,8 @@ impl SBP8 {
 }
 
 impl SbpOperator for SBP8 {
-    fn diffxi(prev: ArrayView2<Float>, mut fut: ArrayViewMut2<Float>) {
-        assert_eq!(prev.shape(), fut.shape());
-        assert!(prev.shape()[1] >= 2 * Self::BLOCK.len());
-
-        for (r0, r1) in prev.outer_iter().zip(fut.outer_iter_mut()) {
-            Self::diff_1d(r0, r1);
-        }
-    }
-
-    fn diffeta(prev: ArrayView2<Float>, fut: ArrayViewMut2<Float>) {
-        // transpose then use diffxi
-        Self::diffxi(prev.reversed_axes(), fut.reversed_axes());
+    fn diff1d(prev: ArrayView1<Float>, fut: ArrayViewMut1<Float>) {
+        diff_1d(prev, fut)
     }
 
     fn h() -> &'static [Float] {
