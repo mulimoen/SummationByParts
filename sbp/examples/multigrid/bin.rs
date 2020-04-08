@@ -275,6 +275,9 @@ struct Options {
     /// Number of outputs to save
     #[structopt(long, short)]
     number_of_outputs: Option<u64>,
+    /// Print the time to complete, taken in the compute loop
+    #[structopt(long)]
+    timings: bool,
 }
 
 fn main() {
@@ -354,6 +357,13 @@ fn main() {
     let mut output = OutputThread::new(output);
 
     let bar = progressbar(opt.no_progressbar, ntime);
+
+    let timer = if opt.timings {
+        Some(std::time::Instant::now())
+    } else {
+        None
+    };
+
     for itime in 0..ntime {
         if should_output(itime) {
             output.add_timestep(itime, &sys.fnow);
@@ -362,6 +372,11 @@ fn main() {
         sys.advance(dt, &pool);
     }
     bar.finish();
+
+    if let Some(timer) = timer {
+        let duration = timer.elapsed();
+        println!("Time elapsed: {} seconds", duration.as_secs_f64());
+    }
 
     output.add_timestep(ntime, &sys.fnow);
 }
