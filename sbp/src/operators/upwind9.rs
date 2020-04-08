@@ -6,7 +6,7 @@ use ndarray::{s, ArrayView1, ArrayViewMut1};
 #[derive(Debug)]
 pub struct Upwind9 {}
 
-diff_op_1d!(diff_1d, Upwind9::BLOCK, Upwind9::DIAG, false);
+diff_op_1d!(diff_1d, Upwind9::BLOCK, Upwind9::DIAG);
 diff_op_1d!(diss_1d, Upwind9::DISS_BLOCK, Upwind9::DISS_DIAG, true);
 
 impl Upwind9 {

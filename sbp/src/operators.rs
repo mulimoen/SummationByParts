@@ -34,6 +34,9 @@ pub trait UpwindOperator: SbpOperator {
 
 #[macro_export]
 macro_rules! diff_op_1d {
+    ($name: ident, $BLOCK: expr, $DIAG: expr) => {
+        diff_op_1d!($name, $BLOCK, $DIAG, false);
+    };
     ($name: ident, $BLOCK: expr, $DIAG: expr, $symmetric: expr) => {
         fn $name(prev: ArrayView1<Float>, mut fut: ArrayViewMut1<Float>) {
             assert_eq!(prev.shape(), fut.shape());

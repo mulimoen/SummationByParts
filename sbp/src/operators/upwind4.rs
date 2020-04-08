@@ -12,7 +12,7 @@ type SimdT = packed_simd::f32x8;
 #[cfg(not(feature = "f32"))]
 type SimdT = packed_simd::f64x8;
 
-diff_op_1d!(diff_1d, Upwind4::BLOCK, Upwind4::DIAG, false);
+diff_op_1d!(diff_1d, Upwind4::BLOCK, Upwind4::DIAG);
 diff_op_1d!(diss_1d, Upwind4::DISS_BLOCK, Upwind4::DISS_DIAG, true);
 
 macro_rules! diff_simd_row_7_47 {

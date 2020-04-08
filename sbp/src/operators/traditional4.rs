@@ -6,7 +6,7 @@ use ndarray::{s, ArrayView1, ArrayViewMut1};
 #[derive(Debug)]
 pub struct SBP4 {}
 
-diff_op_1d!(diff_1d, SBP4::BLOCK, SBP4::DIAG, false);
+diff_op_1d!(diff_1d, SBP4::BLOCK, SBP4::DIAG);
 
 impl SBP4 {
     #[rustfmt::skip]
