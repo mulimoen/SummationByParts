@@ -47,19 +47,19 @@ impl<T: operators::UpwindOperator> System<T> {
                     }
                     _ => None,
                 },
-                s: match bt.north {
+                s: match bt.south {
                     euler::BoundaryCharacteristic::Vortex(_) => {
                         Some(ndarray::Array2::zeros((4, grid.nx())))
                     }
                     _ => None,
                 },
-                e: match bt.north {
+                e: match bt.east {
                     euler::BoundaryCharacteristic::Vortex(_) => {
                         Some(ndarray::Array2::zeros((4, grid.ny())))
                     }
                     _ => None,
                 },
-                w: match bt.north {
+                w: match bt.west {
                     euler::BoundaryCharacteristic::Vortex(_) => {
                         Some(ndarray::Array2::zeros((4, grid.ny())))
                     }
