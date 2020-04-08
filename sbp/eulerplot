@@ -4,8 +4,6 @@ import matplotlib.pyplot as plt
 import numpy as np
 import h5py
 
-import os
-
 from argparse import ArgumentParser
 
 
@@ -21,32 +19,21 @@ def gridlines(obj, x, y):
     obj.plot(x[:, -1], y[:, -1], color="#7f7f7f", linewidth=0.2)
 
 
-def plot_all(grids, error: bool, save: bool, filename="figure.png"):
+def plot_all(grids, save: bool, filename="figure.png"):
     sym_cmap = plt.get_cmap("PiYG")  # Symmetric around zero
-    if error:
-        e_cmap = sym_cmap
-    else:
-        e_cmap = plt.get_cmap("Greys")
+    e_cmap = plt.get_cmap("Greys")
 
     f, axarr = plt.subplots(2, 2)
 
     min_rho = min(np.min(g["rho"]) for g in grids)
     max_rho = max(np.max(g["rho"]) for g in grids)
-    if error:
-        r = 1.2 * max(abs(min_rho), abs(max_rho))
-        rho_levels = np.linspace(-r, r, 34)
-    else:
-        r = 1.2 * max(abs(min_rho - 1), abs(max_rho - 1))
-        rho_levels = np.linspace(1 - r, 1 + r, 34)
+    r = 1.2 * max(abs(min_rho - 1), abs(max_rho - 1))
+    rho_levels = np.linspace(1 - r, 1 + r, 34)
 
     min_rhou = min(np.min(g["rhou"]) for g in grids)
     max_rhou = max(np.max(g["rhov"]) for g in grids)
-    if error:
-        r = 1.2 * max(abs(min_rhou), abs(max_rhou))
-        rhou_levels = np.linspace(-r, r, 20)
-    else:
-        r = 1.2 * max(abs(min_rhou - 1), abs(max_rhou - 1))
-        rhou_levels = np.linspace(1 - r, 1 + r, 20)
+    r = 1.2 * max(abs(min_rhou - 1), abs(max_rhou - 1))
+    rhou_levels = np.linspace(1 - r, 1 + r, 20)
 
     min_rhov = min(np.min(g["rhov"]) for g in grids)
     max_rhov = max(np.max(g["rhov"]) for g in grids)
@@ -55,11 +42,7 @@ def plot_all(grids, error: bool, save: bool, filename="figure.png"):
 
     min_e = min(np.min(g["e"]) for g in grids)
     max_e = max(np.max(g["e"]) for g in grids)
-    if error:
-        r = max(abs(min_e), abs(max_e))
-        e_levels = np.linspace(-r, r, 20)
-    else:
-        e_levels = np.linspace(min_e, max_e)
+    e_levels = np.linspace(min_e, max_e)
 
     for g in grids:
         x = g["x"]
@@ -110,40 +93,6 @@ def plot_all(grids, error: bool, save: bool, filename="figure.png"):
 
     if save:
         plt.savefig(filename, bbox_inches="tight", dpi=600)
-
-    plt.show()
-
-
-def plot_total_error(grids, save: bool, filename="figure.png"):
-    cmap = plt.get_cmap("Greys")
-
-    total_err = [
-        np.abs(g["rho"]) + np.abs(g["rhou"]) + np.abs(g["rhov"]) + np.abs(g["e"])
-        for g in grids
-    ]
-
-    r = max(np.max(err) for err in total_err)
-
-    levels = np.linspace(0, r, 30)
-
-    for g, err in zip(grids, total_err):
-        x = g["x"]
-        y = g["y"]
-
-        plt.contourf(x, y, err, cmap=cmap, levels=levels)
-        gridlines(plt, x, y)
-
-    plt.title("Total error")
-    norm = mpl.colors.Normalize(vmin=levels[0], vmax=levels[-1])
-    sm = plt.cm.ScalarMappable(cmap=cmap, norm=norm)
-    sm.set_array([])
-    plt.colorbar(sm)
-
-    plt.xlabel("x")
-    plt.ylabel("y")
-
-    if save:
-        plt.savefig(args.output, bbox_inches="tight", dpi=600)
 
     plt.show()
 
@@ -213,21 +162,12 @@ def read_from_file(filename):
             }
         )
 
-    return grids
+    return grids, file["t"]
 
 
 if __name__ == "__main__":
     parser = ArgumentParser(description="Plot a solution from the eulersolver")
     parser.add_argument("filename", metavar="filename", type=str)
-    parser.add_argument(
-        "-e",
-        help="Scale is centered around zero (implies -a)",
-        action="store_true",
-        dest="error",
-    )
-    parser.add_argument(
-        "-te", help="Plots total error", action="store_true", dest="total_error"
-    )
     parser.add_argument("-s", help="Save figure", action="store_true", dest="save")
     parser.add_argument(
         "-o",
@@ -242,14 +182,10 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
     filename = args.filename
-    if not os.path.isfile(filename):
-        filename = "solution{:03}.bin".format(int(filename))
 
-    grids = read_from_file(filename)
+    grids, t = read_from_file(filename)
 
-    if args.all or args.error:
-        plot_all(grids, args.error, args.save, args.output)
-    elif args.total_error:
-        plot_total_error(grids, args.save, args.output)
+    if args.all:
+        plot_all(grids, args.save, args.output)
     else:
         plot_pressure(grids, args.save, args.output)
