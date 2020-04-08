@@ -278,9 +278,13 @@ struct Options {
     /// Print the time to complete, taken in the compute loop
     #[structopt(long)]
     timings: bool,
+    /// Print error at the end of the run
+    #[structopt(long)]
+    error: bool,
 }
 
 fn main() {
+    type SBP = operators::Upwind4;
     let opt = Options::from_args();
     let filecontents = std::fs::read_to_string(&opt.json).unwrap();
 
@@ -316,7 +320,7 @@ fn main() {
 
     let integration_time: Float = json["integration_time"].as_number().unwrap().into();
 
-    let mut sys = System::<sbp::operators::Upwind4>::new(grids, bt);
+    let mut sys = System::<SBP>::new(grids, bt);
     sys.vortex(0.0, vortexparams);
 
     let max_n = {
@@ -379,6 +383,16 @@ fn main() {
     }
 
     output.add_timestep(ntime, &sys.fnow);
+    if opt.error {
+        let time = ntime as f64 * dt;
+        let mut e = 0.0;
+        for (fmod, grid) in sys.fnow.iter().zip(&sys.grids) {
+            let mut fvort = fmod.clone();
+            fvort.vortex(grid.x(), grid.y(), time, vortexparams);
+            e += fmod.h2_err::<SBP>(&fvort);
+        }
+        println!("Total error: {:e}", e);
+    }
 }
 
 fn progressbar(dummy: bool, ntime: u64) -> indicatif::ProgressBar {
