@@ -630,7 +630,7 @@ fn SAT_characteristics<SBP: SbpOperator>(
 ) {
     // North boundary
     {
-        let hi = (k.ny() - 1) as Float * SBP::h()[0];
+        let hi = (k.ny() - 1) as Float / SBP::h()[0];
         let sign = -1.0;
         let tau = 1.0;
         let slice = s![y.ny() - 1, ..];
@@ -648,7 +648,7 @@ fn SAT_characteristics<SBP: SbpOperator>(
     }
     // South boundary
     {
-        let hi = (k.ny() - 1) as Float * SBP::h()[0];
+        let hi = (k.ny() - 1) as Float / SBP::h()[0];
         let sign = 1.0;
         let tau = -1.0;
         let slice = s![0, ..];
@@ -666,7 +666,7 @@ fn SAT_characteristics<SBP: SbpOperator>(
     }
     // West Boundary
     {
-        let hi = (k.nx() - 1) as Float * SBP::h()[0];
+        let hi = (k.nx() - 1) as Float / SBP::h()[0];
         let sign = 1.0;
         let tau = -1.0;
         let slice = s![.., 0];
@@ -684,7 +684,7 @@ fn SAT_characteristics<SBP: SbpOperator>(
     }
     // East Boundary
     {
-        let hi = (k.nx() - 1) as Float * SBP::h()[0];
+        let hi = (k.nx() - 1) as Float / SBP::h()[0];
         let sign = -1.0;
         let tau = 1.0;
         let slice = s![.., y.nx() - 1];
