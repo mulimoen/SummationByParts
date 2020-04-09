@@ -755,16 +755,12 @@ fn SAT_characteristic(
 
         let phi2_c2 = (phi2 + c * c) / (GAMMA - 1.0);
 
+        #[rustfmt::skip]
         let T = [
-            [1.0, 0.0, 1.0, 1.0],
-            [u, ky, u + kx * c, u - kx * c],
-            [v, -kx, v + ky * c, v - ky * c],
-            [
-                phi2 / (GAMMA - 1.0),
-                ky * u - kx * v,
-                phi2_c2 + c * theta,
-                phi2_c2 - c * theta,
-            ],
+            [                 1.0,             0.0,                 1.0,                 1.0],
+            [                   u,              ky,          u + kx * c,          u - kx * c],
+            [                   v,             -kx,          v + ky * c,          v - ky * c],
+            [phi2 / (GAMMA - 1.0), ky * u - kx * v, phi2_c2 + c * theta, phi2_c2 - c * theta],
         ];
         let U = kx_ * u + ky_ * v;
         let L = [
@@ -774,26 +770,12 @@ fn SAT_characteristic(
             U - c * Float::hypot(kx_, ky_),
         ];
         let beta = 1.0 / (2.0 * c * c);
+        #[rustfmt::skip]
         let TI = [
-            [
-                1.0 - phi2 / (c * c),
-                (GAMMA - 1.0) * u / (c * c),
-                (GAMMA - 1.0) * v / (c * c),
-                -(GAMMA - 1.0) / (c * c),
-            ],
-            [-(ky * u - kx * v), ky, -kx, 0.0],
-            [
-                beta * (phi2 - c * theta),
-                beta * (kx * c - (GAMMA - 1.0) * u),
-                beta * (ky * c - (GAMMA - 1.0) * v),
-                beta * (GAMMA - 1.0),
-            ],
-            [
-                beta * (phi2 + c * theta),
-                -beta * (kx * c + (GAMMA - 1.0) * u),
-                -beta * (ky * c + (GAMMA - 1.0) * v),
-                beta * (GAMMA - 1.0),
-            ],
+            [     1.0 - phi2 / (c * c),          (GAMMA - 1.0) * u / (c * c),          (GAMMA - 1.0) * v / (c * c), -(GAMMA - 1.0) / (c * c)],
+            [       -(ky * u - kx * v),                                   ky,                                  -kx,                      0.0],
+            [beta * (phi2 - c * theta),  beta * (kx * c - (GAMMA - 1.0) * u),  beta * (ky * c - (GAMMA - 1.0) * v),     beta * (GAMMA - 1.0)],
+            [beta * (phi2 + c * theta), -beta * (kx * c + (GAMMA - 1.0) * u), -beta * (ky * c + (GAMMA - 1.0) * v),     beta * (GAMMA - 1.0)],
         ];
 
         let res = [rho - z[0], rhou - z[1], rhov - z[2], e - z[3]];
