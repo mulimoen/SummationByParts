@@ -38,7 +38,8 @@ impl<SBP: SbpOperator> System<SBP> {
             east: BoundaryCharacteristic::This,
             west: BoundaryCharacteristic::This,
         };
-        let rhs_trad = |k: &mut Field, y: &Field, grid: &Grid, metrics: &Metrics<_>, wb: &mut _| {
+        let rhs_trad = |k: &mut Field, y: &Field, _time: Float, gm: &(_, _), wb: &mut _| {
+            let (grid, metrics) = gm;
             let boundaries = boundary_extractor(y, grid, &bc);
             RHS_trad(k, y, metrics, &boundaries, wb)
         };
@@ -46,10 +47,10 @@ impl<SBP: SbpOperator> System<SBP> {
             rhs_trad,
             &self.sys.0,
             &mut self.sys.1,
+            &mut 0.0,
             dt,
-            &self.grid.0,
-            &self.grid.1,
             &mut self.wb.k,
+            &self.grid,
             &mut self.wb.tmp,
         );
         std::mem::swap(&mut self.sys.0, &mut self.sys.1);
@@ -97,19 +98,19 @@ impl<UO: UpwindOperator> System<UO> {
             east: BoundaryCharacteristic::This,
             west: BoundaryCharacteristic::This,
         };
-        let rhs_upwind =
-            |k: &mut Field, y: &Field, grid: &Grid, metrics: &Metrics<_>, wb: &mut _| {
-                let boundaries = boundary_extractor(y, grid, &bc);
-                RHS_upwind(k, y, metrics, &boundaries, wb)
-            };
+        let rhs_upwind = |k: &mut Field, y: &Field, _time: Float, gm: &(_, _), wb: &mut _| {
+            let (grid, metrics) = gm;
+            let boundaries = boundary_extractor(y, grid, &bc);
+            RHS_upwind(k, y, metrics, &boundaries, wb)
+        };
         integrate::rk4(
             rhs_upwind,
             &self.sys.0,
             &mut self.sys.1,
+            &mut 0.0,
             dt,
-            &self.grid.0,
-            &self.grid.1,
             &mut self.wb.k,
+            &self.grid,
             &mut self.wb.tmp,
         );
         std::mem::swap(&mut self.sys.0, &mut self.sys.1);

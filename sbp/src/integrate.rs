@@ -1,36 +1,39 @@
-use super::grid::{Grid, Metrics};
-use super::operators::SbpOperator;
 use super::Float;
 use ndarray::{Array3, Zip};
 
-pub(crate) fn rk4<'a, F: 'a, SBP, RHS, WB>(
+pub(crate) fn rk4<'a, F: 'a, RHS, MT, C>(
     rhs: RHS,
     prev: &F,
     fut: &mut F,
+    time: &mut Float,
     dt: Float,
-    grid: &Grid,
-    metrics: &Metrics<SBP>,
     k: &mut [F; 4],
-    mut wb: &mut WB,
+
+    constants: C,
+    mut mutables: &mut MT,
 ) where
+    C: Copy,
     F: std::ops::Deref<Target = Array3<Float>> + std::ops::DerefMut<Target = Array3<Float>>,
-    SBP: SbpOperator,
-    RHS: Fn(&mut F, &F, &Grid, &Metrics<SBP>, &mut WB),
+    RHS: Fn(&mut F, &F, Float, C, &mut MT),
 {
     assert_eq!(prev.shape(), fut.shape());
 
     for i in 0.. {
+        let simtime;
         match i {
             0 => {
                 fut.assign(prev);
+                simtime = *time;
             }
             1 | 2 => {
                 fut.assign(prev);
                 fut.scaled_add(1.0 / 2.0 * dt, &k[i - 1]);
+                simtime = *time + dt / 2.0;
             }
             3 => {
                 fut.assign(prev);
                 fut.scaled_add(dt, &k[i - 1]);
+                simtime = *time + dt;
             }
             4 => {
                 Zip::from(&mut **fut)
@@ -42,6 +45,7 @@ pub(crate) fn rk4<'a, F: 'a, SBP, RHS, WB>(
                     .apply(|y1, &y0, &k1, &k2, &k3, &k4| {
                         *y1 = y0 + dt / 6.0 * (k1 + 2.0 * k2 + 2.0 * k3 + k4)
                     });
+                *time += dt;
                 return;
             }
             _ => {
@@ -49,6 +53,6 @@ pub(crate) fn rk4<'a, F: 'a, SBP, RHS, WB>(
             }
         };
 
-        rhs(&mut k[i], &fut, grid, metrics, &mut wb);
+        rhs(&mut k[i], &fut, simtime, constants, &mut mutables);
     }
 }

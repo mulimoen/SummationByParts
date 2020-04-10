@@ -115,14 +115,25 @@ impl<SBP: SbpOperator> System<SBP> {
     }
 
     pub fn advance(&mut self, dt: Float) {
+        fn rhs_adaptor<SBP: SbpOperator>(
+            fut: &mut Field,
+            prev: &Field,
+            _time: Float,
+            c: &(&Grid, &Metrics<SBP>),
+            m: &mut (Array2<Float>, Array2<Float>, Array2<Float>, Array2<Float>),
+        ) {
+            let (grid, metrics) = c;
+            RHS(fut, prev, grid, metrics, m);
+        }
+        let mut _time = 0.0;
         integrate::rk4(
-            RHS,
+            rhs_adaptor,
             &self.sys.0,
             &mut self.sys.1,
+            &mut _time,
             dt,
-            &self.grid,
-            &self.metrics,
             &mut self.wb.k,
+            &(&self.grid, &self.metrics),
             &mut self.wb.tmp,
         );
         std::mem::swap(&mut self.sys.0, &mut self.sys.1);
@@ -132,14 +143,25 @@ impl<SBP: SbpOperator> System<SBP> {
 impl<UO: UpwindOperator> System<UO> {
     /// Using artificial dissipation with the upwind operator
     pub fn advance_upwind(&mut self, dt: Float) {
+        fn rhs_adaptor<UO: UpwindOperator>(
+            fut: &mut Field,
+            prev: &Field,
+            _time: Float,
+            c: &(&Grid, &Metrics<UO>),
+            m: &mut (Array2<Float>, Array2<Float>, Array2<Float>, Array2<Float>),
+        ) {
+            let (grid, metrics) = c;
+            RHS_upwind(fut, prev, grid, metrics, m);
+        }
+        let mut _time = 0.0;
         integrate::rk4(
-            RHS_upwind,
+            rhs_adaptor,
             &self.sys.0,
             &mut self.sys.1,
+            &mut _time,
             dt,
-            &self.grid,
-            &self.metrics,
             &mut self.wb.k,
+            &(&self.grid, &self.metrics),
             &mut self.wb.tmp,
         );
         std::mem::swap(&mut self.sys.0, &mut self.sys.1);
