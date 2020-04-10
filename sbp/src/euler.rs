@@ -620,6 +620,107 @@ fn boundary_extractor<'a>(
     }
 }
 
+pub fn extract_boundaries<'a>(
+    fields: &'a [Field],
+    bt: &[BoundaryCharacteristics],
+    eb: &'a mut [BoundaryStorage],
+    grids: &[Grid],
+    time: Float,
+) -> Vec<BoundaryTerms<'a>> {
+    bt.iter()
+        .zip(eb)
+        .zip(grids)
+        .zip(fields)
+        .map(|(((bt, eb), grid), field)| BoundaryTerms {
+            north: match bt.north {
+                BoundaryCharacteristic::This => field.south(),
+                BoundaryCharacteristic::Grid(g) => fields[g].south(),
+                BoundaryCharacteristic::Vortex(v) => {
+                    let field = eb.n.as_mut().unwrap();
+                    vortexify(field.view_mut(), grid.north(), v, time);
+                    field.view()
+                }
+            },
+            south: match bt.south {
+                BoundaryCharacteristic::This => field.north(),
+                BoundaryCharacteristic::Grid(g) => fields[g].north(),
+                BoundaryCharacteristic::Vortex(v) => {
+                    let field = eb.s.as_mut().unwrap();
+                    vortexify(field.view_mut(), grid.south(), v, time);
+                    field.view()
+                }
+            },
+            west: match bt.west {
+                BoundaryCharacteristic::This => field.east(),
+                BoundaryCharacteristic::Grid(g) => fields[g].east(),
+                BoundaryCharacteristic::Vortex(v) => {
+                    let field = eb.w.as_mut().unwrap();
+                    vortexify(field.view_mut(), grid.west(), v, time);
+                    field.view()
+                }
+            },
+            east: match bt.east {
+                BoundaryCharacteristic::This => field.west(),
+                BoundaryCharacteristic::Grid(g) => fields[g].west(),
+                BoundaryCharacteristic::Vortex(v) => {
+                    let field = eb.e.as_mut().unwrap();
+                    vortexify(field.view_mut(), grid.east(), v, time);
+                    field.view()
+                }
+            },
+        })
+        .collect()
+}
+
+#[derive(Debug, Clone)]
+/// Used for storing boundary elements
+pub struct BoundaryStorage {
+    pub n: Option<ndarray::Array2<Float>>,
+    pub s: Option<ndarray::Array2<Float>>,
+    pub e: Option<ndarray::Array2<Float>>,
+    pub w: Option<ndarray::Array2<Float>>,
+}
+
+impl BoundaryStorage {
+    pub fn new(bt: &BoundaryCharacteristics, grid: &Grid) -> Self {
+        Self {
+            n: match bt.north {
+                BoundaryCharacteristic::Vortex(_) => Some(ndarray::Array2::zeros((4, grid.nx()))),
+                _ => None,
+            },
+            s: match bt.south {
+                BoundaryCharacteristic::Vortex(_) => Some(ndarray::Array2::zeros((4, grid.nx()))),
+                _ => None,
+            },
+            e: match bt.east {
+                BoundaryCharacteristic::Vortex(_) => Some(ndarray::Array2::zeros((4, grid.ny()))),
+                _ => None,
+            },
+            w: match bt.west {
+                BoundaryCharacteristic::Vortex(_) => Some(ndarray::Array2::zeros((4, grid.ny()))),
+                _ => None,
+            },
+        }
+    }
+}
+
+fn vortexify(
+    mut field: ndarray::ArrayViewMut2<Float>,
+    yx: (ndarray::ArrayView1<Float>, ndarray::ArrayView1<Float>),
+    v: VortexParameters,
+    t: Float,
+) {
+    let mut fiter = field.outer_iter_mut();
+    let (rho, rhou, rhov, e) = (
+        fiter.next().unwrap(),
+        fiter.next().unwrap(),
+        fiter.next().unwrap(),
+        fiter.next().unwrap(),
+    );
+    let (y, x) = yx;
+    vortex(rho, rhou, rhov, e, x, y, t, v);
+}
+
 #[allow(non_snake_case)]
 /// Boundary conditions (SAT)
 fn SAT_characteristics<SBP: SbpOperator>(
