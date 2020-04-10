@@ -270,7 +270,7 @@ struct Options {
     #[structopt(short, long)]
     jobs: Option<Option<usize>>,
     /// Name of output file
-    #[structopt(default_value = "output.hdf")]
+    #[structopt(default_value = "output.hdf", long, short)]
     output: std::path::PathBuf,
     /// Number of outputs to save
     #[structopt(long, short)]
