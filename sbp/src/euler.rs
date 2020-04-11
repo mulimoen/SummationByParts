@@ -43,7 +43,7 @@ impl<SBP: SbpOperator> System<SBP> {
             let boundaries = boundary_extractor(y, grid, &bc);
             RHS_trad(k, y, metrics, &boundaries, wb)
         };
-        integrate::rk4(
+        integrate::integrate::<integrate::Rk4, _, _, _, _>(
             rhs_trad,
             &self.sys.0,
             &mut self.sys.1,
@@ -103,7 +103,7 @@ impl<UO: UpwindOperator> System<UO> {
             let boundaries = boundary_extractor(y, grid, &bc);
             RHS_upwind(k, y, metrics, &boundaries, wb)
         };
-        integrate::rk4(
+        integrate::integrate::<integrate::Rk4, _, _, _, _>(
             rhs_upwind,
             &self.sys.0,
             &mut self.sys.1,

@@ -140,21 +140,3 @@ pub fn integrate<'a, BTableau, F: 'a, RHS, MT, C>(
         rhs(&mut k[i], &fut, simtime, constants, &mut mutables);
     }
 }
-
-pub(crate) fn rk4<'a, F: 'a, RHS, MT, C>(
-    rhs: RHS,
-    prev: &F,
-    fut: &mut F,
-    time: &mut Float,
-    dt: Float,
-    k: &mut [F; 4],
-
-    constants: C,
-    mutables: &mut MT,
-) where
-    C: Copy,
-    F: std::ops::Deref<Target = Array3<Float>> + std::ops::DerefMut<Target = Array3<Float>>,
-    RHS: Fn(&mut F, &F, Float, C, &mut MT),
-{
-    integrate::<Rk6, F, RHS, MT, C>(rhs, prev, fut, time, dt, k, constants, mutables)
-}

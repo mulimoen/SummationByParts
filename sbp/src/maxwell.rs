@@ -126,7 +126,7 @@ impl<SBP: SbpOperator> System<SBP> {
             RHS(fut, prev, grid, metrics, m);
         }
         let mut _time = 0.0;
-        integrate::rk4(
+        integrate::integrate::<integrate::Rk4, _, _, _, _>(
             rhs_adaptor,
             &self.sys.0,
             &mut self.sys.1,
@@ -154,7 +154,7 @@ impl<UO: UpwindOperator> System<UO> {
             RHS_upwind(fut, prev, grid, metrics, m);
         }
         let mut _time = 0.0;
-        integrate::rk4(
+        integrate::integrate::<integrate::Rk4, _, _, _, _>(
             rhs_adaptor,
             &self.sys.0,
             &mut self.sys.1,
