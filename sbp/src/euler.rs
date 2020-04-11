@@ -1,6 +1,6 @@
 use super::grid::{Grid, Metrics};
 use super::integrate;
-use super::operators::{SbpOperator, UpwindOperator};
+use super::operators::{InterpolationOperator, SbpOperator, UpwindOperator};
 use super::Float;
 use ndarray::azip;
 use ndarray::prelude::*;
@@ -582,6 +582,7 @@ pub enum BoundaryCharacteristic {
     Grid(usize),
     Vortex(VortexParameters),
     // Vortices(Vec<VortexParameters>),
+    Interpolate(usize),
 }
 
 #[derive(Clone, Debug)]
@@ -601,27 +602,35 @@ fn boundary_extractor<'a>(
         north: match bc.north {
             BoundaryCharacteristic::This => field.south(),
             BoundaryCharacteristic::Vortex(_params) => todo!(),
-            BoundaryCharacteristic::Grid(_) => panic!("Only working on self grid"),
+            BoundaryCharacteristic::Grid(_) | BoundaryCharacteristic::Interpolate(_) => {
+                panic!("Only working on self grid")
+            }
         },
         south: match bc.south {
             BoundaryCharacteristic::This => field.north(),
             BoundaryCharacteristic::Vortex(_params) => todo!(),
-            BoundaryCharacteristic::Grid(_) => panic!("Only working on self grid"),
+            BoundaryCharacteristic::Grid(_) | BoundaryCharacteristic::Interpolate(_) => {
+                panic!("Only working on self grid")
+            }
         },
         west: match bc.west {
             BoundaryCharacteristic::This => field.east(),
             BoundaryCharacteristic::Vortex(_params) => todo!(),
-            BoundaryCharacteristic::Grid(_) => panic!("Only working on self grid"),
+            BoundaryCharacteristic::Grid(_) | BoundaryCharacteristic::Interpolate(_) => {
+                panic!("Only working on self grid")
+            }
         },
         east: match bc.east {
             BoundaryCharacteristic::This => field.west(),
             BoundaryCharacteristic::Vortex(_params) => todo!(),
-            BoundaryCharacteristic::Grid(_) => panic!("Only working on self grid"),
+            BoundaryCharacteristic::Grid(_) | BoundaryCharacteristic::Interpolate(_) => {
+                panic!("Only working on self grid")
+            }
         },
     }
 }
 
-pub fn extract_boundaries<'a>(
+pub fn extract_boundaries<'a, IO: InterpolationOperator>(
     fields: &'a [Field],
     bt: &[BoundaryCharacteristics],
     eb: &'a mut [BoundaryStorage],
@@ -641,6 +650,19 @@ pub fn extract_boundaries<'a>(
                     vortexify(field.view_mut(), grid.north(), v, time);
                     field.view()
                 }
+                BoundaryCharacteristic::Interpolate(g) => {
+                    let to = eb.n.as_mut().unwrap();
+                    let fine2coarse = field.nx() < fields[g].nx();
+
+                    for (mut to, from) in to.outer_iter_mut().zip(fields[g].south().outer_iter()) {
+                        if fine2coarse {
+                            IO::fine2coarse(from.view(), to.view_mut());
+                        } else {
+                            IO::coarse2fine(from.view(), to.view_mut());
+                        }
+                    }
+                    to.view()
+                }
             },
             south: match bt.south {
                 BoundaryCharacteristic::This => field.north(),
@@ -649,6 +671,19 @@ pub fn extract_boundaries<'a>(
                     let field = eb.s.as_mut().unwrap();
                     vortexify(field.view_mut(), grid.south(), v, time);
                     field.view()
+                }
+                BoundaryCharacteristic::Interpolate(g) => {
+                    let to = eb.s.as_mut().unwrap();
+                    let fine2coarse = field.nx() < fields[g].nx();
+
+                    for (mut to, from) in to.outer_iter_mut().zip(fields[g].north().outer_iter()) {
+                        if fine2coarse {
+                            IO::fine2coarse(from.view(), to.view_mut());
+                        } else {
+                            IO::coarse2fine(from.view(), to.view_mut());
+                        }
+                    }
+                    to.view()
                 }
             },
             west: match bt.west {
@@ -659,6 +694,19 @@ pub fn extract_boundaries<'a>(
                     vortexify(field.view_mut(), grid.west(), v, time);
                     field.view()
                 }
+                BoundaryCharacteristic::Interpolate(g) => {
+                    let to = eb.w.as_mut().unwrap();
+                    let fine2coarse = field.ny() < fields[g].ny();
+
+                    for (mut to, from) in to.outer_iter_mut().zip(fields[g].east().outer_iter()) {
+                        if fine2coarse {
+                            IO::fine2coarse(from.view(), to.view_mut());
+                        } else {
+                            IO::coarse2fine(from.view(), to.view_mut());
+                        }
+                    }
+                    to.view()
+                }
             },
             east: match bt.east {
                 BoundaryCharacteristic::This => field.west(),
@@ -667,6 +715,19 @@ pub fn extract_boundaries<'a>(
                     let field = eb.e.as_mut().unwrap();
                     vortexify(field.view_mut(), grid.east(), v, time);
                     field.view()
+                }
+                BoundaryCharacteristic::Interpolate(g) => {
+                    let to = eb.e.as_mut().unwrap();
+                    let fine2coarse = field.ny() < fields[g].ny();
+
+                    for (mut to, from) in to.outer_iter_mut().zip(fields[g].west().outer_iter()) {
+                        if fine2coarse {
+                            IO::fine2coarse(from.view(), to.view_mut());
+                        } else {
+                            IO::coarse2fine(from.view(), to.view_mut());
+                        }
+                    }
+                    to.view()
                 }
             },
         })
@@ -686,19 +747,27 @@ impl BoundaryStorage {
     pub fn new(bt: &BoundaryCharacteristics, grid: &Grid) -> Self {
         Self {
             n: match bt.north {
-                BoundaryCharacteristic::Vortex(_) => Some(ndarray::Array2::zeros((4, grid.nx()))),
+                BoundaryCharacteristic::Vortex(_) | BoundaryCharacteristic::Interpolate(_) => {
+                    Some(ndarray::Array2::zeros((4, grid.nx())))
+                }
                 _ => None,
             },
             s: match bt.south {
-                BoundaryCharacteristic::Vortex(_) => Some(ndarray::Array2::zeros((4, grid.nx()))),
+                BoundaryCharacteristic::Vortex(_) | BoundaryCharacteristic::Interpolate(_) => {
+                    Some(ndarray::Array2::zeros((4, grid.nx())))
+                }
                 _ => None,
             },
             e: match bt.east {
-                BoundaryCharacteristic::Vortex(_) => Some(ndarray::Array2::zeros((4, grid.ny()))),
+                BoundaryCharacteristic::Vortex(_) | BoundaryCharacteristic::Interpolate(_) => {
+                    Some(ndarray::Array2::zeros((4, grid.ny())))
+                }
                 _ => None,
             },
             w: match bt.west {
-                BoundaryCharacteristic::Vortex(_) => Some(ndarray::Array2::zeros((4, grid.ny()))),
+                BoundaryCharacteristic::Vortex(_) | BoundaryCharacteristic::Interpolate(_) => {
+                    Some(ndarray::Array2::zeros((4, grid.ny())))
+                }
                 _ => None,
             },
         }

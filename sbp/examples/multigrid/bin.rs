@@ -1,3 +1,4 @@
+#![feature(str_strip)]
 use sbp::utils::json_to_grids;
 use sbp::*;
 use structopt::StructOpt;
@@ -143,7 +144,7 @@ impl<T: operators::UpwindOperator> System<T> {
 
             s.scope(|s| {
                 let fields = &self.fnext;
-                let bt = euler::extract_boundaries(
+                let bt = euler::extract_boundaries::<operators::Interpolation4>(
                     &fields,
                     &mut self.bt,
                     &mut self.eb,
@@ -197,10 +198,17 @@ fn main() {
     let vortexparams = utils::json_to_vortex(json["vortex"].clone());
 
     let mut bt = Vec::with_capacity(jgrids.len());
-    let determine_bc = |dir| match dir {
+    let determine_bc = |dir: Option<&String>| match dir {
         Some(dir) => {
             if dir == "vortex" {
                 euler::BoundaryCharacteristic::Vortex(vortexparams)
+            } else if let Some(grid) = dir.strip_prefix("interpolate:") {
+                euler::BoundaryCharacteristic::Interpolate(
+                    jgrids
+                        .iter()
+                        .position(|other| other.name.as_ref().map_or(false, |name| name == grid))
+                        .unwrap(),
+                )
             } else {
                 euler::BoundaryCharacteristic::Grid(
                     jgrids
@@ -279,7 +287,7 @@ fn main() {
         bar.inc(1);
         sys.advance(dt, &pool);
     }
-    bar.finish();
+    bar.finish_and_clear();
 
     if let Some(timer) = timer {
         let duration = timer.elapsed();
@@ -288,7 +296,7 @@ fn main() {
 
     output.add_timestep(ntime, &sys.fnow);
     if opt.error {
-        let time = ntime as f64 * dt;
+        let time = ntime as Float * dt;
         let mut e = 0.0;
         for (fmod, grid) in sys.fnow.iter().zip(&sys.grids) {
             let mut fvort = fmod.clone();

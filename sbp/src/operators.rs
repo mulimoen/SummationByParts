@@ -32,6 +32,11 @@ pub trait UpwindOperator: SbpOperator {
     }
 }
 
+pub trait InterpolationOperator: Send + Sync {
+    fn fine2coarse(fine: ArrayView1<Float>, coarse: ArrayViewMut1<Float>);
+    fn coarse2fine(coarse: ArrayView1<Float>, fine: ArrayViewMut1<Float>);
+}
+
 #[macro_export]
 macro_rules! diff_op_1d {
     ($name: ident, $BLOCK: expr, $DIAG: expr) => {
@@ -95,6 +100,9 @@ mod traditional4;
 pub use traditional4::SBP4;
 mod traditional8;
 pub use traditional8::SBP8;
+
+mod interpolation;
+pub use interpolation::Interpolation4;
 
 #[cfg(test)]
 pub(crate) mod testing {
