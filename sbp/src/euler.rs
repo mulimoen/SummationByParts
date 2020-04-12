@@ -14,7 +14,7 @@ pub struct System<SBP: SbpOperator> {
     sys: (Field, Field),
     k: [Field; 4],
     wb: WorkBuffers,
-    grid: (Grid, Metrics<SBP>),
+    grid: (Grid, Metrics<SBP, SBP>),
 }
 
 impl<SBP: SbpOperator> System<SBP> {
@@ -403,7 +403,7 @@ fn pressure(gamma: Float, rho: Float, rhou: Float, rhov: Float, e: Float) -> Flo
 pub fn RHS_trad<SBP: SbpOperator>(
     k: &mut Field,
     y: &Field,
-    metrics: &Metrics<SBP>,
+    metrics: &Metrics<SBP, SBP>,
     boundaries: &BoundaryTerms,
     tmp: &mut (Field, Field, Field, Field, Field, Field),
 ) {
@@ -437,7 +437,7 @@ pub fn RHS_trad<SBP: SbpOperator>(
 pub fn RHS_upwind<UO: UpwindOperator>(
     k: &mut Field,
     y: &Field,
-    metrics: &Metrics<UO>,
+    metrics: &Metrics<UO, UO>,
     boundaries: &BoundaryTerms,
     tmp: &mut (Field, Field, Field, Field, Field, Field),
 ) {
@@ -477,7 +477,7 @@ pub fn RHS_upwind<UO: UpwindOperator>(
 fn upwind_dissipation<UO: UpwindOperator>(
     k: (&mut Field, &mut Field),
     y: &Field,
-    metrics: &Metrics<UO>,
+    metrics: &Metrics<UO, UO>,
     tmp: (&mut Field, &mut Field),
 ) {
     let n = y.nx() * y.ny();
@@ -541,7 +541,7 @@ fn upwind_dissipation<UO: UpwindOperator>(
     UO::disseta(tmp.1.e(), k.1.e_mut());
 }
 
-fn fluxes<SBP: SbpOperator>(k: (&mut Field, &mut Field), y: &Field, metrics: &Metrics<SBP>) {
+fn fluxes<SBP: SbpOperator>(k: (&mut Field, &mut Field), y: &Field, metrics: &Metrics<SBP, SBP>) {
     let j_dxi_dx = metrics.detj_dxi_dx.view();
     let j_dxi_dy = metrics.detj_dxi_dy.view();
     let j_deta_dx = metrics.detj_deta_dx.view();
@@ -815,7 +815,7 @@ fn vortexify(
 fn SAT_characteristics<SBP: SbpOperator>(
     k: &mut Field,
     y: &Field,
-    metrics: &Metrics<SBP>,
+    metrics: &Metrics<SBP, SBP>,
     boundaries: &BoundaryTerms,
 ) {
     // North boundary

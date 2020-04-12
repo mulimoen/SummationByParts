@@ -8,9 +8,10 @@ pub struct Grid {
 }
 
 #[derive(Debug, Clone)]
-pub struct Metrics<SBP>
+pub struct Metrics<SBPeta, SBPxi>
 where
-    SBP: super::operators::SbpOperator,
+    SBPeta: super::operators::SbpOperator,
+    SBPxi: super::operators::SbpOperator,
 {
     pub(crate) detj: Array2<Float>,
     pub(crate) detj_dxi_dx: Array2<Float>,
@@ -18,7 +19,8 @@ where
     pub(crate) detj_deta_dx: Array2<Float>,
     pub(crate) detj_deta_dy: Array2<Float>,
 
-    operator: std::marker::PhantomData<SBP>,
+    operatoreta: std::marker::PhantomData<SBPeta>,
+    operatorxi: std::marker::PhantomData<SBPxi>,
 }
 
 impl Grid {
@@ -41,9 +43,9 @@ impl Grid {
         self.y.view()
     }
 
-    pub fn metrics<SBP: super::operators::SbpOperator>(
+    pub fn metrics<SBPx: super::operators::SbpOperator, SBPy: super::operators::SbpOperator>(
         &self,
-    ) -> Result<Metrics<SBP>, ndarray::ShapeError> {
+    ) -> Result<Metrics<SBPx, SBPy>, ndarray::ShapeError> {
         Metrics::new(self)
     }
 
@@ -73,7 +75,9 @@ impl Grid {
     }
 }
 
-impl<SBP: super::operators::SbpOperator> Metrics<SBP> {
+impl<SBPeta: super::operators::SbpOperator, SBPxi: super::operators::SbpOperator>
+    Metrics<SBPeta, SBPxi>
+{
     fn new(grid: &Grid) -> Result<Self, ndarray::ShapeError> {
         let ny = grid.ny();
         let nx = grid.nx();
@@ -81,13 +85,13 @@ impl<SBP: super::operators::SbpOperator> Metrics<SBP> {
         let y = &grid.y;
 
         let mut dx_dxi = Array2::zeros((ny, nx));
-        SBP::diffxi(x.view(), dx_dxi.view_mut());
+        SBPxi::diffxi(x.view(), dx_dxi.view_mut());
         let mut dx_deta = Array2::zeros((ny, nx));
-        SBP::diffeta(x.view(), dx_deta.view_mut());
+        SBPeta::diffeta(x.view(), dx_deta.view_mut());
         let mut dy_dxi = Array2::zeros((ny, nx));
-        SBP::diffxi(y.view(), dy_dxi.view_mut());
+        SBPxi::diffxi(y.view(), dy_dxi.view_mut());
         let mut dy_deta = Array2::zeros((ny, nx));
-        SBP::diffeta(y.view(), dy_deta.view_mut());
+        SBPeta::diffeta(y.view(), dy_deta.view_mut());
 
         let mut detj = Array2::zeros((ny, nx));
         ndarray::azip!((detj in &mut detj,
@@ -118,7 +122,8 @@ impl<SBP: super::operators::SbpOperator> Metrics<SBP> {
             detj_dxi_dy,
             detj_deta_dx,
             detj_deta_dy,
-            operator: std::marker::PhantomData,
+            operatorxi: std::marker::PhantomData,
+            operatoreta: std::marker::PhantomData,
         })
     }
 }

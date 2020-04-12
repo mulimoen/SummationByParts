@@ -78,7 +78,7 @@ pub struct System<SBP: SbpOperator> {
     sys: (Field, Field),
     wb: WorkBuffers,
     grid: Grid,
-    metrics: Metrics<SBP>,
+    metrics: Metrics<SBP, SBP>,
 }
 
 impl<SBP: SbpOperator> System<SBP> {
@@ -119,7 +119,7 @@ impl<SBP: SbpOperator> System<SBP> {
             fut: &mut Field,
             prev: &Field,
             _time: Float,
-            c: &(&Grid, &Metrics<SBP>),
+            c: &(&Grid, &Metrics<SBP, SBP>),
             m: &mut (Array2<Float>, Array2<Float>, Array2<Float>, Array2<Float>),
         ) {
             let (grid, metrics) = c;
@@ -147,7 +147,7 @@ impl<UO: UpwindOperator> System<UO> {
             fut: &mut Field,
             prev: &Field,
             _time: Float,
-            c: &(&Grid, &Metrics<UO>),
+            c: &(&Grid, &Metrics<UO, UO>),
             m: &mut (Array2<Float>, Array2<Float>, Array2<Float>, Array2<Float>),
         ) {
             let (grid, metrics) = c;
@@ -199,7 +199,7 @@ fn RHS<SBP: SbpOperator>(
     k: &mut Field,
     y: &Field,
     _grid: &Grid,
-    metrics: &Metrics<SBP>,
+    metrics: &Metrics<SBP, SBP>,
     tmp: &mut (Array2<Float>, Array2<Float>, Array2<Float>, Array2<Float>),
 ) {
     fluxes(k, y, metrics, tmp);
@@ -223,7 +223,7 @@ fn RHS_upwind<UO: UpwindOperator>(
     k: &mut Field,
     y: &Field,
     _grid: &Grid,
-    metrics: &Metrics<UO>,
+    metrics: &Metrics<UO, UO>,
     tmp: &mut (Array2<Float>, Array2<Float>, Array2<Float>, Array2<Float>),
 ) {
     fluxes(k, y, metrics, tmp);
@@ -246,7 +246,7 @@ fn RHS_upwind<UO: UpwindOperator>(
 fn fluxes<SBP: SbpOperator>(
     k: &mut Field,
     y: &Field,
-    metrics: &Metrics<SBP>,
+    metrics: &Metrics<SBP, SBP>,
     tmp: &mut (Array2<Float>, Array2<Float>, Array2<Float>, Array2<Float>),
 ) {
     // ex = hz_y
@@ -320,7 +320,7 @@ fn fluxes<SBP: SbpOperator>(
 fn dissipation<UO: UpwindOperator>(
     k: &mut Field,
     y: &Field,
-    metrics: &Metrics<UO>,
+    metrics: &Metrics<UO, UO>,
     tmp: &mut (Array2<Float>, Array2<Float>, Array2<Float>, Array2<Float>),
 ) {
     // ex component
@@ -421,7 +421,7 @@ pub struct BoundaryTerms {
 fn SAT_characteristics<SBP: SbpOperator>(
     k: &mut Field,
     y: &Field,
-    metrics: &Metrics<SBP>,
+    metrics: &Metrics<SBP, SBP>,
     boundaries: &BoundaryTerms,
 ) {
     let ny = y.ny();

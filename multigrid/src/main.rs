@@ -16,11 +16,11 @@ struct System {
 }
 
 enum Metrics {
-    Upwind4(grid::Metrics<operators::Upwind4>),
-    Upwind9(grid::Metrics<operators::Upwind9>),
-    Upwind4h2(grid::Metrics<operators::Upwind4h2>),
-    Trad4(grid::Metrics<operators::SBP4>),
-    Trad8(grid::Metrics<operators::SBP8>),
+    Upwind4(grid::Metrics<operators::Upwind4, operators::Upwind4>),
+    Upwind9(grid::Metrics<operators::Upwind9, operators::Upwind9>),
+    Upwind4h2(grid::Metrics<operators::Upwind4h2, operators::Upwind4h2>),
+    Trad4(grid::Metrics<operators::SBP4, operators::SBP4>),
+    Trad8(grid::Metrics<operators::SBP8, operators::SBP8>),
 }
 
 impl System {
@@ -42,11 +42,20 @@ impl System {
         let metrics = grids
             .iter()
             .map(|g| match operator {
-                "upwind4" => Metrics::Upwind4(g.metrics::<operators::Upwind4>().unwrap()),
-                "upwind9" => Metrics::Upwind9(g.metrics::<operators::Upwind9>().unwrap()),
-                "upwind4h2" => Metrics::Upwind4h2(g.metrics::<operators::Upwind4h2>().unwrap()),
-                "trad4" => Metrics::Trad4(g.metrics::<operators::SBP4>().unwrap()),
-                "trad8" => Metrics::Trad8(g.metrics::<operators::SBP8>().unwrap()),
+                "upwind4" => Metrics::Upwind4(
+                    g.metrics::<operators::Upwind4, operators::Upwind4>()
+                        .unwrap(),
+                ),
+                "upwind9" => Metrics::Upwind9(
+                    g.metrics::<operators::Upwind9, operators::Upwind9>()
+                        .unwrap(),
+                ),
+                "upwind4h2" => Metrics::Upwind4h2(
+                    g.metrics::<operators::Upwind4h2, operators::Upwind4h2>()
+                        .unwrap(),
+                ),
+                "trad4" => Metrics::Trad4(g.metrics::<operators::SBP4, operators::SBP4>().unwrap()),
+                "trad8" => Metrics::Trad8(g.metrics::<operators::SBP8, operators::SBP8>().unwrap()),
                 op => panic!("operator {} not known", op),
             })
             .collect::<Vec<_>>();
