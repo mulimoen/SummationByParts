@@ -400,7 +400,7 @@ fn pressure(gamma: Float, rho: Float, rhou: Float, rhov: Float, e: Float) -> Flo
 }
 
 #[allow(non_snake_case)]
-pub(crate) fn RHS_trad<SBP: SbpOperator>(
+pub fn RHS_trad<SBP: SbpOperator>(
     k: &mut Field,
     y: &Field,
     metrics: &Metrics<SBP>,

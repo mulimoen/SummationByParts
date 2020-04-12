@@ -3,20 +3,32 @@ use sbp::utils::json_to_grids;
 use sbp::*;
 use structopt::StructOpt;
 
-struct System<T: operators::UpwindOperator> {
+struct System {
     fnow: Vec<euler::Field>,
     fnext: Vec<euler::Field>,
     wb: Vec<euler::WorkBuffers>,
     k: [Vec<euler::Field>; 4],
     grids: Vec<grid::Grid>,
-    metrics: Vec<grid::Metrics<T>>,
+    metrics: Vec<Metrics>,
     bt: Vec<euler::BoundaryCharacteristics>,
     eb: Vec<euler::BoundaryStorage>,
     time: Float,
 }
 
-impl<T: operators::UpwindOperator> System<T> {
-    fn new(grids: Vec<grid::Grid>, bt: Vec<euler::BoundaryCharacteristics>) -> Self {
+enum Metrics {
+    Upwind4(grid::Metrics<operators::Upwind4>),
+    Upwind9(grid::Metrics<operators::Upwind9>),
+    Upwind4h2(grid::Metrics<operators::Upwind4h2>),
+    Trad4(grid::Metrics<operators::SBP4>),
+    Trad8(grid::Metrics<operators::SBP8>),
+}
+
+impl System {
+    fn new(
+        grids: Vec<grid::Grid>,
+        bt: Vec<euler::BoundaryCharacteristics>,
+        operator: &str,
+    ) -> Self {
         let fnow = grids
             .iter()
             .map(|g| euler::Field::new(g.ny(), g.nx()))
@@ -27,7 +39,18 @@ impl<T: operators::UpwindOperator> System<T> {
             .map(|g| euler::WorkBuffers::new(g.ny(), g.nx()))
             .collect();
         let k = [fnow.clone(), fnow.clone(), fnow.clone(), fnow.clone()];
-        let metrics = grids.iter().map(|g| g.metrics().unwrap()).collect();
+        let metrics = grids
+            .iter()
+            .map(|g| match operator {
+                "upwind4" => Metrics::Upwind4(g.metrics::<operators::Upwind4>().unwrap()),
+                "upwind9" => Metrics::Upwind9(g.metrics::<operators::Upwind9>().unwrap()),
+                "upwind4h2" => Metrics::Upwind4h2(g.metrics::<operators::Upwind4h2>().unwrap()),
+                "trad4" => Metrics::Trad4(g.metrics::<operators::SBP4>().unwrap()),
+                "trad8" => Metrics::Trad8(g.metrics::<operators::SBP8>().unwrap()),
+                op => panic!("operator {} not known", op),
+            })
+            .collect::<Vec<_>>();
+
         let eb = bt
             .iter()
             .zip(&grids)
@@ -58,16 +81,13 @@ impl<T: operators::UpwindOperator> System<T> {
             &'a mut [euler::WorkBuffers],
             &'a mut [euler::BoundaryStorage],
         );
+        let metrics = &self.metrics;
         let rhs = move |fut: &mut [euler::Field],
                         prev: &[euler::Field],
                         time: Float,
-                        c: &(
-            &[grid::Grid],
-            &[grid::Metrics<_>],
-            &[euler::BoundaryCharacteristics],
-        ),
+                        c: &(&[grid::Grid], &[euler::BoundaryCharacteristics]),
                         mt: &mut MT| {
-            let (grids, metrics, bt) = c;
+            let (grids, bt) = c;
             let (wb, eb) = mt;
 
             let bc = euler::extract_boundaries::<operators::Interpolation4>(
@@ -81,10 +101,27 @@ impl<T: operators::UpwindOperator> System<T> {
                     .zip(wb.iter_mut())
                     .zip(metrics.iter())
                 {
-                    s.spawn(move |_| euler::RHS_upwind(fut, prev, metrics, &bc, &mut wb.0));
+                    s.spawn(move |_| match metrics {
+                        Metrics::Upwind4(metrics) => {
+                            euler::RHS_upwind(fut, prev, metrics, &bc, &mut wb.0)
+                        }
+                        Metrics::Upwind9(metrics) => {
+                            euler::RHS_upwind(fut, prev, metrics, &bc, &mut wb.0)
+                        }
+                        Metrics::Upwind4h2(metrics) => {
+                            euler::RHS_upwind(fut, prev, metrics, &bc, &mut wb.0)
+                        }
+                        Metrics::Trad4(metrics) => {
+                            euler::RHS_trad(fut, prev, metrics, &bc, &mut wb.0)
+                        }
+                        Metrics::Trad8(metrics) => {
+                            euler::RHS_trad(fut, prev, metrics, &bc, &mut wb.0)
+                        }
+                    });
                 }
             });
         };
+
         let mut k = self
             .k
             .iter_mut()
@@ -97,7 +134,7 @@ impl<T: operators::UpwindOperator> System<T> {
             &mut self.time,
             dt,
             &mut k,
-            &(&self.grids, &self.metrics, &self.bt),
+            &(&self.grids, &self.bt),
             &mut (&mut self.wb, &mut self.eb),
             pool,
         );
@@ -173,7 +210,9 @@ fn main() {
 
     let integration_time: Float = json["integration_time"].as_number().unwrap().into();
 
-    let mut sys = System::<SBP>::new(grids, bt);
+    let operator = json["operator"].as_str().unwrap_or("upwind4");
+
+    let mut sys = System::new(grids, bt, operator);
     sys.vortex(0.0, vortexparams);
 
     let max_n = {
