@@ -294,18 +294,19 @@ pub fn json_to_vortex(mut json: JsonValue) -> super::euler::VortexParameters {
 }
 
 pub fn h2linspace(start: Float, end: Float, n: usize) -> ndarray::Array1<Float> {
-    let h = 1.0 / (n - 2) as Float;
+    let h = (end - start) / (n - 2) as Float;
     ndarray::Array1::from_shape_fn(n, |i| match i {
         0 => start,
         i if i == n - 1 => end,
-        i => h * (i as Float - 0.5),
+        i => start + h * (i as Float - 0.5),
     })
 }
 
 #[test]
 fn test_h2linspace() {
-    let x = h2linspace(0.0, 1.0, 50);
-    approx::assert_abs_diff_eq!(x[0], 0.0, epsilon = 1e-6);
+    let x = h2linspace(-1.0, 1.0, 50);
+    println!("{}", x);
+    approx::assert_abs_diff_eq!(x[0], -1.0, epsilon = 1e-6);
     approx::assert_abs_diff_eq!(x[49], 1.0, epsilon = 1e-6);
     let hend = x[1] - x[0];
     let h = x[2] - x[1];
