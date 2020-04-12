@@ -6,14 +6,7 @@ use structopt::StructOpt;
 struct System<T: operators::UpwindOperator> {
     fnow: Vec<euler::Field>,
     fnext: Vec<euler::Field>,
-    wb: Vec<(
-        euler::Field,
-        euler::Field,
-        euler::Field,
-        euler::Field,
-        euler::Field,
-        euler::Field,
-    )>,
+    wb: Vec<euler::WorkBuffers>,
     k: [Vec<euler::Field>; 4],
     grids: Vec<grid::Grid>,
     metrics: Vec<grid::Metrics<T>>,
@@ -31,10 +24,7 @@ impl<T: operators::UpwindOperator> System<T> {
         let fnext = fnow.clone();
         let wb = grids
             .iter()
-            .map(|g| {
-                let f = euler::Field::new(g.ny(), g.nx());
-                (f.clone(), f.clone(), f.clone(), f.clone(), f.clone(), f)
-            })
+            .map(|g| euler::WorkBuffers::new(g.ny(), g.nx()))
             .collect();
         let k = [fnow.clone(), fnow.clone(), fnow.clone(), fnow.clone()];
         let metrics = grids.iter().map(|g| g.metrics().unwrap()).collect();
@@ -65,14 +55,7 @@ impl<T: operators::UpwindOperator> System<T> {
 
     fn advance(&mut self, dt: Float, pool: &rayon::ThreadPool) {
         type MT<'a> = (
-            &'a mut [(
-                euler::Field,
-                euler::Field,
-                euler::Field,
-                euler::Field,
-                euler::Field,
-                euler::Field,
-            )],
+            &'a mut [euler::WorkBuffers],
             &'a mut [euler::BoundaryStorage],
         );
         let rhs = move |fut: &mut [euler::Field],
@@ -98,7 +81,7 @@ impl<T: operators::UpwindOperator> System<T> {
                     .zip(wb.iter_mut())
                     .zip(metrics.iter())
                 {
-                    s.spawn(move |_| euler::RHS_upwind(fut, prev, metrics, &bc, wb));
+                    s.spawn(move |_| euler::RHS_upwind(fut, prev, metrics, &bc, &mut wb.0));
                 }
             });
         };

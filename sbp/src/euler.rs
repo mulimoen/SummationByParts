@@ -12,6 +12,7 @@ pub const GAMMA: Float = 1.4;
 #[derive(Debug)]
 pub struct System<SBP: SbpOperator> {
     sys: (Field, Field),
+    k: [Field; 4],
     wb: WorkBuffers,
     grid: (Grid, Metrics<SBP>),
 }
@@ -27,6 +28,12 @@ impl<SBP: SbpOperator> System<SBP> {
         Self {
             sys: (Field::new(ny, nx), Field::new(ny, nx)),
             grid: (grid, metrics),
+            k: [
+                Field::new(ny, nx),
+                Field::new(ny, nx),
+                Field::new(ny, nx),
+                Field::new(ny, nx),
+            ],
             wb: WorkBuffers::new(ny, nx),
         }
     }
@@ -49,9 +56,9 @@ impl<SBP: SbpOperator> System<SBP> {
             &mut self.sys.1,
             &mut 0.0,
             dt,
-            &mut self.wb.k,
+            &mut self.k,
             &self.grid,
-            &mut self.wb.tmp,
+            &mut self.wb.0,
         );
         std::mem::swap(&mut self.sys.0, &mut self.sys.1);
     }
@@ -109,9 +116,9 @@ impl<UO: UpwindOperator> System<UO> {
             &mut self.sys.1,
             &mut 0.0,
             dt,
-            &mut self.wb.k,
+            &mut self.k,
             &self.grid,
-            &mut self.wb.tmp,
+            &mut self.wb.0,
         );
         std::mem::swap(&mut self.sys.0, &mut self.sys.1);
     }
@@ -1008,24 +1015,18 @@ fn SAT_characteristic(
 }
 
 #[derive(Debug)]
-pub struct WorkBuffers {
-    k: [Field; 4],
-    tmp: (Field, Field, Field, Field, Field, Field),
-}
+pub struct WorkBuffers(pub (Field, Field, Field, Field, Field, Field));
 
 impl WorkBuffers {
     pub fn new(nx: usize, ny: usize) -> Self {
         let arr3 = Field::new(nx, ny);
-        Self {
-            k: [arr3.clone(), arr3.clone(), arr3.clone(), arr3.clone()],
-            tmp: (
-                arr3.clone(),
-                arr3.clone(),
-                arr3.clone(),
-                arr3.clone(),
-                arr3.clone(),
-                arr3,
-            ),
-        }
+        Self((
+            arr3.clone(),
+            arr3.clone(),
+            arr3.clone(),
+            arr3.clone(),
+            arr3.clone(),
+            arr3,
+        ))
     }
 }
