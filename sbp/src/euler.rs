@@ -400,10 +400,10 @@ fn pressure(gamma: Float, rho: Float, rhou: Float, rhov: Float, e: Float) -> Flo
 }
 
 #[allow(non_snake_case)]
-pub fn RHS_trad<SBP: SbpOperator>(
+pub fn RHS_trad<SBPeta: SbpOperator, SBPxi: SbpOperator>(
     k: &mut Field,
     y: &Field,
-    metrics: &Metrics<SBP, SBP>,
+    metrics: &Metrics<SBPeta, SBPxi>,
     boundaries: &BoundaryTerms,
     tmp: &mut (Field, Field, Field, Field, Field, Field),
 ) {
@@ -413,15 +413,15 @@ pub fn RHS_trad<SBP: SbpOperator>(
     let dE = &mut tmp.2;
     let dF = &mut tmp.3;
 
-    SBP::diffxi(ehat.rho(), dE.rho_mut());
-    SBP::diffxi(ehat.rhou(), dE.rhou_mut());
-    SBP::diffxi(ehat.rhov(), dE.rhov_mut());
-    SBP::diffxi(ehat.e(), dE.e_mut());
+    SBPxi::diffxi(ehat.rho(), dE.rho_mut());
+    SBPxi::diffxi(ehat.rhou(), dE.rhou_mut());
+    SBPxi::diffxi(ehat.rhov(), dE.rhov_mut());
+    SBPxi::diffxi(ehat.e(), dE.e_mut());
 
-    SBP::diffeta(fhat.rho(), dF.rho_mut());
-    SBP::diffeta(fhat.rhou(), dF.rhou_mut());
-    SBP::diffeta(fhat.rhov(), dF.rhov_mut());
-    SBP::diffeta(fhat.e(), dF.e_mut());
+    SBPeta::diffeta(fhat.rho(), dF.rho_mut());
+    SBPeta::diffeta(fhat.rhou(), dF.rhou_mut());
+    SBPeta::diffeta(fhat.rhov(), dF.rhov_mut());
+    SBPeta::diffeta(fhat.e(), dF.e_mut());
 
     azip!((out in &mut k.0,
                     eflux in &dE.0,
@@ -430,14 +430,14 @@ pub fn RHS_trad<SBP: SbpOperator>(
         *out = (-eflux - fflux)/detj
     });
 
-    SAT_characteristics(k, y, metrics, boundaries);
+    SAT_characteristics::<SBPeta, SBPxi>(k, y, metrics, boundaries);
 }
 
 #[allow(non_snake_case)]
-pub fn RHS_upwind<UO: UpwindOperator>(
+pub fn RHS_upwind<UOeta: UpwindOperator, UOxi: UpwindOperator>(
     k: &mut Field,
     y: &Field,
-    metrics: &Metrics<UO, UO>,
+    metrics: &Metrics<UOeta, UOxi>,
     boundaries: &BoundaryTerms,
     tmp: &mut (Field, Field, Field, Field, Field, Field),
 ) {
@@ -447,19 +447,19 @@ pub fn RHS_upwind<UO: UpwindOperator>(
     let dE = &mut tmp.2;
     let dF = &mut tmp.3;
 
-    UO::diffxi(ehat.rho(), dE.rho_mut());
-    UO::diffxi(ehat.rhou(), dE.rhou_mut());
-    UO::diffxi(ehat.rhov(), dE.rhov_mut());
-    UO::diffxi(ehat.e(), dE.e_mut());
+    UOxi::diffxi(ehat.rho(), dE.rho_mut());
+    UOxi::diffxi(ehat.rhou(), dE.rhou_mut());
+    UOxi::diffxi(ehat.rhov(), dE.rhov_mut());
+    UOxi::diffxi(ehat.e(), dE.e_mut());
 
-    UO::diffeta(fhat.rho(), dF.rho_mut());
-    UO::diffeta(fhat.rhou(), dF.rhou_mut());
-    UO::diffeta(fhat.rhov(), dF.rhov_mut());
-    UO::diffeta(fhat.e(), dF.e_mut());
+    UOeta::diffeta(fhat.rho(), dF.rho_mut());
+    UOeta::diffeta(fhat.rhou(), dF.rhou_mut());
+    UOeta::diffeta(fhat.rhov(), dF.rhov_mut());
+    UOeta::diffeta(fhat.e(), dF.e_mut());
 
     let ad_xi = &mut tmp.4;
     let ad_eta = &mut tmp.5;
-    upwind_dissipation((ad_xi, ad_eta), y, metrics, (&mut tmp.0, &mut tmp.1));
+    upwind_dissipation::<UOeta, UOxi>((ad_xi, ad_eta), y, metrics, (&mut tmp.0, &mut tmp.1));
 
     azip!((out in &mut k.0,
                     eflux in &dE.0,
@@ -470,14 +470,14 @@ pub fn RHS_upwind<UO: UpwindOperator>(
         *out = (-eflux - fflux + ad_xi + ad_eta)/detj
     });
 
-    SAT_characteristics(k, y, metrics, boundaries);
+    SAT_characteristics::<UOeta, UOxi>(k, y, metrics, boundaries);
 }
 
 #[allow(clippy::many_single_char_names)]
-fn upwind_dissipation<UO: UpwindOperator>(
+fn upwind_dissipation<UOeta: UpwindOperator, UOxi: UpwindOperator>(
     k: (&mut Field, &mut Field),
     y: &Field,
-    metrics: &Metrics<UO, UO>,
+    metrics: &Metrics<UOeta, UOxi>,
     tmp: (&mut Field, &mut Field),
 ) {
     let n = y.nx() * y.ny();
@@ -530,18 +530,22 @@ fn upwind_dissipation<UO: UpwindOperator>(
         tmp1[3] = alpha_v * e * detj;
     }
 
-    UO::dissxi(tmp.0.rho(), k.0.rho_mut());
-    UO::dissxi(tmp.0.rhou(), k.0.rhou_mut());
-    UO::dissxi(tmp.0.rhov(), k.0.rhov_mut());
-    UO::dissxi(tmp.0.e(), k.0.e_mut());
+    UOxi::dissxi(tmp.0.rho(), k.0.rho_mut());
+    UOxi::dissxi(tmp.0.rhou(), k.0.rhou_mut());
+    UOxi::dissxi(tmp.0.rhov(), k.0.rhov_mut());
+    UOxi::dissxi(tmp.0.e(), k.0.e_mut());
 
-    UO::disseta(tmp.1.rho(), k.1.rho_mut());
-    UO::disseta(tmp.1.rhou(), k.1.rhou_mut());
-    UO::disseta(tmp.1.rhov(), k.1.rhov_mut());
-    UO::disseta(tmp.1.e(), k.1.e_mut());
+    UOeta::disseta(tmp.1.rho(), k.1.rho_mut());
+    UOeta::disseta(tmp.1.rhou(), k.1.rhou_mut());
+    UOeta::disseta(tmp.1.rhov(), k.1.rhov_mut());
+    UOeta::disseta(tmp.1.e(), k.1.e_mut());
 }
 
-fn fluxes<SBP: SbpOperator>(k: (&mut Field, &mut Field), y: &Field, metrics: &Metrics<SBP, SBP>) {
+fn fluxes<SBP1: SbpOperator, SBP2: SbpOperator>(
+    k: (&mut Field, &mut Field),
+    y: &Field,
+    metrics: &Metrics<SBP1, SBP2>,
+) {
     let j_dxi_dx = metrics.detj_dxi_dx.view();
     let j_dxi_dy = metrics.detj_dxi_dy.view();
     let j_deta_dx = metrics.detj_deta_dx.view();
@@ -812,18 +816,18 @@ fn vortexify(
 
 #[allow(non_snake_case)]
 /// Boundary conditions (SAT)
-fn SAT_characteristics<SBP: SbpOperator>(
+fn SAT_characteristics<SBPeta: SbpOperator, SBPxi: SbpOperator>(
     k: &mut Field,
     y: &Field,
-    metrics: &Metrics<SBP, SBP>,
+    metrics: &Metrics<SBPeta, SBPxi>,
     boundaries: &BoundaryTerms,
 ) {
     // North boundary
     {
-        let hi = if SBP::is_h2() {
-            (k.ny() - 2) as Float / SBP::h()[0]
+        let hi = if SBPeta::is_h2() {
+            (k.ny() - 2) as Float / SBPeta::h()[0]
         } else {
-            (k.ny() - 1) as Float / SBP::h()[0]
+            (k.ny() - 1) as Float / SBPeta::h()[0]
         };
         let sign = -1.0;
         let tau = 1.0;
@@ -842,10 +846,10 @@ fn SAT_characteristics<SBP: SbpOperator>(
     }
     // South boundary
     {
-        let hi = if SBP::is_h2() {
-            (k.ny() - 2) as Float / SBP::h()[0]
+        let hi = if SBPeta::is_h2() {
+            (k.ny() - 2) as Float / SBPeta::h()[0]
         } else {
-            (k.ny() - 1) as Float / SBP::h()[0]
+            (k.ny() - 1) as Float / SBPeta::h()[0]
         };
         let sign = 1.0;
         let tau = -1.0;
@@ -864,10 +868,10 @@ fn SAT_characteristics<SBP: SbpOperator>(
     }
     // West Boundary
     {
-        let hi = if SBP::is_h2() {
-            (k.nx() - 2) as Float / SBP::h()[0]
+        let hi = if SBPxi::is_h2() {
+            (k.nx() - 2) as Float / SBPxi::h()[0]
         } else {
-            (k.nx() - 1) as Float / SBP::h()[0]
+            (k.nx() - 1) as Float / SBPxi::h()[0]
         };
         let sign = 1.0;
         let tau = -1.0;
@@ -886,10 +890,10 @@ fn SAT_characteristics<SBP: SbpOperator>(
     }
     // East Boundary
     {
-        let hi = if SBP::is_h2() {
-            (k.nx() - 2) as Float / SBP::h()[0]
+        let hi = if SBPxi::is_h2() {
+            (k.nx() - 2) as Float / SBPxi::h()[0]
         } else {
-            (k.nx() - 1) as Float / SBP::h()[0]
+            (k.nx() - 1) as Float / SBPxi::h()[0]
         };
         let sign = -1.0;
         let tau = 1.0;
