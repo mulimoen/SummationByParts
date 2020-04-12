@@ -140,3 +140,83 @@ pub fn integrate<'a, BTableau, F: 'a, RHS, MT, C>(
         rhs(&mut k[i], &fut, simtime, constants, &mut mutables);
     }
 }
+
+#[cfg(feature = "rayon")]
+pub fn integrate_multigrid<'a, BTableau, F: 'a, RHS, MT, C>(
+    rhs: RHS,
+    prev: &[F],
+    fut: &mut [F],
+    time: &mut Float,
+    dt: Float,
+    k: &mut [&mut [F]],
+
+    constants: C,
+    mut mutables: &mut MT,
+    pool: &rayon::ThreadPool,
+) where
+    C: Copy,
+    F: std::ops::Deref<Target = Array3<Float>>
+        + std::ops::DerefMut<Target = Array3<Float>>
+        + Send
+        + Sync,
+    RHS: Fn(&mut [F], &[F], Float, C, &mut MT),
+    BTableau: ButcherTableau,
+{
+    for i in 0.. {
+        let simtime;
+        match i {
+            0 => {
+                pool.scope(|s| {
+                    assert!(k.len() >= BTableau::S);
+                    for (prev, fut) in prev.iter().zip(fut.iter_mut()) {
+                        s.spawn(move |_| {
+                            assert_eq!(prev.shape(), fut.shape());
+                            fut.assign(prev);
+                        });
+                    }
+                });
+                simtime = *time;
+            }
+            i if i < BTableau::S => {
+                pool.scope(|s| {
+                    for (ig, (prev, fut)) in prev.iter().zip(fut.iter_mut()).enumerate() {
+                        let k = &k;
+                        s.spawn(move |_| {
+                            fut.assign(prev);
+                            for (ik, &a) in BTableau::A[i - 1].iter().enumerate() {
+                                if a == 0.0 {
+                                    continue;
+                                }
+                                fut.scaled_add(a * dt, &k[ik][ig]);
+                            }
+                        });
+                    }
+                });
+                simtime = *time + dt * BTableau::C[i - 1];
+            }
+            _ if i == BTableau::S => {
+                pool.scope(|s| {
+                    for (ig, (prev, fut)) in prev.iter().zip(fut.iter_mut()).enumerate() {
+                        let k = &k;
+                        s.spawn(move |_| {
+                            fut.assign(prev);
+                            for (ik, &b) in BTableau::B.iter().enumerate() {
+                                if b == 0.0 {
+                                    continue;
+                                }
+                                fut.scaled_add(b * dt, &k[ik][ig]);
+                            }
+                        });
+                    }
+                });
+                *time += dt;
+                return;
+            }
+            _ => {
+                unreachable!();
+            }
+        };
+
+        rhs(&mut k[i], &fut, simtime, constants, &mut mutables);
+    }
+}

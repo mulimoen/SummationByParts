@@ -63,105 +63,62 @@ impl<T: operators::UpwindOperator> System<T> {
         }
     }
 
-    fn advance(&mut self, dt: Float, s: &rayon::ThreadPool) {
-        for i in 0.. {
-            let time;
-            match i {
-                0 => {
-                    s.scope(|s| {
-                        for (prev, fut) in self.fnow.iter().zip(self.fnext.iter_mut()) {
-                            s.spawn(move |_| {
-                                fut.assign(prev);
-                            });
-                        }
-                    });
-                    time = self.time;
-                }
-                1 | 2 => {
-                    s.scope(|s| {
-                        for ((prev, fut), k) in self
-                            .fnow
-                            .iter()
-                            .zip(self.fnext.iter_mut())
-                            .zip(&self.k[i - 1])
-                        {
-                            s.spawn(move |_| {
-                                fut.assign(prev);
-                                fut.scaled_add(1.0 / 2.0 * dt, k);
-                            });
-                        }
-                    });
-                    time = self.time + dt / 2.0;
-                }
-                3 => {
-                    s.scope(|s| {
-                        for ((prev, fut), k) in self
-                            .fnow
-                            .iter()
-                            .zip(self.fnext.iter_mut())
-                            .zip(&self.k[i - 1])
-                        {
-                            s.spawn(move |_| {
-                                fut.assign(prev);
-                                fut.scaled_add(dt, k);
-                            });
-                        }
-                    });
-                    time = self.time + dt;
-                }
-                4 => {
-                    s.scope(|s| {
-                        for (((((prev, fut), k0), k1), k2), k3) in self
-                            .fnow
-                            .iter()
-                            .zip(self.fnext.iter_mut())
-                            .zip(&self.k[0])
-                            .zip(&self.k[1])
-                            .zip(&self.k[2])
-                            .zip(&self.k[3])
-                        {
-                            s.spawn(move |_| {
-                                ndarray::Zip::from(&mut **fut)
-                                    .and(&**prev)
-                                    .and(&**k0)
-                                    .and(&**k1)
-                                    .and(&**k2)
-                                    .and(&**k3)
-                                    .apply(|y1, &y0, &k1, &k2, &k3, &k4| {
-                                        *y1 = y0 + dt / 6.0 * (k1 + 2.0 * k2 + 2.0 * k3 + k4)
-                                    });
-                            });
-                        }
-                    });
-                    std::mem::swap(&mut self.fnext, &mut self.fnow);
-                    self.time += dt;
-                    return;
-                }
-                _ => {
-                    unreachable!();
-                }
-            }
+    fn advance(&mut self, dt: Float, pool: &rayon::ThreadPool) {
+        let rhs = move |fut: &mut [euler::Field],
+                        prev: &[euler::Field],
+                        time: Float,
+                        c: &(
+            &[grid::Grid],
+            &[grid::Metrics<_>],
+            &[euler::BoundaryCharacteristics],
+        ),
+                        mt: &mut (
+            &mut [(
+                euler::Field,
+                euler::Field,
+                euler::Field,
+                euler::Field,
+                euler::Field,
+                euler::Field,
+            )],
+            &mut [euler::BoundaryStorage],
+        )| {
+            let (grids, metrics, bt) = c;
+            let (wb, eb) = mt;
 
-            s.scope(|s| {
-                let fields = &self.fnext;
-                let bt = euler::extract_boundaries::<operators::Interpolation4>(
-                    &fields,
-                    &mut self.bt,
-                    &mut self.eb,
-                    &self.grids,
-                    time,
-                );
-                for ((((prev, fut), metrics), wb), bt) in fields
-                    .iter()
-                    .zip(&mut self.k[i])
-                    .zip(&self.metrics)
-                    .zip(&mut self.wb)
-                    .zip(bt)
+            let bc = euler::extract_boundaries::<operators::Interpolation4>(
+                prev, *bt, *eb, *grids, time,
+            );
+            pool.scope(|s| {
+                for ((((fut, prev), bc), wb), metrics) in fut
+                    .iter_mut()
+                    .zip(prev.iter())
+                    .zip(bc)
+                    .zip(wb.iter_mut())
+                    .zip(metrics.iter())
                 {
-                    s.spawn(move |_| euler::RHS_upwind(fut, prev, metrics, &bt, wb));
+                    s.spawn(move |_| euler::RHS_upwind(fut, prev, metrics, &bc, wb));
                 }
             });
-        }
+        };
+        let mut k = self
+            .k
+            .iter_mut()
+            .map(|k| k.as_mut_slice())
+            .collect::<Vec<_>>();
+        sbp::integrate::integrate_multigrid::<sbp::integrate::Rk4, _, _, _, _>(
+            rhs,
+            &self.fnow,
+            &mut self.fnext,
+            &mut self.time,
+            dt,
+            &mut k,
+            &(&self.grids, &self.metrics, &self.bt),
+            &mut (&mut self.wb, &mut self.eb),
+            pool,
+        );
+
+        std::mem::swap(&mut self.fnow, &mut self.fnext);
     }
 }
 
