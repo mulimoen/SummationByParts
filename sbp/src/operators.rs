@@ -17,6 +17,9 @@ pub trait SbpOperator: Send + Sync {
         Self::diffxi(prev.reversed_axes(), fut.reversed_axes())
     }
     fn h() -> &'static [Float];
+    fn is_h2() -> bool {
+        false
+    }
 }
 
 pub trait UpwindOperator: SbpOperator {
@@ -42,6 +45,7 @@ pub(crate) fn diff_op_1d(
     block: ndarray::ArrayView2<Float>,
     diag: ndarray::ArrayView1<Float>,
     symmetric: bool,
+    is_h2: bool,
     prev: ArrayView1<Float>,
     mut fut: ArrayViewMut1<Float>,
 ) {
@@ -49,7 +53,11 @@ pub(crate) fn diff_op_1d(
     let nx = prev.shape()[0];
     assert!(nx >= 2 * block.len_of(ndarray::Axis(0)));
 
-    let dx = 1.0 / (nx - 1) as Float;
+    let dx = if is_h2 {
+        1.0 / (nx - 2) as Float
+    } else {
+        1.0 / (nx - 1) as Float
+    };
     let idx = 1.0 / dx;
 
     let first_elems = prev.slice(::ndarray::s!(..block.len_of(::ndarray::Axis(1))));
@@ -91,6 +99,10 @@ mod upwind4;
 pub use upwind4::Upwind4;
 mod upwind9;
 pub use upwind9::Upwind9;
+
+mod upwind4h2;
+pub use upwind4h2::Upwind4h2;
+
 mod traditional4;
 pub use traditional4::SBP4;
 mod traditional8;

@@ -19,6 +19,7 @@ pub struct ExtendedGrid {
 /// x: [x0, x1, ..., xn]
 /// which results in x being broadcasted to nx/ny size
 /// x: linspace:start:end:num
+/// x: linspace:h2:start:end:num
 /// where x will be from start to end inclusive, with num steps
 /// x: [[x00, x01, .., x0n], [x10, x11, .., x1n], ... [xm0, xm1, ..., xmn]]
 /// which is the full grid x
@@ -49,11 +50,15 @@ pub fn json_to_grids(json: JsonValue) -> Result<Vec<ExtendedGrid>, String> {
 
         let to_array_form = |mut x: JsonValue| {
             if let Some(s) = x.take_string() {
-                if s.starts_with("linspace") {
+                if let Some(s) = s.strip_prefix("linspace:") {
+                    let (s, h2) = if let Some(s) = s.strip_prefix("h2:") {
+                        (s, true)
+                    } else {
+                        (s, false)
+                    };
+
                     // linspace:start:stop:steps
                     let mut iter = s.split(':');
-                    let name = iter.next().unwrap();
-                    assert_eq!(name, "linspace");
 
                     let start = iter.next();
                     let start: Float = match start {
@@ -73,9 +78,11 @@ pub fn json_to_grids(json: JsonValue) -> Result<Vec<ExtendedGrid>, String> {
                     if iter.next().is_some() {
                         return Err(format!("linspace: contained more than expected"));
                     }
-                    Ok(ArrayForm::Array1(ndarray::Array::linspace(
-                        start, end, steps,
-                    )))
+                    Ok(ArrayForm::Array1(if h2 {
+                        h2linspace(start, end, steps)
+                    } else {
+                        ndarray::Array::linspace(start, end, steps)
+                    }))
                 } else {
                     Err(format!("Could not parse gridline"))
                 }
@@ -283,5 +290,28 @@ pub fn json_to_vortex(mut json: JsonValue) -> super::euler::VortexParameters {
         mach,
         rstar,
         eps,
+    }
+}
+
+pub fn h2linspace(start: Float, end: Float, n: usize) -> ndarray::Array1<Float> {
+    let h = 1.0 / (n - 2) as Float;
+    ndarray::Array1::from_shape_fn(n, |i| match i {
+        0 => start,
+        i if i == n - 1 => end,
+        i => h * (i as Float - 0.5),
+    })
+}
+
+#[test]
+fn test_h2linspace() {
+    let x = h2linspace(0.0, 1.0, 50);
+    approx::assert_abs_diff_eq!(x[0], 0.0, epsilon = 1e-6);
+    approx::assert_abs_diff_eq!(x[49], 1.0, epsilon = 1e-6);
+    let hend = x[1] - x[0];
+    let h = x[2] - x[1];
+    approx::assert_abs_diff_eq!(x[49] - x[48], hend, epsilon = 1e-6);
+    approx::assert_abs_diff_eq!(2.0 * hend, h, epsilon = 1e-6);
+    for i in 1..48 {
+        approx::assert_abs_diff_eq!(x[i + 1] - x[i], h, epsilon = 1e-6);
     }
 }

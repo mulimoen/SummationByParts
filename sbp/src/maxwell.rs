@@ -449,7 +449,11 @@ fn SAT_characteristics<SBP: SbpOperator>(
             Boundary::This => y.slice(s![.., .., 0]),
         };
         // East boundary
-        let hinv = 1.0 / (SBP::h()[0] / (nx - 1) as Float);
+        let hinv = if SBP::is_h2() {
+            (nx - 2) as Float / SBP::h()[0]
+        } else {
+            (nx - 1) as Float / SBP::h()[0]
+        };
         for ((((mut k, v), g), &kx), &ky) in k
             .slice_mut(s![.., .., nx - 1])
             .gencolumns_mut()
@@ -483,7 +487,11 @@ fn SAT_characteristics<SBP: SbpOperator>(
         let g = match boundaries.east {
             Boundary::This => y.slice(s![.., .., nx - 1]),
         };
-        let hinv = 1.0 / (SBP::h()[0] / (nx - 1) as Float);
+        let hinv = if SBP::is_h2() {
+            (nx - 2) as Float / SBP::h()[0]
+        } else {
+            (nx - 1) as Float / SBP::h()[0]
+        };
         for ((((mut k, v), g), &kx), &ky) in k
             .slice_mut(s![.., .., 0])
             .gencolumns_mut()
@@ -522,7 +530,11 @@ fn SAT_characteristics<SBP: SbpOperator>(
         let g = match boundaries.north {
             Boundary::This => y.slice(s![.., 0, ..]),
         };
-        let hinv = 1.0 / (SBP::h()[0] / (ny - 1) as Float);
+        let hinv = if SBP::is_h2() {
+            (ny - 2) as Float / SBP::h()[0]
+        } else {
+            (ny - 1) as Float / SBP::h()[0]
+        };
         for ((((mut k, v), g), &kx), &ky) in k
             .slice_mut(s![.., ny - 1, ..])
             .gencolumns_mut()
@@ -555,7 +567,11 @@ fn SAT_characteristics<SBP: SbpOperator>(
         let g = match boundaries.south {
             Boundary::This => y.slice(s![.., ny - 1, ..]),
         };
-        let hinv = 1.0 / (SBP::h()[0] / (ny - 1) as Float);
+        let hinv = if SBP::is_h2() {
+            (ny - 2) as Float / SBP::h()[0]
+        } else {
+            (ny - 1) as Float / SBP::h()[0]
+        };
         for ((((mut k, v), g), &kx), &ky) in k
             .slice_mut(s![.., 0, ..])
             .gencolumns_mut()

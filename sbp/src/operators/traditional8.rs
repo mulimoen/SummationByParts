@@ -33,6 +33,7 @@ impl SbpOperator for SBP8 {
             ndarray::arr2(Self::BLOCK).view(),
             ndarray::arr1(Self::DIAG).view(),
             false,
+            false,
             prev,
             fut,
         )

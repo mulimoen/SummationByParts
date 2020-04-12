@@ -283,12 +283,26 @@ impl Field {
                 .map(move |x| x * factor)
         };
 
-        let hxiterator = itermaker(self.nx(), 1.0 / (self.nx() - 1) as Float);
+        let hxiterator = itermaker(
+            self.nx(),
+            if SBP::is_h2() {
+                1.0 / (self.nx() - 2) as Float
+            } else {
+                1.0 / (self.nx() - 1) as Float
+            },
+        );
         // Repeating to get the form
         // [[hx0, hx1, ..., hxn], [hx0, hx1, ..., hxn], ..., [hx0, hx1, ..., hxn]]
         let hxiterator = hxiterator.into_iter().cycle().take(self.nx() * self.ny());
 
-        let hyiterator = itermaker(self.ny(), 1.0 / (self.ny() - 1) as Float);
+        let hyiterator = itermaker(
+            self.ny(),
+            1.0 / if SBP::is_h2() {
+                (self.ny() - 2) as Float
+            } else {
+                (self.ny() - 1) as Float
+            },
+        );
         // Repeating to get the form
         // [[hy0, hy0, ..., hy0], [hy1, hy1, ..., hy1], ..., [hym, hym, ..., hym]]
         let hyiterator = hyiterator
@@ -801,7 +815,11 @@ fn SAT_characteristics<SBP: SbpOperator>(
 ) {
     // North boundary
     {
-        let hi = (k.ny() - 1) as Float / SBP::h()[0];
+        let hi = if SBP::is_h2() {
+            (k.ny() - 2) as Float / SBP::h()[0]
+        } else {
+            (k.ny() - 1) as Float / SBP::h()[0]
+        };
         let sign = -1.0;
         let tau = 1.0;
         let slice = s![y.ny() - 1, ..];
@@ -819,7 +837,11 @@ fn SAT_characteristics<SBP: SbpOperator>(
     }
     // South boundary
     {
-        let hi = (k.ny() - 1) as Float / SBP::h()[0];
+        let hi = if SBP::is_h2() {
+            (k.ny() - 2) as Float / SBP::h()[0]
+        } else {
+            (k.ny() - 1) as Float / SBP::h()[0]
+        };
         let sign = 1.0;
         let tau = -1.0;
         let slice = s![0, ..];
@@ -837,7 +859,11 @@ fn SAT_characteristics<SBP: SbpOperator>(
     }
     // West Boundary
     {
-        let hi = (k.nx() - 1) as Float / SBP::h()[0];
+        let hi = if SBP::is_h2() {
+            (k.nx() - 2) as Float / SBP::h()[0]
+        } else {
+            (k.nx() - 1) as Float / SBP::h()[0]
+        };
         let sign = 1.0;
         let tau = -1.0;
         let slice = s![.., 0];
@@ -855,7 +881,11 @@ fn SAT_characteristics<SBP: SbpOperator>(
     }
     // East Boundary
     {
-        let hi = (k.nx() - 1) as Float / SBP::h()[0];
+        let hi = if SBP::is_h2() {
+            (k.nx() - 2) as Float / SBP::h()[0]
+        } else {
+            (k.nx() - 1) as Float / SBP::h()[0]
+        };
         let sign = -1.0;
         let tau = 1.0;
         let slice = s![.., y.nx() - 1];

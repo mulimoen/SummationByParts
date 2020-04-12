@@ -29,6 +29,7 @@ impl SbpOperator for SBP4 {
             ndarray::arr2(Self::BLOCK).view(),
             ndarray::arr1(Self::DIAG).view(),
             false,
+            false,
             prev,
             fut,
         )

@@ -281,6 +281,7 @@ impl SbpOperator for Upwind4 {
             ndarray::arr2(Self::BLOCK).view(),
             ndarray::arr1(Self::DIAG).view(),
             false,
+            false,
             prev,
             fut,
         )
@@ -405,6 +406,7 @@ impl UpwindOperator for Upwind4 {
             ndarray::arr2(Self::DISS_BLOCK).view(),
             ndarray::arr1(Self::DISS_DIAG).view(),
             true,
+            false,
             prev,
             fut,
         )
