@@ -1,7 +1,6 @@
 use super::{SbpOperator, UpwindOperator};
-use crate::diff_op_1d;
 use crate::Float;
-use ndarray::{s, ArrayView1, ArrayView2, ArrayViewMut1, ArrayViewMut2, Axis};
+use ndarray::{ArrayView1, ArrayView2, ArrayViewMut1, ArrayViewMut2, Axis};
 
 #[derive(Debug)]
 pub struct Upwind4 {}
@@ -11,9 +10,6 @@ pub struct Upwind4 {}
 type SimdT = packed_simd::f32x8;
 #[cfg(not(feature = "f32"))]
 type SimdT = packed_simd::f64x8;
-
-diff_op_1d!(diff_1d, Upwind4::BLOCK, Upwind4::DIAG);
-diff_op_1d!(diss_1d, Upwind4::DISS_BLOCK, Upwind4::DISS_DIAG, true);
 
 macro_rules! diff_simd_row_7_47 {
     ($name: ident, $BLOCK: expr, $DIAG: expr, $symmetric: expr) => {
@@ -281,7 +277,13 @@ impl Upwind4 {
 
 impl SbpOperator for Upwind4 {
     fn diff1d(prev: ArrayView1<Float>, fut: ArrayViewMut1<Float>) {
-        diff_1d(prev, fut)
+        super::diff_op_1d(
+            ndarray::arr2(Self::BLOCK).view(),
+            ndarray::arr1(Self::DIAG).view(),
+            false,
+            prev,
+            fut,
+        )
     }
     fn diffxi(prev: ArrayView2<Float>, mut fut: ArrayViewMut2<Float>) {
         assert_eq!(prev.shape(), fut.shape());
@@ -399,7 +401,13 @@ fn upwind4_test() {
 
 impl UpwindOperator for Upwind4 {
     fn diss1d(prev: ArrayView1<Float>, fut: ArrayViewMut1<Float>) {
-        diss_1d(prev, fut)
+        super::diff_op_1d(
+            ndarray::arr2(Self::DISS_BLOCK).view(),
+            ndarray::arr1(Self::DISS_DIAG).view(),
+            true,
+            prev,
+            fut,
+        )
     }
     fn dissxi(prev: ArrayView2<Float>, mut fut: ArrayViewMut2<Float>) {
         assert_eq!(prev.shape(), fut.shape());

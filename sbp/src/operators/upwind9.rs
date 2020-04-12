@@ -1,13 +1,9 @@
 use super::{SbpOperator, UpwindOperator};
-use crate::diff_op_1d;
 use crate::Float;
-use ndarray::{s, ArrayView1, ArrayViewMut1};
+use ndarray::{ArrayView1, ArrayViewMut1};
 
 #[derive(Debug)]
 pub struct Upwind9 {}
-
-diff_op_1d!(diff_1d, Upwind9::BLOCK, Upwind9::DIAG);
-diff_op_1d!(diss_1d, Upwind9::DISS_BLOCK, Upwind9::DISS_DIAG, true);
 
 impl Upwind9 {
     #[rustfmt::skip]
@@ -50,7 +46,13 @@ impl Upwind9 {
 
 impl SbpOperator for Upwind9 {
     fn diff1d(prev: ArrayView1<Float>, fut: ArrayViewMut1<Float>) {
-        diff_1d(prev, fut)
+        super::diff_op_1d(
+            ndarray::arr2(Self::BLOCK).view(),
+            ndarray::arr1(Self::DIAG).view(),
+            false,
+            prev,
+            fut,
+        )
     }
 
     fn h() -> &'static [Float] {
@@ -60,7 +62,13 @@ impl SbpOperator for Upwind9 {
 
 impl UpwindOperator for Upwind9 {
     fn diss1d(prev: ArrayView1<Float>, fut: ArrayViewMut1<Float>) {
-        diss_1d(prev, fut)
+        super::diff_op_1d(
+            ndarray::arr2(Self::DISS_BLOCK).view(),
+            ndarray::arr1(Self::DISS_DIAG).view(),
+            true,
+            prev,
+            fut,
+        )
     }
 }
 

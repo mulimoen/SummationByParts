@@ -37,59 +37,54 @@ pub trait InterpolationOperator: Send + Sync {
     fn coarse2fine(coarse: ArrayView1<Float>, fine: ArrayViewMut1<Float>);
 }
 
-#[macro_export]
-macro_rules! diff_op_1d {
-    ($name: ident, $BLOCK: expr, $DIAG: expr) => {
-        diff_op_1d!($name, $BLOCK, $DIAG, false);
-    };
-    ($name: ident, $BLOCK: expr, $DIAG: expr, $symmetric: expr) => {
-        fn $name(prev: ArrayView1<Float>, mut fut: ArrayViewMut1<Float>) {
-            assert_eq!(prev.shape(), fut.shape());
-            let nx = prev.shape()[0];
-            assert!(nx >= 2 * $BLOCK.len());
+#[inline(always)]
+pub(crate) fn diff_op_1d(
+    block: ndarray::ArrayView2<Float>,
+    diag: ndarray::ArrayView1<Float>,
+    symmetric: bool,
+    prev: ArrayView1<Float>,
+    mut fut: ArrayViewMut1<Float>,
+) {
+    assert_eq!(prev.shape(), fut.shape());
+    let nx = prev.shape()[0];
+    assert!(nx >= 2 * block.len_of(ndarray::Axis(0)));
 
-            let dx = 1.0 / (nx - 1) as Float;
-            let idx = 1.0 / dx;
+    let dx = 1.0 / (nx - 1) as Float;
+    let idx = 1.0 / dx;
 
-            let block = ::ndarray::arr2($BLOCK);
-            let diag = ::ndarray::arr1($DIAG);
+    let first_elems = prev.slice(::ndarray::s!(..block.len_of(::ndarray::Axis(1))));
+    for (bl, f) in block.outer_iter().zip(&mut fut) {
+        let diff = first_elems.dot(&bl);
+        *f = diff * idx;
+    }
 
+    // The window needs to be aligned to the diagonal elements,
+    // based on the block size
+    let window_elems_to_skip = block.len_of(::ndarray::Axis(0)) - ((diag.len() - 1) / 2);
 
-            let first_elems = prev.slice(::ndarray::s!(..block.len_of(::ndarray::Axis(1))));
-            for (bl, f) in block.outer_iter().zip(&mut fut) {
-                let diff = first_elems.dot(&bl);
-                *f = diff * idx;
-            }
+    for (window, f) in prev
+        .windows(diag.len())
+        .into_iter()
+        .skip(window_elems_to_skip)
+        .zip(fut.iter_mut().skip(block.len_of(::ndarray::Axis(0))))
+        .take(nx - 2 * block.len_of(::ndarray::Axis(0)))
+    {
+        let diff = diag.dot(&window);
+        *f = diff * idx;
+    }
 
-            // The window needs to be aligned to the diagonal elements,
-            // based on the block size
-            let window_elems_to_skip =
-                block.len_of(::ndarray::Axis(0)) - ((diag.len() - 1) / 2);
-
-            for (window, f) in prev
-                .windows(diag.len())
-                .into_iter()
-                .skip(window_elems_to_skip)
-                .zip(fut.iter_mut().skip(block.len_of(::ndarray::Axis(0))))
-                .take(nx - 2 * block.len_of(::ndarray::Axis(0)))
-            {
-                let diff = diag.dot(&window);
-                *f = diff * idx;
-            }
-
-            let last_elems = prev.slice(::ndarray::s!(nx - block.len_of(::ndarray::Axis(1))..;-1));
-            for (bl, f) in block.outer_iter()
-                .zip(&mut fut.slice_mut(s![nx - block.len_of(::ndarray::Axis(0))..;-1]))
-            {
-                let diff = if $symmetric {
-                    bl.dot(&last_elems)
-                } else {
-                    -bl.dot(&last_elems)
-                };
-                *f = diff * idx;
-            }
-        }
-    };
+    let last_elems = prev.slice(::ndarray::s!(nx - block.len_of(::ndarray::Axis(1))..;-1));
+    for (bl, f) in block
+        .outer_iter()
+        .zip(&mut fut.slice_mut(::ndarray::s![nx - block.len_of(::ndarray::Axis(0))..;-1]))
+    {
+        let diff = if symmetric {
+            bl.dot(&last_elems)
+        } else {
+            -bl.dot(&last_elems)
+        };
+        *f = diff * idx;
+    }
 }
 
 mod upwind4;
