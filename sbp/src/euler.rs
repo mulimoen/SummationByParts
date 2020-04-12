@@ -236,7 +236,7 @@ impl Field {
         &mut self,
         x: ArrayView2<Float>,
         y: ArrayView2<Float>,
-        t: Float,
+        time: Float,
         vortex_param: VortexParameters,
     ) {
         assert_eq!(x.shape(), y.shape());
@@ -253,7 +253,7 @@ impl Field {
             e.into_shape((n,)).unwrap(),
             x.into_shape((n,)).unwrap(),
             y.into_shape((n,)).unwrap(),
-            t,
+            time,
             vortex_param,
         )
     }
@@ -293,7 +293,7 @@ impl Field {
         );
         // Repeating to get the form
         // [[hx0, hx1, ..., hxn], [hx0, hx1, ..., hxn], ..., [hx0, hx1, ..., hxn]]
-        let hxiterator = hxiterator.into_iter().cycle().take(self.nx() * self.ny());
+        let hxiterator = hxiterator.cycle().take(self.nx() * self.ny());
 
         let hyiterator = itermaker(
             self.ny(),
@@ -305,14 +305,11 @@ impl Field {
         );
         // Repeating to get the form
         // [[hy0, hy0, ..., hy0], [hy1, hy1, ..., hy1], ..., [hym, hym, ..., hym]]
-        let hyiterator = hyiterator
-            .into_iter()
-            .flat_map(|x| std::iter::repeat(x).take(self.nx()));
+        let hyiterator = hyiterator.flat_map(|x| std::iter::repeat(x).take(self.nx()));
 
-        let diagiterator = hxiterator.into_iter().zip(hyiterator).cycle();
+        let diagiterator = hxiterator.zip(hyiterator).cycle();
 
         diagiterator
-            .into_iter()
             .zip(self.0.iter())
             .zip(other.0.iter())
             .map(|(((hx, hy), r0), r1)| (*r0 - *r1).powi(2) * hx * hy)
@@ -344,6 +341,7 @@ pub struct VortexParameters {
     pub mach: Float,
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn vortex(
     rho: ArrayViewMut1<Float>,
     rhou: ArrayViewMut1<Float>,
@@ -351,7 +349,7 @@ pub fn vortex(
     e: ArrayViewMut1<Float>,
     x: ArrayView1<Float>,
     y: ArrayView1<Float>,
-    t: Float,
+    time: Float,
     vortex_param: VortexParameters,
 ) {
     assert_eq!(rho.len(), rhou.len());
@@ -374,7 +372,7 @@ pub fn vortex(
     {
         use crate::consts::PI;
 
-        let dx = (x - vortex_param.x0) - t;
+        let dx = (x - vortex_param.x0) - time;
         let dy = y - vortex_param.y0;
         let f = (1.0 - (dx*dx + dy*dy))/(rstar*rstar);
 
@@ -791,8 +789,8 @@ impl BoundaryStorage {
 fn vortexify(
     mut field: ndarray::ArrayViewMut2<Float>,
     yx: (ndarray::ArrayView1<Float>, ndarray::ArrayView1<Float>),
-    v: VortexParameters,
-    t: Float,
+    vparams: VortexParameters,
+    time: Float,
 ) {
     let mut fiter = field.outer_iter_mut();
     let (rho, rhou, rhov, e) = (
@@ -802,7 +800,7 @@ fn vortexify(
         fiter.next().unwrap(),
     );
     let (y, x) = yx;
-    vortex(rho, rhou, rhov, e, x, y, t, v);
+    vortex(rho, rhou, rhov, e, x, y, time, vparams);
 }
 
 #[allow(non_snake_case)]

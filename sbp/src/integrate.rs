@@ -36,7 +36,9 @@ impl ButcherTableau for MidpointMethod {
     const C: &'static [Float] = &[1.0 / 2.0];
 }
 
-/// Bit exessive...
+/// Bit excessive...
+#[allow(clippy::excessive_precision)]
+#[allow(clippy::unreadable_literal)]
 const SQRT_5: Float = 2.236067977499789696409173668731276235440618359611525724270897245410520925637804899414414408378782275;
 pub struct Rk6;
 impl ButcherTableau for Rk6 {
@@ -85,6 +87,7 @@ impl ButcherTableau for Rk6 {
     ];
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn integrate<'a, BTableau, F: 'a, RHS, MT, C>(
     rhs: RHS,
     prev: &F,
@@ -142,6 +145,7 @@ pub fn integrate<'a, BTableau, F: 'a, RHS, MT, C>(
 }
 
 #[cfg(feature = "rayon")]
+#[allow(clippy::too_many_arguments)]
 pub fn integrate_multigrid<'a, BTableau, F: 'a, RHS, MT, C>(
     rhs: RHS,
     prev: &[F],

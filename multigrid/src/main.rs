@@ -64,6 +64,17 @@ impl<T: operators::UpwindOperator> System<T> {
     }
 
     fn advance(&mut self, dt: Float, pool: &rayon::ThreadPool) {
+        type MT<'a> = (
+            &'a mut [(
+                euler::Field,
+                euler::Field,
+                euler::Field,
+                euler::Field,
+                euler::Field,
+                euler::Field,
+            )],
+            &'a mut [euler::BoundaryStorage],
+        );
         let rhs = move |fut: &mut [euler::Field],
                         prev: &[euler::Field],
                         time: Float,
@@ -72,17 +83,7 @@ impl<T: operators::UpwindOperator> System<T> {
             &[grid::Metrics<_>],
             &[euler::BoundaryCharacteristics],
         ),
-                        mt: &mut (
-            &mut [(
-                euler::Field,
-                euler::Field,
-                euler::Field,
-                euler::Field,
-                euler::Field,
-                euler::Field,
-            )],
-            &mut [euler::BoundaryStorage],
-        )| {
+                        mt: &mut MT| {
             let (grids, metrics, bt) = c;
             let (wb, eb) = mt;
 
@@ -229,7 +230,7 @@ fn main() {
     let output = File::create(&opt.output, sys.grids.as_slice()).unwrap();
     let mut output = OutputThread::new(output);
 
-    let bar = progressbar(opt.no_progressbar, ntime);
+    let progressbar = progressbar(opt.no_progressbar, ntime);
 
     let timer = if opt.timings {
         Some(std::time::Instant::now())
@@ -241,10 +242,10 @@ fn main() {
         if should_output(itime) {
             output.add_timestep(itime, &sys.fnow);
         }
-        bar.inc(1);
+        progressbar.inc(1);
         sys.advance(dt, &pool);
     }
-    bar.finish_and_clear();
+    progressbar.finish_and_clear();
 
     if let Some(timer) = timer {
         let duration = timer.elapsed();
@@ -268,8 +269,8 @@ fn progressbar(dummy: bool, ntime: u64) -> indicatif::ProgressBar {
     if dummy {
         indicatif::ProgressBar::hidden()
     } else {
-        let bar = indicatif::ProgressBar::new(ntime);
-        bar.with_style(
+        let progressbar = indicatif::ProgressBar::new(ntime);
+        progressbar.with_style(
             indicatif::ProgressStyle::default_bar()
                 .template("{wide_bar:.cyan/blue} {pos}/{len} ({eta})"),
         )

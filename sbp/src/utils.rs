@@ -40,7 +40,7 @@ pub fn json_to_grids(json: JsonValue) -> Result<Vec<ExtendedGrid>, String> {
             Array2(ndarray::Array2<Float>),
         }
         if grid.is_empty() {
-            return Err(format!("empty object"));
+            return Err("empty object".to_string());
         }
         let name = grid.remove("name").take_string();
         let dire = grid.remove("dirE").take_string();
@@ -76,7 +76,7 @@ pub fn json_to_grids(json: JsonValue) -> Result<Vec<ExtendedGrid>, String> {
                         None => return Err(format!("")),
                     };
                     if iter.next().is_some() {
-                        return Err(format!("linspace: contained more than expected"));
+                        return Err("linspace: contained more than expected".to_string());
                     }
                     Ok(ArrayForm::Array1(if h2 {
                         h2linspace(start, end, steps)
@@ -84,29 +84,29 @@ pub fn json_to_grids(json: JsonValue) -> Result<Vec<ExtendedGrid>, String> {
                         ndarray::Array::linspace(start, end, steps)
                     }))
                 } else {
-                    Err(format!("Could not parse gridline"))
+                    Err("Could not parse gridline".to_string())
                 }
             } else if x.is_array() {
                 let arrlen = x.len();
                 if arrlen == 0 {
-                    return Err(format!("gridline does not have any members"));
+                    return Err("gridline does not have any members".to_string());
                 }
                 if !x[0].is_array() {
                     let v = x
                         .members()
                         .map(|x: &JsonValue| -> Result<Float, String> {
-                            Ok(x.as_number().ok_or_else(|| format!("Array contained something that could not be converted to an array"))?.into())
+                            Ok(x.as_number().ok_or_else(|| "Array contained something that could not be converted to an array".to_string())?.into())
                         })
                         .collect::<Result<Vec<Float>, _>>()?;
                     Ok(ArrayForm::Array1(ndarray::Array::from(v)))
                 } else {
                     let arrlen2 = x[0].len();
                     if arrlen2 == 0 {
-                        return Err(format!("gridline does not have any members"));
+                        return Err("gridline does not have any members".to_string());
                     }
                     for member in x.members() {
                         if arrlen2 != member.len() {
-                            return Err(format!("some arrays seems to have differing lengths"));
+                            return Err("some arrays seems to have differing lengths".to_string());
                         }
                     }
                     let mut arr = ndarray::Array::zeros((arrlen, arrlen2));
@@ -115,7 +115,7 @@ pub fn json_to_grids(json: JsonValue) -> Result<Vec<ExtendedGrid>, String> {
                             *a = m
                                 .as_number()
                                 .ok_or_else(|| {
-                                    format!("array contained something which was not a number")
+                                    "array contained something which was not a number".to_string()
                                 })?
                                 .into()
                         }
@@ -123,19 +123,19 @@ pub fn json_to_grids(json: JsonValue) -> Result<Vec<ExtendedGrid>, String> {
                     Ok(ArrayForm::Array2(arr))
                 }
             } else {
-                Err(format!("Inner object was not a string value, or an array"))
+                Err("Inner object was not a string value, or an array".to_string())
             }
         };
 
         let x = grid.remove("x");
         if x.is_empty() {
-            return Err(format!("x was empty"));
+            return Err("x was empty".to_string());
         }
         let x = to_array_form(x)?;
 
         let y = grid.remove("y");
         if y.is_empty() {
-            return Err(format!("y was empty"));
+            return Err("y was empty".to_string());
         }
         let y = to_array_form(y)?;
 
@@ -193,7 +193,7 @@ pub fn json_to_grids(json: JsonValue) -> Result<Vec<ExtendedGrid>, String> {
     match json {
         JsonValue::Array(a) => a
             .into_iter()
-            .map(|g| json_to_grid(g))
+            .map(json_to_grid)
             .collect::<Result<Vec<_>, _>>(),
         grid => Ok(vec![json_to_grid(grid)?]),
     }
