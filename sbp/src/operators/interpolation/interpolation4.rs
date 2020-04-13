@@ -1,6 +1,6 @@
 use super::*;
 
-pub struct Interpolation4 {}
+pub struct Interpolation4;
 
 impl Interpolation4 {
     const F2C_DIAG: &'static [[Float; 7]] = &[[
@@ -71,7 +71,7 @@ impl Interpolation4 {
 }
 
 impl InterpolationOperator for Interpolation4 {
-    fn fine2coarse(fine: ArrayView1<Float>, coarse: ArrayViewMut1<Float>) {
+    fn fine2coarse(&self, fine: ArrayView1<Float>, coarse: ArrayViewMut1<Float>) {
         assert_eq!(fine.len(), 2 * coarse.len() - 1);
         super::interpolate(
             fine,
@@ -81,7 +81,7 @@ impl InterpolationOperator for Interpolation4 {
             (3, 2),
         )
     }
-    fn coarse2fine(coarse: ArrayView1<Float>, fine: ArrayViewMut1<Float>) {
+    fn coarse2fine(&self, coarse: ArrayView1<Float>, fine: ArrayViewMut1<Float>) {
         assert_eq!(fine.len(), 2 * coarse.len() - 1);
         super::interpolate(
             coarse,

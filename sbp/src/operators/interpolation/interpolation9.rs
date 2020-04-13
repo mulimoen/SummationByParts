@@ -1,6 +1,6 @@
 use super::*;
 
-pub struct Interpolation9 {}
+pub struct Interpolation9;
 
 impl Interpolation9 {
     #[rustfmt::skip]
@@ -50,7 +50,7 @@ impl Interpolation9 {
 }
 
 impl InterpolationOperator for Interpolation9 {
-    fn fine2coarse(fine: ArrayView1<Float>, coarse: ArrayViewMut1<Float>) {
+    fn fine2coarse(&self, fine: ArrayView1<Float>, coarse: ArrayViewMut1<Float>) {
         assert_eq!(fine.len(), 2 * coarse.len() - 1);
         use ndarray::prelude::*;
         use std::iter::FromIterator;
@@ -62,7 +62,7 @@ impl InterpolationOperator for Interpolation9 {
             .unwrap();
         super::interpolate(fine, coarse, block.view(), diag.view(), (5, 2))
     }
-    fn coarse2fine(coarse: ArrayView1<Float>, fine: ArrayViewMut1<Float>) {
+    fn coarse2fine(&self, coarse: ArrayView1<Float>, fine: ArrayViewMut1<Float>) {
         assert_eq!(fine.len(), 2 * coarse.len() - 1);
         use ndarray::prelude::*;
         use std::iter::FromIterator;

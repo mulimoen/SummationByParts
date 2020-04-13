@@ -608,13 +608,14 @@ pub enum BoundaryCharacteristic {
     Interpolate(usize),
 }
 
-#[derive(Clone, Debug)]
-pub struct BoundaryCharacteristics {
-    pub north: BoundaryCharacteristic,
-    pub south: BoundaryCharacteristic,
-    pub east: BoundaryCharacteristic,
-    pub west: BoundaryCharacteristic,
+pub struct Direction<T> {
+    pub north: T,
+    pub south: T,
+    pub west: T,
+    pub east: T,
 }
+
+pub type BoundaryCharacteristics = Direction<BoundaryCharacteristic>;
 
 fn boundary_extractor<'a>(
     field: &'a Field,
@@ -653,18 +654,22 @@ fn boundary_extractor<'a>(
     }
 }
 
-pub fn extract_boundaries<'a, IO: InterpolationOperator>(
+pub type InterpolationOperators = Direction<Option<Box<dyn InterpolationOperator>>>;
+
+pub fn extract_boundaries<'a>(
     fields: &'a [Field],
     bt: &[BoundaryCharacteristics],
     eb: &'a mut [BoundaryStorage],
     grids: &[Grid],
     time: Float,
+    interpolation_operators: Option<&[InterpolationOperators]>,
 ) -> Vec<BoundaryTerms<'a>> {
     bt.iter()
         .zip(eb)
         .zip(grids)
         .zip(fields)
-        .map(|(((bt, eb), grid), field)| BoundaryTerms {
+        .enumerate()
+        .map(|(ig, (((bt, eb), grid), field))| BoundaryTerms {
             north: match bt.north {
                 BoundaryCharacteristic::This => field.south(),
                 BoundaryCharacteristic::Grid(g) => fields[g].south(),
@@ -677,11 +682,16 @@ pub fn extract_boundaries<'a, IO: InterpolationOperator>(
                     let to = eb.n.as_mut().unwrap();
                     let fine2coarse = field.nx() < fields[g].nx();
 
+                    let operator = interpolation_operators.as_ref().unwrap()[ig]
+                        .north
+                        .as_ref()
+                        .unwrap();
+
                     for (mut to, from) in to.outer_iter_mut().zip(fields[g].south().outer_iter()) {
                         if fine2coarse {
-                            IO::fine2coarse(from.view(), to.view_mut());
+                            operator.fine2coarse(from.view(), to.view_mut());
                         } else {
-                            IO::coarse2fine(from.view(), to.view_mut());
+                            operator.coarse2fine(from.view(), to.view_mut());
                         }
                     }
                     to.view()
@@ -698,12 +708,16 @@ pub fn extract_boundaries<'a, IO: InterpolationOperator>(
                 BoundaryCharacteristic::Interpolate(g) => {
                     let to = eb.s.as_mut().unwrap();
                     let fine2coarse = field.nx() < fields[g].nx();
+                    let operator = interpolation_operators.as_ref().unwrap()[ig]
+                        .south
+                        .as_ref()
+                        .unwrap();
 
                     for (mut to, from) in to.outer_iter_mut().zip(fields[g].north().outer_iter()) {
                         if fine2coarse {
-                            IO::fine2coarse(from.view(), to.view_mut());
+                            operator.fine2coarse(from.view(), to.view_mut());
                         } else {
-                            IO::coarse2fine(from.view(), to.view_mut());
+                            operator.coarse2fine(from.view(), to.view_mut());
                         }
                     }
                     to.view()
@@ -720,12 +734,16 @@ pub fn extract_boundaries<'a, IO: InterpolationOperator>(
                 BoundaryCharacteristic::Interpolate(g) => {
                     let to = eb.w.as_mut().unwrap();
                     let fine2coarse = field.ny() < fields[g].ny();
+                    let operator = interpolation_operators.as_ref().unwrap()[ig]
+                        .west
+                        .as_ref()
+                        .unwrap();
 
                     for (mut to, from) in to.outer_iter_mut().zip(fields[g].east().outer_iter()) {
                         if fine2coarse {
-                            IO::fine2coarse(from.view(), to.view_mut());
+                            operator.fine2coarse(from.view(), to.view_mut());
                         } else {
-                            IO::coarse2fine(from.view(), to.view_mut());
+                            operator.coarse2fine(from.view(), to.view_mut());
                         }
                     }
                     to.view()
@@ -742,12 +760,16 @@ pub fn extract_boundaries<'a, IO: InterpolationOperator>(
                 BoundaryCharacteristic::Interpolate(g) => {
                     let to = eb.e.as_mut().unwrap();
                     let fine2coarse = field.ny() < fields[g].ny();
+                    let operator = interpolation_operators.as_ref().unwrap()[ig]
+                        .east
+                        .as_ref()
+                        .unwrap();
 
                     for (mut to, from) in to.outer_iter_mut().zip(fields[g].west().outer_iter()) {
                         if fine2coarse {
-                            IO::fine2coarse(from.view(), to.view_mut());
+                            operator.fine2coarse(from.view(), to.view_mut());
                         } else {
-                            IO::coarse2fine(from.view(), to.view_mut());
+                            operator.coarse2fine(from.view(), to.view_mut());
                         }
                     }
                     to.view()

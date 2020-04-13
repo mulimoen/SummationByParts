@@ -16,6 +16,7 @@ struct System {
     bt: Vec<euler::BoundaryCharacteristics>,
     eb: Vec<euler::BoundaryStorage>,
     time: Float,
+    interpolation_operators: Vec<euler::InterpolationOperators>,
 }
 
 enum Metrics {
@@ -33,6 +34,7 @@ impl System {
     fn new(
         grids: Vec<grid::Grid>,
         bt: Vec<euler::BoundaryCharacteristics>,
+        interpolation_operators: Vec<euler::InterpolationOperators>,
         operatorx: &str,
         operatory: &str,
     ) -> Self {
@@ -95,6 +97,7 @@ impl System {
             bt,
             eb,
             time: 0.0,
+            interpolation_operators,
         }
     }
 
@@ -110,15 +113,14 @@ impl System {
         let bt = &self.bt;
         let wb = &mut self.wb;
         let mut eb = &mut self.eb;
+        let intops = &self.interpolation_operators;
 
         let rhs = move |fut: &mut [euler::Field],
                         prev: &[euler::Field],
                         time: Float,
                         _c: (),
                         _mt: &mut ()| {
-            let bc = euler::extract_boundaries::<operators::Interpolation4>(
-                prev, &bt, &mut eb, &grids, time,
-            );
+            let bc = euler::extract_boundaries(prev, &bt, &mut eb, &grids, time, Some(intops));
             pool.scope(|s| {
                 for ((((fut, prev), bc), wb), metrics) in fut
                     .iter_mut()
@@ -238,6 +240,15 @@ fn main() {
             west: determine_bc(grid.dirw.as_ref()),
         });
     }
+    let interpolation_operators = jgrids
+        .iter()
+        .map(|_g| euler::InterpolationOperators {
+            north: Some(Box::new(operators::Interpolation4)),
+            south: Some(Box::new(operators::Interpolation4)),
+            east: Some(Box::new(operators::Interpolation4)),
+            west: Some(Box::new(operators::Interpolation4)),
+        })
+        .collect::<Vec<_>>();
     let grids = jgrids.into_iter().map(|egrid| egrid.grid).collect();
 
     let integration_time: Float = json["integration_time"].as_number().unwrap().into();
@@ -254,7 +265,7 @@ fn main() {
         }
     };
 
-    let mut sys = System::new(grids, bt, operatorx, operatory);
+    let mut sys = System::new(grids, bt, interpolation_operators, operatorx, operatory);
     sys.vortex(0.0, vortexparams);
 
     let max_n = {

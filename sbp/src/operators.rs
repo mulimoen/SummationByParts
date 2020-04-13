@@ -36,8 +36,8 @@ pub trait UpwindOperator: SbpOperator {
 }
 
 pub trait InterpolationOperator: Send + Sync {
-    fn fine2coarse(fine: ArrayView1<Float>, coarse: ArrayViewMut1<Float>);
-    fn coarse2fine(coarse: ArrayView1<Float>, fine: ArrayViewMut1<Float>);
+    fn fine2coarse(&self, fine: ArrayView1<Float>, coarse: ArrayViewMut1<Float>);
+    fn coarse2fine(&self, coarse: ArrayView1<Float>, fine: ArrayViewMut1<Float>);
 }
 
 #[inline(always)]
