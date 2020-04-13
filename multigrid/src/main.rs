@@ -21,13 +21,17 @@ enum Metrics {
     Upwind4h2(grid::Metrics<operators::Upwind4h2, operators::Upwind4h2>),
     Trad4(grid::Metrics<operators::SBP4, operators::SBP4>),
     Trad8(grid::Metrics<operators::SBP8, operators::SBP8>),
+
+    Upwind4Upwind4h2(grid::Metrics<operators::Upwind4, operators::Upwind4h2>),
+    Upwind4h2Upwind4(grid::Metrics<operators::Upwind4h2, operators::Upwind4>),
 }
 
 impl System {
     fn new(
         grids: Vec<grid::Grid>,
         bt: Vec<euler::BoundaryCharacteristics>,
-        operator: &str,
+        operatorx: &str,
+        operatory: &str,
     ) -> Self {
         let fnow = grids
             .iter()
@@ -41,22 +45,34 @@ impl System {
         let k = [fnow.clone(), fnow.clone(), fnow.clone(), fnow.clone()];
         let metrics = grids
             .iter()
-            .map(|g| match operator {
-                "upwind4" => Metrics::Upwind4(
+            .map(|g| match (operatorx, operatory) {
+                ("upwind4", "upwind4") => Metrics::Upwind4(
                     g.metrics::<operators::Upwind4, operators::Upwind4>()
                         .unwrap(),
                 ),
-                "upwind9" => Metrics::Upwind9(
+                ("upwind9", "upwind9") => Metrics::Upwind9(
                     g.metrics::<operators::Upwind9, operators::Upwind9>()
                         .unwrap(),
                 ),
-                "upwind4h2" => Metrics::Upwind4h2(
+                ("upwind4h2", "upwind4h2") => Metrics::Upwind4h2(
                     g.metrics::<operators::Upwind4h2, operators::Upwind4h2>()
                         .unwrap(),
                 ),
-                "trad4" => Metrics::Trad4(g.metrics::<operators::SBP4, operators::SBP4>().unwrap()),
-                "trad8" => Metrics::Trad8(g.metrics::<operators::SBP8, operators::SBP8>().unwrap()),
-                op => panic!("operator {} not known", op),
+                ("trad4", "trad4") => {
+                    Metrics::Trad4(g.metrics::<operators::SBP4, operators::SBP4>().unwrap())
+                }
+                ("trad8", "trad8") => {
+                    Metrics::Trad8(g.metrics::<operators::SBP8, operators::SBP8>().unwrap())
+                }
+                ("upwind4", "upwind4h2") => Metrics::Upwind4Upwind4h2(
+                    g.metrics::<operators::Upwind4, operators::Upwind4h2>()
+                        .unwrap(),
+                ),
+                ("upwind4h2", "upwind4") => Metrics::Upwind4h2Upwind4(
+                    g.metrics::<operators::Upwind4h2, operators::Upwind4>()
+                        .unwrap(),
+                ),
+                (opx, opy) => panic!("operator combination {}x{} not known", opx, opy),
             })
             .collect::<Vec<_>>();
 
@@ -124,6 +140,12 @@ impl System {
                             euler::RHS_trad(fut, prev, metrics, &bc, &mut wb.0)
                         }
                         Metrics::Trad8(metrics) => {
+                            euler::RHS_trad(fut, prev, metrics, &bc, &mut wb.0)
+                        }
+                        Metrics::Upwind4Upwind4h2(metrics) => {
+                            euler::RHS_trad(fut, prev, metrics, &bc, &mut wb.0)
+                        }
+                        Metrics::Upwind4h2Upwind4(metrics) => {
                             euler::RHS_trad(fut, prev, metrics, &bc, &mut wb.0)
                         }
                     });
@@ -219,9 +241,19 @@ fn main() {
 
     let integration_time: Float = json["integration_time"].as_number().unwrap().into();
 
-    let operator = json["operator"].as_str().unwrap_or("upwind4");
+    let (operatorx, operatory) = {
+        if json["operator"].is_object() {
+            (
+                json["operator"]["x"].as_str().unwrap(),
+                json["operator"]["y"].as_str().unwrap(),
+            )
+        } else {
+            let op = json["operator"].as_str().unwrap_or("upwind4");
+            (op, op)
+        }
+    };
 
-    let mut sys = System::new(grids, bt, operator);
+    let mut sys = System::new(grids, bt, operatorx, operatory);
     sys.vortex(0.0, vortexparams);
 
     let max_n = {
