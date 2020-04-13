@@ -102,6 +102,8 @@ pub use upwind9::Upwind9;
 
 mod upwind4h2;
 pub use upwind4h2::Upwind4h2;
+mod upwind9h2;
+pub use upwind9h2::Upwind9h2;
 
 mod traditional4;
 pub use traditional4::SBP4;

@@ -45,15 +45,15 @@ fn interpolate(
 }
 
 #[cfg(test)]
-pub(crate) fn test_interpolation_operator<IO: InterpolationOperator>() {
+pub(crate) fn test_interpolation_operator<IO: InterpolationOperator>(op: IO) {
     let x_c = ndarray::Array1::linspace(0.0, 1.0, 101);
     let x_f = ndarray::Array1::linspace(0.0, 1.0, 2 * x_c.len() - 1);
 
     let mut ix_f = ndarray::Array1::zeros(x_f.raw_dim());
-    IO::coarse2fine(x_c.view(), ix_f.view_mut());
+    op.coarse2fine(x_c.view(), ix_f.view_mut());
     approx::assert_abs_diff_eq!(ix_f, x_f, epsilon = 1e-2);
 
     let mut ix_c = ndarray::Array1::zeros(x_c.raw_dim());
-    IO::fine2coarse(x_f.view(), ix_c.view_mut());
+    op.fine2coarse(x_f.view(), ix_c.view_mut());
     approx::assert_abs_diff_eq!(ix_c, x_c, epsilon = 1e-2);
 }

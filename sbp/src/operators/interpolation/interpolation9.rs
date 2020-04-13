@@ -78,5 +78,5 @@ impl InterpolationOperator for Interpolation9 {
 
 #[test]
 fn test_inter9() {
-    test_interpolation_operator::<Interpolation9>();
+    test_interpolation_operator(Interpolation9);
 }
