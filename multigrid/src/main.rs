@@ -105,21 +105,19 @@ impl System {
     }
 
     fn advance(&mut self, dt: Float, pool: &rayon::ThreadPool) {
-        type MT<'a> = (
-            &'a mut [euler::WorkBuffers],
-            &'a mut [euler::BoundaryStorage],
-        );
         let metrics = &self.metrics;
+        let grids = &self.grids;
+        let bt = &self.bt;
+        let wb = &mut self.wb;
+        let mut eb = &mut self.eb;
+
         let rhs = move |fut: &mut [euler::Field],
                         prev: &[euler::Field],
                         time: Float,
-                        c: &(&[grid::Grid], &[euler::BoundaryCharacteristics]),
-                        mt: &mut MT| {
-            let (grids, bt) = c;
-            let (wb, eb) = mt;
-
+                        _c: (),
+                        _mt: &mut ()| {
             let bc = euler::extract_boundaries::<operators::Interpolation4>(
-                prev, *bt, *eb, *grids, time,
+                prev, &bt, &mut eb, &grids, time,
             );
             pool.scope(|s| {
                 for ((((fut, prev), bc), wb), metrics) in fut
@@ -168,8 +166,8 @@ impl System {
             &mut self.time,
             dt,
             &mut k,
-            &(&self.grids, &self.bt),
-            &mut (&mut self.wb, &mut self.eb),
+            (),
+            &mut (),
             pool,
         );
 

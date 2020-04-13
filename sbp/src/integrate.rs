@@ -89,7 +89,7 @@ impl ButcherTableau for Rk6 {
 
 #[allow(clippy::too_many_arguments)]
 pub fn integrate<'a, BTableau, F: 'a, RHS, MT, C>(
-    rhs: RHS,
+    mut rhs: RHS,
     prev: &F,
     fut: &mut F,
     time: &mut Float,
@@ -101,7 +101,7 @@ pub fn integrate<'a, BTableau, F: 'a, RHS, MT, C>(
 ) where
     C: Copy,
     F: std::ops::Deref<Target = Array3<Float>> + std::ops::DerefMut<Target = Array3<Float>>,
-    RHS: Fn(&mut F, &F, Float, C, &mut MT),
+    RHS: FnMut(&mut F, &F, Float, C, &mut MT),
     BTableau: ButcherTableau,
 {
     assert_eq!(prev.shape(), fut.shape());
@@ -147,7 +147,7 @@ pub fn integrate<'a, BTableau, F: 'a, RHS, MT, C>(
 #[cfg(feature = "rayon")]
 #[allow(clippy::too_many_arguments)]
 pub fn integrate_multigrid<'a, BTableau, F: 'a, RHS, MT, C>(
-    rhs: RHS,
+    mut rhs: RHS,
     prev: &[F],
     fut: &mut [F],
     time: &mut Float,
@@ -163,7 +163,7 @@ pub fn integrate_multigrid<'a, BTableau, F: 'a, RHS, MT, C>(
         + std::ops::DerefMut<Target = Array3<Float>>
         + Send
         + Sync,
-    RHS: Fn(&mut [F], &[F], Float, C, &mut MT),
+    RHS: FnMut(&mut [F], &[F], Float, C, &mut MT),
     BTableau: ButcherTableau,
 {
     for i in 0.. {
