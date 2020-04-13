@@ -55,7 +55,7 @@ pub(crate) fn test_interpolation_operator<IO: InterpolationOperator>(op: IO, h2:
     let (x_c, x_f) = if h2 {
         (
             crate::utils::h2linspace(0.0, 1.0, nc),
-            crate::utils::h2linspace(0.0, 1.0, 2 * nc - 1),
+            crate::utils::h2linspace(0.0, 1.0, 2 * (nc - 1)),
         )
     } else {
         (
@@ -66,9 +66,9 @@ pub(crate) fn test_interpolation_operator<IO: InterpolationOperator>(op: IO, h2:
 
     let mut ix_f = ndarray::Array1::zeros(x_f.raw_dim());
     op.coarse2fine(x_c.view(), ix_f.view_mut());
-    approx::assert_abs_diff_eq!(ix_f, x_f, epsilon = 1e-2);
+    approx::assert_abs_diff_eq!(ix_f, x_f, epsilon = 1e-5);
 
     let mut ix_c = ndarray::Array1::zeros(x_c.raw_dim());
     op.fine2coarse(x_f.view(), ix_c.view_mut());
-    approx::assert_abs_diff_eq!(ix_c, x_c, epsilon = 1e-2);
+    approx::assert_abs_diff_eq!(ix_c, x_c, epsilon = 1e-5);
 }
