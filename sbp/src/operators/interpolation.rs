@@ -6,6 +6,11 @@ mod interpolation4;
 pub use interpolation4::Interpolation4;
 mod interpolation9;
 pub use interpolation9::Interpolation9;
+mod interpolation8;
+pub use interpolation8::Interpolation8;
+
+mod interpolation9h2;
+pub use interpolation9h2::Interpolation9h2;
 
 fn interpolate(
     input: ArrayView1<Float>,
@@ -45,9 +50,19 @@ fn interpolate(
 }
 
 #[cfg(test)]
-pub(crate) fn test_interpolation_operator<IO: InterpolationOperator>(op: IO) {
-    let x_c = ndarray::Array1::linspace(0.0, 1.0, 101);
-    let x_f = ndarray::Array1::linspace(0.0, 1.0, 2 * x_c.len() - 1);
+pub(crate) fn test_interpolation_operator<IO: InterpolationOperator>(op: IO, h2: bool) {
+    let nc = 101;
+    let (x_c, x_f) = if h2 {
+        (
+            crate::utils::h2linspace(0.0, 1.0, nc),
+            crate::utils::h2linspace(0.0, 1.0, 2 * nc - 1),
+        )
+    } else {
+        (
+            ndarray::Array1::linspace(0.0, 1.0, 101),
+            ndarray::Array1::linspace(0.0, 1.0, 2 * nc - 1),
+        )
+    };
 
     let mut ix_f = ndarray::Array1::zeros(x_f.raw_dim());
     op.coarse2fine(x_c.view(), ix_f.view_mut());

@@ -95,5 +95,5 @@ impl InterpolationOperator for Interpolation4 {
 
 #[test]
 fn test_inter4() {
-    test_interpolation_operator(Interpolation4);
+    test_interpolation_operator(Interpolation4, false);
 }
