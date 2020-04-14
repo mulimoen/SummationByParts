@@ -2,8 +2,8 @@ use super::SbpOperator;
 use crate::Float;
 use ndarray::{ArrayView1, ArrayViewMut1};
 
-#[derive(Debug)]
-pub struct SBP8 {}
+#[derive(Debug, Copy, Clone)]
+pub struct SBP8;
 
 impl SBP8 {
     #[rustfmt::skip]
@@ -28,7 +28,7 @@ impl SBP8 {
 }
 
 impl SbpOperator for SBP8 {
-    fn diff1d(prev: ArrayView1<Float>, fut: ArrayViewMut1<Float>) {
+    fn diff1d(&self, prev: ArrayView1<Float>, fut: ArrayViewMut1<Float>) {
         super::diff_op_1d(
             ndarray::arr2(Self::BLOCK).view(),
             ndarray::arr1(Self::DIAG).view(),
@@ -39,7 +39,7 @@ impl SbpOperator for SBP8 {
         )
     }
 
-    fn h() -> &'static [Float] {
+    fn h(&self) -> &'static [Float] {
         Self::HBLOCK
     }
 }
@@ -51,7 +51,8 @@ fn test_trad8() {
     let ny = 16;
 
     // Order one polynomial
-    check_operator_on::<SBP8, _, _, _>(
+    check_operator_on(
+        SBP8,
         (ny, nx),
         |x, y| x + 2.0 * y,
         |_x, _y| 1.0,
@@ -60,31 +61,35 @@ fn test_trad8() {
     );
 
     // Order two polynomial
-    check_operator_on::<SBP8, _, _, _>(
+    check_operator_on(
+        SBP8,
         (ny, nx),
         |x, y| x * x + 0.5 * y * y,
         |x, _y| 2.0 * x,
         |_x, y| y,
         1e-4,
     );
-    check_operator_on::<SBP8, _, _, _>((ny, nx), |x, y| x * y, |_x, y| y, |x, _y| x, 1e-4);
+    check_operator_on(SBP8, (ny, nx), |x, y| x * y, |_x, y| y, |x, _y| x, 1e-4);
 
     // Order three polynomials
-    check_operator_on::<SBP8, _, _, _>(
+    check_operator_on(
+        SBP8,
         (ny, nx),
         |x, y| x * x * x + y * y * y / 6.0,
         |x, _y| 3.0 * x * x,
         |_x, y| y * y / 2.0,
         1e-4,
     );
-    check_operator_on::<SBP8, _, _, _>(
+    check_operator_on(
+        SBP8,
         (ny, nx),
         |x, y| x * x * y + x * y * y / 2.0,
         |x, y| 2.0 * x * y + y * y / 2.0,
         |x, y| x * x + x * y,
         1e-4,
     );
-    check_operator_on::<SBP8, _, _, _>(
+    check_operator_on(
+        SBP8,
         (ny, nx),
         |x, y| x.powi(3) + 2.0 * x.powi(2) * y + 3.0 * x * y.powi(2) + 4.0 * y.powi(3),
         |x, y| 3.0 * x.powi(2) + 4.0 * x * y + 3.0 * y.powi(2),
@@ -93,7 +98,8 @@ fn test_trad8() {
     );
 
     // Order four polynomials
-    check_operator_on::<SBP8, _, _, _>(
+    check_operator_on(
+        SBP8,
         (ny, nx),
         |x, y| x.powi(4) + x.powi(3) * y + x.powi(2) * y.powi(2) + x * y.powi(3) + y.powi(4),
         |x, y| 4.0 * x.powi(3) + 3.0 * x.powi(2) * y + 2.0 * x * y.powi(2) + y.powi(3),

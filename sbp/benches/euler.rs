@@ -25,7 +25,7 @@ fn performance_benchmark(c: &mut Criterion) {
     let y = ndarray::Array1::linspace(-10.0, 10.0, h);
     let y = y.broadcast((w, h)).unwrap().reversed_axes();
 
-    let mut universe = System::<Upwind4>::new(x.into_owned(), y.into_owned());
+    let mut universe = System::new(x.into_owned(), y.into_owned(), Upwind4);
     group.bench_function("advance", |b| {
         b.iter(|| {
             universe.init_with_vortex(0.0, 0.0);
@@ -33,7 +33,7 @@ fn performance_benchmark(c: &mut Criterion) {
         })
     });
 
-    let mut universe = System::<Upwind4>::new(x.into_owned(), y.into_owned());
+    let mut universe = System::new(x.into_owned(), y.into_owned(), Upwind4);
     group.bench_function("advance_upwind", |b| {
         b.iter(|| {
             universe.init_with_vortex(0.0, 0.0);
@@ -41,7 +41,7 @@ fn performance_benchmark(c: &mut Criterion) {
         })
     });
 
-    let mut universe = System::<SBP4>::new(x.into_owned(), y.into_owned());
+    let mut universe = System::new(x.into_owned(), y.into_owned(), SBP4);
     group.bench_function("advance_trad4", |b| {
         b.iter(|| {
             universe.init_with_vortex(0.0, 0.0);

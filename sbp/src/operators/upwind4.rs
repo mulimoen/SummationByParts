@@ -2,8 +2,8 @@ use super::{SbpOperator, UpwindOperator};
 use crate::Float;
 use ndarray::{ArrayView1, ArrayView2, ArrayViewMut1, ArrayViewMut2, Axis};
 
-#[derive(Debug)]
-pub struct Upwind4 {}
+#[derive(Debug, Copy, Clone)]
+pub struct Upwind4;
 
 /// Simdtype used in diff_simd_col and diff_simd_row
 #[cfg(feature = "f32")]
@@ -276,7 +276,7 @@ impl Upwind4 {
 }
 
 impl SbpOperator for Upwind4 {
-    fn diff1d(prev: ArrayView1<Float>, fut: ArrayViewMut1<Float>) {
+    fn diff1d(&self, prev: ArrayView1<Float>, fut: ArrayViewMut1<Float>) {
         super::diff_op_1d(
             ndarray::arr2(Self::BLOCK).view(),
             ndarray::arr1(Self::DIAG).view(),
@@ -286,7 +286,7 @@ impl SbpOperator for Upwind4 {
             fut,
         )
     }
-    fn diffxi(prev: ArrayView2<Float>, mut fut: ArrayViewMut2<Float>) {
+    fn diffxi(&self, prev: ArrayView2<Float>, mut fut: ArrayViewMut2<Float>) {
         assert_eq!(prev.shape(), fut.shape());
         assert!(prev.shape()[1] >= 2 * Self::BLOCK.len());
 
@@ -300,14 +300,14 @@ impl SbpOperator for Upwind4 {
             ([_, _], [_, _]) => {
                 // Fallback, work row by row
                 for (r0, r1) in prev.outer_iter().zip(fut.outer_iter_mut()) {
-                    Self::diff1d(r0, r1);
+                    Self.diff1d(r0, r1);
                 }
             }
             _ => unreachable!("Should only be two elements in the strides vectors"),
         }
     }
 
-    fn h() -> &'static [Float] {
+    fn h(&self) -> &'static [Float] {
         Self::HBLOCK
     }
 }
@@ -326,14 +326,14 @@ fn upwind4_test() {
         target[i] = 1.0;
     }
     res.fill(0.0);
-    Upwind4::diff1d(source.view(), res.view_mut());
+    Upwind4.diff1d(source.view(), res.view_mut());
     approx::assert_abs_diff_eq!(&res, &target, epsilon = 1e-4);
     {
         let source = source.to_owned().insert_axis(ndarray::Axis(0));
         let mut res = res.to_owned().insert_axis(ndarray::Axis(0));
         let target = target.to_owned().insert_axis(ndarray::Axis(0));
         res.fill(0.0);
-        Upwind4::diffxi(source.view(), res.view_mut());
+        Upwind4.diffxi(source.view(), res.view_mut());
         approx::assert_abs_diff_eq!(&res, &target, epsilon = 1e-2);
     }
 
@@ -342,7 +342,7 @@ fn upwind4_test() {
         let target = Array2::from_shape_fn((nx, 8), |(i, _)| target[i]);
         let mut res = Array2::zeros((nx, 8));
         res.fill(0.0);
-        Upwind4::diffeta(source.view(), res.view_mut());
+        Upwind4.diffeta(source.view(), res.view_mut());
         approx::assert_abs_diff_eq!(&res.to_owned(), &target.to_owned(), epsilon = 1e-2);
     }
 
@@ -352,14 +352,14 @@ fn upwind4_test() {
         target[i] = 2.0 * x;
     }
     res.fill(0.0);
-    Upwind4::diff1d(source.view(), res.view_mut());
+    Upwind4.diff1d(source.view(), res.view_mut());
     approx::assert_abs_diff_eq!(&res, &target, epsilon = 1e-4);
     {
         let source = source.to_owned().insert_axis(ndarray::Axis(0));
         let mut res = res.to_owned().insert_axis(ndarray::Axis(0));
         let target = target.to_owned().insert_axis(ndarray::Axis(0));
         res.fill(0.0);
-        Upwind4::diffxi(source.view(), res.view_mut());
+        Upwind4.diffxi(source.view(), res.view_mut());
         approx::assert_abs_diff_eq!(&res, &target, epsilon = 1e-2);
     }
 
@@ -368,7 +368,7 @@ fn upwind4_test() {
         let target = Array2::from_shape_fn((nx, 8), |(i, _)| target[i]);
         let mut res = Array2::zeros((nx, 8));
         res.fill(0.0);
-        Upwind4::diffeta(source.view(), res.view_mut());
+        Upwind4.diffeta(source.view(), res.view_mut());
         approx::assert_abs_diff_eq!(&res.to_owned(), &target.to_owned(), epsilon = 1e-2);
     }
 
@@ -378,7 +378,7 @@ fn upwind4_test() {
         target[i] = 3.0 * x * x;
     }
     res.fill(0.0);
-    Upwind4::diff1d(source.view(), res.view_mut());
+    Upwind4.diff1d(source.view(), res.view_mut());
     approx::assert_abs_diff_eq!(&res, &target, epsilon = 1e-2);
 
     {
@@ -386,7 +386,7 @@ fn upwind4_test() {
         let mut res = res.to_owned().insert_axis(ndarray::Axis(0));
         let target = target.to_owned().insert_axis(ndarray::Axis(0));
         res.fill(0.0);
-        Upwind4::diffxi(source.view(), res.view_mut());
+        Upwind4.diffxi(source.view(), res.view_mut());
         approx::assert_abs_diff_eq!(&res, &target, epsilon = 1e-2);
     }
 
@@ -395,13 +395,13 @@ fn upwind4_test() {
         let target = Array2::from_shape_fn((nx, 8), |(i, _)| target[i]);
         let mut res = Array2::zeros((nx, 8));
         res.fill(0.0);
-        Upwind4::diffeta(source.view(), res.view_mut());
+        Upwind4.diffeta(source.view(), res.view_mut());
         approx::assert_abs_diff_eq!(&res.to_owned(), &target.to_owned(), epsilon = 1e-2);
     }
 }
 
 impl UpwindOperator for Upwind4 {
-    fn diss1d(prev: ArrayView1<Float>, fut: ArrayViewMut1<Float>) {
+    fn diss1d(&self, prev: ArrayView1<Float>, fut: ArrayViewMut1<Float>) {
         super::diff_op_1d(
             ndarray::arr2(Self::DISS_BLOCK).view(),
             ndarray::arr1(Self::DISS_DIAG).view(),
@@ -411,7 +411,7 @@ impl UpwindOperator for Upwind4 {
             fut,
         )
     }
-    fn dissxi(prev: ArrayView2<Float>, mut fut: ArrayViewMut2<Float>) {
+    fn dissxi(&self, prev: ArrayView2<Float>, mut fut: ArrayViewMut2<Float>) {
         assert_eq!(prev.shape(), fut.shape());
         assert!(prev.shape()[1] >= 2 * Self::BLOCK.len());
 
@@ -425,7 +425,7 @@ impl UpwindOperator for Upwind4 {
             ([_, _], [_, _]) => {
                 // Fallback, work row by row
                 for (r0, r1) in prev.outer_iter().zip(fut.outer_iter_mut()) {
-                    Self::diss1d(r0, r1);
+                    Self.diss1d(r0, r1);
                 }
             }
             _ => unreachable!("Should only be two elements in the strides vectors"),
@@ -440,28 +440,32 @@ fn upwind4_test2() {
     let nx = 32;
     let ny = 16;
 
-    check_operator_on::<Upwind4, _, _, _>(
+    check_operator_on(
+        Upwind4,
         (ny, nx),
         |x, y| x + 2.0 * y,
         |_, _| 1.0,
         |_, _| 2.0,
         1e-4,
     );
-    check_operator_on::<Upwind4, _, _, _>(
+    check_operator_on(
+        Upwind4,
         (ny, nx),
         |x, y| x * x + 2.0 * x * y + 3.0 * y * y,
         |x, y| 2.0 * x + 2.0 * y,
         |x, y| 2.0 * x + 6.0 * y,
         1e-3,
     );
-    check_operator_on::<Upwind4, _, _, _>(
+    check_operator_on(
+        Upwind4,
         (ny, nx),
         |x, y| x.powi(3) + 2.0 * x.powi(2) * y + 3.0 * x * y.powi(2) + 4.0 * y.powi(3),
         |x, y| 3.0 * x.powi(2) + 4.0 * x * y + 3.0 * y.powi(2),
         |x, y| 2.0 * x.powi(2) + 6.0 * x * y + 12.0 * y.powi(2),
         1e-1,
     );
-    check_operator_on::<Upwind4, _, _, _>(
+    check_operator_on(
+        Upwind4,
         (32, 32),
         |x, y| x.powi(3) + 2.0 * x.powi(2) * y + 3.0 * x * y.powi(2) + 4.0 * y.powi(3),
         |x, y| 3.0 * x.powi(2) + 4.0 * x * y + 3.0 * y.powi(2),

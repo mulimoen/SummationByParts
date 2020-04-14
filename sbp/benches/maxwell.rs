@@ -24,7 +24,7 @@ fn performance_benchmark(c: &mut Criterion) {
     let x = ndarray::Array2::from_shape_fn((h, w), |(_, i)| i as Float / (w - 1) as Float);
     let y = ndarray::Array2::from_shape_fn((h, w), |(j, _)| j as Float / (h - 1) as Float);
 
-    let mut universe = System::<Upwind4>::new(x.clone(), y.clone());
+    let mut universe = System::new(x.clone(), y.clone(), Upwind4);
     group.bench_function("advance", |b| {
         b.iter(|| {
             universe.set_gaussian(0.5, 0.5);
@@ -32,7 +32,7 @@ fn performance_benchmark(c: &mut Criterion) {
         })
     });
 
-    let mut universe = System::<Upwind4>::new(x.clone(), y.clone());
+    let mut universe = System::new(x.clone(), y.clone(), Upwind4);
     group.bench_function("advance_upwind", |b| {
         b.iter(|| {
             universe.set_gaussian(0.5, 0.5);
@@ -40,7 +40,7 @@ fn performance_benchmark(c: &mut Criterion) {
         })
     });
 
-    let mut universe = System::<SBP4>::new(x, y);
+    let mut universe = System::new(x, y, SBP4);
     group.bench_function("advance_trad4", |b| {
         b.iter(|| {
             universe.set_gaussian(0.5, 0.5);

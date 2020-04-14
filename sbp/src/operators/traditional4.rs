@@ -2,8 +2,8 @@ use super::SbpOperator;
 use crate::Float;
 use ndarray::{ArrayView1, ArrayViewMut1};
 
-#[derive(Debug)]
-pub struct SBP4 {}
+#[derive(Debug, Copy, Clone)]
+pub struct SBP4;
 
 impl SBP4 {
     #[rustfmt::skip]
@@ -24,7 +24,7 @@ impl SBP4 {
 }
 
 impl SbpOperator for SBP4 {
-    fn diff1d(prev: ArrayView1<Float>, fut: ArrayViewMut1<Float>) {
+    fn diff1d(&self, prev: ArrayView1<Float>, fut: ArrayViewMut1<Float>) {
         super::diff_op_1d(
             ndarray::arr2(Self::BLOCK).view(),
             ndarray::arr1(Self::DIAG).view(),
@@ -35,7 +35,7 @@ impl SbpOperator for SBP4 {
         )
     }
 
-    fn h() -> &'static [Float] {
+    fn h(&self) -> &'static [Float] {
         Self::HBLOCK
     }
 }
@@ -47,15 +47,24 @@ fn test_trad4() {
     let nx = 20;
     let ny = 13;
 
-    check_operator_on::<SBP4, _, _, _>((ny, nx), |x, y| x + 2.0 * y, |_, _| 1.0, |_, _| 2.0, 1e-4);
-    check_operator_on::<SBP4, _, _, _>(
+    check_operator_on(
+        SBP4,
+        (ny, nx),
+        |x, y| x + 2.0 * y,
+        |_, _| 1.0,
+        |_, _| 2.0,
+        1e-4,
+    );
+    check_operator_on(
+        SBP4,
         (ny, nx),
         |x, y| x * x + 2.0 * x * y + 3.0 * y * y,
         |x, y| 2.0 * x + 2.0 * y,
         |x, y| 2.0 * x + 6.0 * y,
         1e-3,
     );
-    check_operator_on::<SBP4, _, _, _>(
+    check_operator_on(
+        SBP4,
         (ny, nx),
         |x, y| x.powi(3) + 2.0 * x.powi(2) * y + 3.0 * x * y.powi(2) + 4.0 * y.powi(3),
         |x, y| 3.0 * x.powi(2) + 4.0 * x * y + 3.0 * y.powi(2),

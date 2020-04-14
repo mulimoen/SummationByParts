@@ -78,19 +78,21 @@ pub struct System<SBP: SbpOperator> {
     sys: (Field, Field),
     wb: WorkBuffers,
     grid: Grid,
-    metrics: Metrics<SBP, SBP>,
+    metrics: Metrics,
+    op: SBP,
 }
 
 impl<SBP: SbpOperator> System<SBP> {
-    pub fn new(x: Array2<Float>, y: Array2<Float>) -> Self {
+    pub fn new(x: Array2<Float>, y: Array2<Float>, op: SBP) -> Self {
         assert_eq!(x.shape(), y.shape());
         let ny = x.shape()[0];
         let nx = x.shape()[1];
 
         let grid = Grid::new(x, y).unwrap();
-        let metrics = grid.metrics().unwrap();
+        let metrics = grid.metrics(op, op).unwrap();
 
         Self {
+            op,
             sys: (Field::new(ny, nx), Field::new(ny, nx)),
             grid,
             metrics,
@@ -115,16 +117,20 @@ impl<SBP: SbpOperator> System<SBP> {
     }
 
     pub fn advance(&mut self, dt: Float) {
-        fn rhs_adaptor<SBP: SbpOperator>(
-            fut: &mut Field,
-            prev: &Field,
-            _time: Float,
-            c: &(&Grid, &Metrics<SBP, SBP>),
-            m: &mut (Array2<Float>, Array2<Float>, Array2<Float>, Array2<Float>),
-        ) {
+        let op = self.op;
+        let rhs_adaptor = move |fut: &mut Field,
+                                prev: &Field,
+                                _time: Float,
+                                c: &(&Grid, &Metrics),
+                                m: &mut (
+            Array2<Float>,
+            Array2<Float>,
+            Array2<Float>,
+            Array2<Float>,
+        )| {
             let (grid, metrics) = c;
-            RHS(fut, prev, grid, metrics, m);
-        }
+            RHS(op, fut, prev, grid, metrics, m);
+        };
         let mut _time = 0.0;
         integrate::integrate::<integrate::Rk4, _, _, _, _>(
             rhs_adaptor,
@@ -143,16 +149,20 @@ impl<SBP: SbpOperator> System<SBP> {
 impl<UO: UpwindOperator> System<UO> {
     /// Using artificial dissipation with the upwind operator
     pub fn advance_upwind(&mut self, dt: Float) {
-        fn rhs_adaptor<UO: UpwindOperator>(
-            fut: &mut Field,
-            prev: &Field,
-            _time: Float,
-            c: &(&Grid, &Metrics<UO, UO>),
-            m: &mut (Array2<Float>, Array2<Float>, Array2<Float>, Array2<Float>),
-        ) {
+        let op = self.op;
+        let rhs_adaptor = move |fut: &mut Field,
+                                prev: &Field,
+                                _time: Float,
+                                c: &(&Grid, &Metrics),
+                                m: &mut (
+            Array2<Float>,
+            Array2<Float>,
+            Array2<Float>,
+            Array2<Float>,
+        )| {
             let (grid, metrics) = c;
-            RHS_upwind(fut, prev, grid, metrics, m);
-        }
+            RHS_upwind(op, fut, prev, grid, metrics, m);
+        };
         let mut _time = 0.0;
         integrate::integrate::<integrate::Rk4, _, _, _, _>(
             rhs_adaptor,
@@ -196,13 +206,14 @@ fn gaussian(x: Float, x0: Float, y: Float, y0: Float) -> Float {
 ///
 /// This is used both in fluxes and SAT terms
 fn RHS<SBP: SbpOperator>(
+    op: SBP,
     k: &mut Field,
     y: &Field,
     _grid: &Grid,
-    metrics: &Metrics<SBP, SBP>,
+    metrics: &Metrics,
     tmp: &mut (Array2<Float>, Array2<Float>, Array2<Float>, Array2<Float>),
 ) {
-    fluxes(k, y, metrics, tmp);
+    fluxes(op, k, y, metrics, tmp);
 
     let boundaries = BoundaryTerms {
         north: Boundary::This,
@@ -210,7 +221,7 @@ fn RHS<SBP: SbpOperator>(
         west: Boundary::This,
         east: Boundary::This,
     };
-    SAT_characteristics(k, y, metrics, &boundaries);
+    SAT_characteristics(op, k, y, metrics, &boundaries);
 
     azip!((k in &mut k.0,
                     &detj in &metrics.detj.broadcast((3, y.ny(), y.nx())).unwrap()) {
@@ -220,14 +231,15 @@ fn RHS<SBP: SbpOperator>(
 
 #[allow(non_snake_case)]
 fn RHS_upwind<UO: UpwindOperator>(
+    op: UO,
     k: &mut Field,
     y: &Field,
     _grid: &Grid,
-    metrics: &Metrics<UO, UO>,
+    metrics: &Metrics,
     tmp: &mut (Array2<Float>, Array2<Float>, Array2<Float>, Array2<Float>),
 ) {
-    fluxes(k, y, metrics, tmp);
-    dissipation(k, y, metrics, tmp);
+    fluxes(op, k, y, metrics, tmp);
+    dissipation(op, k, y, metrics, tmp);
 
     let boundaries = BoundaryTerms {
         north: Boundary::This,
@@ -235,7 +247,7 @@ fn RHS_upwind<UO: UpwindOperator>(
         west: Boundary::This,
         east: Boundary::This,
     };
-    SAT_characteristics(k, y, metrics, &boundaries);
+    SAT_characteristics(op, k, y, metrics, &boundaries);
 
     azip!((k in &mut k.0,
                     &detj in &metrics.detj.broadcast((3, y.ny(), y.nx())).unwrap()) {
@@ -244,9 +256,10 @@ fn RHS_upwind<UO: UpwindOperator>(
 }
 
 fn fluxes<SBP: SbpOperator>(
+    op: SBP,
     k: &mut Field,
     y: &Field,
-    metrics: &Metrics<SBP, SBP>,
+    metrics: &Metrics,
     tmp: &mut (Array2<Float>, Array2<Float>, Array2<Float>, Array2<Float>),
 ) {
     // ex = hz_y
@@ -256,14 +269,14 @@ fn fluxes<SBP: SbpOperator>(
                         &hz in &y.hz())
             *a = dxi_dy * hz
         );
-        SBP::diffxi(tmp.0.view(), tmp.1.view_mut());
+        op.diffxi(tmp.0.view(), tmp.1.view_mut());
 
         ndarray::azip!((b in &mut tmp.2,
                         &deta_dy in &metrics.detj_deta_dy,
                         &hz in &y.hz())
             *b = deta_dy * hz
         );
-        SBP::diffeta(tmp.2.view(), tmp.3.view_mut());
+        op.diffeta(tmp.2.view(), tmp.3.view_mut());
 
         ndarray::azip!((flux in &mut k.ex_mut(), &ax in &tmp.1, &by in &tmp.3)
             *flux = ax + by
@@ -279,7 +292,7 @@ fn fluxes<SBP: SbpOperator>(
                         &ey in &y.ey())
             *a = dxi_dx * -ey + dxi_dy * ex
         );
-        SBP::diffxi(tmp.0.view(), tmp.1.view_mut());
+        op.diffxi(tmp.0.view(), tmp.1.view_mut());
 
         ndarray::azip!((b in &mut tmp.2,
                         &deta_dx in &metrics.detj_deta_dx,
@@ -288,7 +301,7 @@ fn fluxes<SBP: SbpOperator>(
                         &ey in &y.ey())
             *b = deta_dx * -ey + deta_dy * ex
         );
-        SBP::diffeta(tmp.2.view(), tmp.3.view_mut());
+        op.diffeta(tmp.2.view(), tmp.3.view_mut());
 
         ndarray::azip!((flux in &mut k.hz_mut(), &ax in &tmp.1, &by in &tmp.3)
             *flux = ax + by
@@ -302,14 +315,14 @@ fn fluxes<SBP: SbpOperator>(
                         &hz in &y.hz())
             *a = dxi_dx * -hz
         );
-        SBP::diffxi(tmp.0.view(), tmp.1.view_mut());
+        op.diffxi(tmp.0.view(), tmp.1.view_mut());
 
         azip!((b in &mut tmp.2,
                         &deta_dx in &metrics.detj_deta_dx,
                         &hz in &y.hz())
             *b = deta_dx * -hz
         );
-        SBP::diffeta(tmp.2.view(), tmp.3.view_mut());
+        op.diffeta(tmp.2.view(), tmp.3.view_mut());
 
         azip!((flux in &mut k.ey_mut(), &ax in &tmp.1, &by in &tmp.3)
             *flux = ax + by
@@ -318,9 +331,10 @@ fn fluxes<SBP: SbpOperator>(
 }
 
 fn dissipation<UO: UpwindOperator>(
+    op: UO,
     k: &mut Field,
     y: &Field,
-    metrics: &Metrics<UO, UO>,
+    metrics: &Metrics,
     tmp: &mut (Array2<Float>, Array2<Float>, Array2<Float>, Array2<Float>),
 ) {
     // ex component
@@ -333,7 +347,7 @@ fn dissipation<UO: UpwindOperator>(
             let r = Float::hypot(kx, ky);
             *a = ky*ky/r * ex + -kx*ky/r*ey;
         });
-        UO::dissxi(tmp.0.view(), tmp.1.view_mut());
+        op.dissxi(tmp.0.view(), tmp.1.view_mut());
 
         ndarray::azip!((b in &mut tmp.2,
                     &kx in &metrics.detj_deta_dx,
@@ -343,7 +357,7 @@ fn dissipation<UO: UpwindOperator>(
             let r = Float::hypot(kx, ky);
             *b = ky*ky/r * ex + -kx*ky/r*ey;
         });
-        UO::disseta(tmp.2.view(), tmp.3.view_mut());
+        op.disseta(tmp.2.view(), tmp.3.view_mut());
 
         ndarray::azip!((flux in &mut k.ex_mut(), &ax in &tmp.1, &by in &tmp.3)
             *flux += ax + by
@@ -359,7 +373,7 @@ fn dissipation<UO: UpwindOperator>(
             let r = Float::hypot(kx, ky);
             *a = r * hz;
         });
-        UO::dissxi(tmp.0.view(), tmp.1.view_mut());
+        op.dissxi(tmp.0.view(), tmp.1.view_mut());
 
         ndarray::azip!((b in &mut tmp.2,
                         &kx in &metrics.detj_deta_dx,
@@ -368,7 +382,7 @@ fn dissipation<UO: UpwindOperator>(
             let r = Float::hypot(kx, ky);
             *b = r * hz;
         });
-        UO::disseta(tmp.2.view(), tmp.3.view_mut());
+        op.disseta(tmp.2.view(), tmp.3.view_mut());
 
         ndarray::azip!((flux in &mut k.hz_mut(), &ax in &tmp.1, &by in &tmp.3)
             *flux += ax + by
@@ -385,7 +399,7 @@ fn dissipation<UO: UpwindOperator>(
             let r = Float::hypot(kx, ky);
             *a = -kx*ky/r * ex + kx*kx/r*ey;
         });
-        UO::dissxi(tmp.0.view(), tmp.1.view_mut());
+        op.dissxi(tmp.0.view(), tmp.1.view_mut());
 
         ndarray::azip!((b in &mut tmp.2,
                     &kx in &metrics.detj_deta_dx,
@@ -395,7 +409,7 @@ fn dissipation<UO: UpwindOperator>(
             let r = Float::hypot(kx, ky);
             *b = -kx*ky/r * ex + kx*kx/r*ey;
         });
-        UO::disseta(tmp.2.view(), tmp.3.view_mut());
+        op.disseta(tmp.2.view(), tmp.3.view_mut());
 
         ndarray::azip!((flux in &mut k.hz_mut(), &ax in &tmp.1, &by in &tmp.3)
             *flux += ax + by
@@ -419,9 +433,10 @@ pub struct BoundaryTerms {
 #[allow(non_snake_case)]
 /// Boundary conditions (SAT)
 fn SAT_characteristics<SBP: SbpOperator>(
+    op: SBP,
     k: &mut Field,
     y: &Field,
-    metrics: &Metrics<SBP, SBP>,
+    metrics: &Metrics,
     boundaries: &BoundaryTerms,
 ) {
     let ny = y.ny();
@@ -449,10 +464,10 @@ fn SAT_characteristics<SBP: SbpOperator>(
             Boundary::This => y.slice(s![.., .., 0]),
         };
         // East boundary
-        let hinv = if SBP::is_h2() {
-            (nx - 2) as Float / SBP::h()[0]
+        let hinv = if op.is_h2() {
+            (nx - 2) as Float / op.h()[0]
         } else {
-            (nx - 1) as Float / SBP::h()[0]
+            (nx - 1) as Float / op.h()[0]
         };
         for ((((mut k, v), g), &kx), &ky) in k
             .slice_mut(s![.., .., nx - 1])
@@ -487,10 +502,10 @@ fn SAT_characteristics<SBP: SbpOperator>(
         let g = match boundaries.east {
             Boundary::This => y.slice(s![.., .., nx - 1]),
         };
-        let hinv = if SBP::is_h2() {
-            (nx - 2) as Float / SBP::h()[0]
+        let hinv = if op.is_h2() {
+            (nx - 2) as Float / op.h()[0]
         } else {
-            (nx - 1) as Float / SBP::h()[0]
+            (nx - 1) as Float / op.h()[0]
         };
         for ((((mut k, v), g), &kx), &ky) in k
             .slice_mut(s![.., .., 0])
@@ -530,10 +545,10 @@ fn SAT_characteristics<SBP: SbpOperator>(
         let g = match boundaries.north {
             Boundary::This => y.slice(s![.., 0, ..]),
         };
-        let hinv = if SBP::is_h2() {
-            (ny - 2) as Float / SBP::h()[0]
+        let hinv = if op.is_h2() {
+            (ny - 2) as Float / op.h()[0]
         } else {
-            (ny - 1) as Float / SBP::h()[0]
+            (ny - 1) as Float / op.h()[0]
         };
         for ((((mut k, v), g), &kx), &ky) in k
             .slice_mut(s![.., ny - 1, ..])
@@ -567,10 +582,10 @@ fn SAT_characteristics<SBP: SbpOperator>(
         let g = match boundaries.south {
             Boundary::This => y.slice(s![.., ny - 1, ..]),
         };
-        let hinv = if SBP::is_h2() {
-            (ny - 2) as Float / SBP::h()[0]
+        let hinv = if op.is_h2() {
+            (ny - 2) as Float / op.h()[0]
         } else {
-            (ny - 1) as Float / SBP::h()[0]
+            (ny - 1) as Float / op.h()[0]
         };
         for ((((mut k, v), g), &kx), &ky) in k
             .slice_mut(s![.., 0, ..])

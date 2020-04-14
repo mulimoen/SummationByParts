@@ -5,33 +5,33 @@ use crate::Float;
 
 use ndarray::{ArrayView1, ArrayView2, ArrayViewMut1, ArrayViewMut2};
 
-pub trait SbpOperator: Send + Sync {
-    fn diff1d(prev: ArrayView1<Float>, fut: ArrayViewMut1<Float>);
-    fn diffxi(prev: ArrayView2<Float>, mut fut: ArrayViewMut2<Float>) {
+pub trait SbpOperator: Send + Sync + Copy {
+    fn diff1d(&self, prev: ArrayView1<Float>, fut: ArrayViewMut1<Float>);
+    fn diffxi(&self, prev: ArrayView2<Float>, mut fut: ArrayViewMut2<Float>) {
         assert_eq!(prev.shape(), fut.shape());
         for (r0, r1) in prev.outer_iter().zip(fut.outer_iter_mut()) {
-            Self::diff1d(r0, r1);
+            self.diff1d(r0, r1);
         }
     }
-    fn diffeta(prev: ArrayView2<Float>, fut: ArrayViewMut2<Float>) {
-        Self::diffxi(prev.reversed_axes(), fut.reversed_axes())
+    fn diffeta(&self, prev: ArrayView2<Float>, fut: ArrayViewMut2<Float>) {
+        self.diffxi(prev.reversed_axes(), fut.reversed_axes())
     }
-    fn h() -> &'static [Float];
-    fn is_h2() -> bool {
+    fn h(&self) -> &'static [Float];
+    fn is_h2(&self) -> bool {
         false
     }
 }
 
 pub trait UpwindOperator: SbpOperator {
-    fn diss1d(prev: ArrayView1<Float>, fut: ArrayViewMut1<Float>);
-    fn dissxi(prev: ArrayView2<Float>, mut fut: ArrayViewMut2<Float>) {
+    fn diss1d(&self, prev: ArrayView1<Float>, fut: ArrayViewMut1<Float>);
+    fn dissxi(&self, prev: ArrayView2<Float>, mut fut: ArrayViewMut2<Float>) {
         assert_eq!(prev.shape(), fut.shape());
         for (r0, r1) in prev.outer_iter().zip(fut.outer_iter_mut()) {
-            Self::diss1d(r0, r1);
+            self.diss1d(r0, r1);
         }
     }
-    fn disseta(prev: ArrayView2<Float>, fut: ArrayViewMut2<Float>) {
-        Self::dissxi(prev.reversed_axes(), fut.reversed_axes())
+    fn disseta(&self, prev: ArrayView2<Float>, fut: ArrayViewMut2<Float>) {
+        self.dissxi(prev.reversed_axes(), fut.reversed_axes())
     }
 }
 
@@ -133,6 +133,7 @@ pub(crate) mod testing {
     }
 
     pub(crate) fn check_operator_on<SBP, F, FX, FY>(
+        op: SBP,
         n: (usize, usize),
         f: F,
         dfdx: FX,
@@ -148,11 +149,11 @@ pub(crate) mod testing {
         let x = grid_eval(n, f);
 
         y.fill(0.0);
-        SBP::diffxi(x.view(), y.view_mut());
+        op.diffxi(x.view(), y.view_mut());
         approx::assert_abs_diff_eq!(&y, &grid_eval(n, dfdx), epsilon = eps);
 
         y.fill(0.0);
-        SBP::diffeta(x.view(), y.view_mut());
+        op.diffeta(x.view(), y.view_mut());
         approx::assert_abs_diff_eq!(&y, &grid_eval(n, dfdy), epsilon = eps);
     }
 }

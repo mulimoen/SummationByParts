@@ -20,7 +20,7 @@ impl MaxwellUniverse {
     pub fn new(height: usize, width: usize, x: &[f32], y: &[f32]) -> Self {
         let x = ndarray::Array2::from_shape_vec((height, width), x.to_vec()).unwrap();
         let y = ndarray::Array2::from_shape_vec((height, width), y.to_vec()).unwrap();
-        Self(maxwell::System::new(x, y))
+        Self(maxwell::System::new(x, y, operators::Upwind4))
     }
 
     pub fn init(&mut self, x0: f32, y0: f32) {
@@ -53,7 +53,7 @@ pub struct EulerUniverse(euler::System<operators::Upwind4>);
 
 impl EulerUniverse {
     pub fn new(x: ndarray::Array2<f32>, y: ndarray::Array2<f32>) -> Self {
-        Self(euler::System::new(x, y))
+        Self(euler::System::new(x, y, operators::Upwind4))
     }
 }
 
@@ -63,7 +63,7 @@ impl EulerUniverse {
     pub fn new_with_slice(height: usize, width: usize, x: &[f32], y: &[f32]) -> Self {
         let x = ndarray::Array2::from_shape_vec((height, width), x.to_vec()).unwrap();
         let y = ndarray::Array2::from_shape_vec((height, width), y.to_vec()).unwrap();
-        Self(euler::System::new(x, y))
+        Self(euler::System::new(x, y, operators::Upwind4))
     }
 
     pub fn init(&mut self, x0: f32, y0: f32) {
