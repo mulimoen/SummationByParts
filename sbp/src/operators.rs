@@ -2,32 +2,104 @@
 #![allow(clippy::unreadable_literal)]
 
 use crate::Float;
-
 use ndarray::{ArrayView1, ArrayView2, ArrayViewMut1, ArrayViewMut2};
 
-pub trait SbpOperator: Send + Sync + Copy {
-    fn diff1d(&self, prev: ArrayView1<Float>, fut: ArrayViewMut1<Float>);
-    fn diffxi(&self, prev: ArrayView2<Float>, mut fut: ArrayViewMut2<Float>) {
-        assert_eq!(prev.shape(), fut.shape());
-        for (r0, r1) in prev.outer_iter().zip(fut.outer_iter_mut()) {
-            self.diff1d(r0, r1);
-        }
-    }
-    fn diffeta(&self, prev: ArrayView2<Float>, fut: ArrayViewMut2<Float>) {
-        self.diffxi(prev.reversed_axes(), fut.reversed_axes())
-    }
+pub trait SbpOperator1d: Copy + Clone + core::fmt::Debug {
+    fn diff(&self, prev: ArrayView1<Float>, fut: ArrayViewMut1<Float>);
+
     fn h(&self) -> &'static [Float];
     fn is_h2(&self) -> bool {
         false
     }
 }
 
-pub trait UpwindOperator: SbpOperator {
-    fn diss1d(&self, prev: ArrayView1<Float>, fut: ArrayViewMut1<Float>);
+pub trait SbpOperator2d: Copy + Clone {
+    fn diffxi(&self, prev: ArrayView2<Float>, fut: ArrayViewMut2<Float>);
+    fn diffeta(&self, prev: ArrayView2<Float>, fut: ArrayViewMut2<Float>);
+
+    fn hxi(&self) -> &'static [Float];
+    fn heta(&self) -> &'static [Float];
+
+    fn is_h2xi(&self) -> bool;
+    fn is_h2eta(&self) -> bool;
+}
+
+impl<SBPeta: SbpOperator1d, SBPxi: SbpOperator1d> SbpOperator2d for (SBPeta, SBPxi) {
+    fn diffxi(&self, prev: ArrayView2<Float>, mut fut: ArrayViewMut2<Float>) {
+        assert_eq!(prev.shape(), fut.shape());
+        for (r0, r1) in prev.outer_iter().zip(fut.outer_iter_mut()) {
+            self.1.diff(r0, r1)
+        }
+    }
+    fn diffeta(&self, prev: ArrayView2<Float>, fut: ArrayViewMut2<Float>) {
+        let ba = (self.1, self.0);
+        ba.diffxi(prev.reversed_axes(), fut.reversed_axes())
+    }
+    fn hxi(&self) -> &'static [Float] {
+        self.1.h()
+    }
+    fn heta(&self) -> &'static [Float] {
+        self.0.h()
+    }
+    fn is_h2xi(&self) -> bool {
+        self.1.is_h2()
+    }
+    fn is_h2eta(&self) -> bool {
+        self.0.is_h2()
+    }
+}
+
+impl<SBP: SbpOperator1d> SbpOperator2d for SBP {
+    fn diffxi(&self, prev: ArrayView2<Float>, mut fut: ArrayViewMut2<Float>) {
+        assert_eq!(prev.shape(), fut.shape());
+        for (r0, r1) in prev.outer_iter().zip(fut.outer_iter_mut()) {
+            self.diff(r0, r1)
+        }
+    }
+    fn diffeta(&self, prev: ArrayView2<Float>, fut: ArrayViewMut2<Float>) {
+        self.diffxi(prev.reversed_axes(), fut.reversed_axes())
+    }
+    fn hxi(&self) -> &'static [Float] {
+        self.h()
+    }
+    fn heta(&self) -> &'static [Float] {
+        self.h()
+    }
+    fn is_h2xi(&self) -> bool {
+        self.is_h2()
+    }
+    fn is_h2eta(&self) -> bool {
+        self.is_h2()
+    }
+}
+
+pub trait UpwindOperator1d: SbpOperator1d + Copy + Clone {
+    fn diss(&self, prev: ArrayView1<Float>, fut: ArrayViewMut1<Float>);
+}
+
+pub trait UpwindOperator2d: SbpOperator2d + Copy + Clone {
+    fn dissxi(&self, prev: ArrayView2<Float>, fut: ArrayViewMut2<Float>);
+    fn disseta(&self, prev: ArrayView2<Float>, fut: ArrayViewMut2<Float>);
+}
+
+impl<UOeta: UpwindOperator1d, UOxi: UpwindOperator1d> UpwindOperator2d for (UOeta, UOxi) {
     fn dissxi(&self, prev: ArrayView2<Float>, mut fut: ArrayViewMut2<Float>) {
         assert_eq!(prev.shape(), fut.shape());
         for (r0, r1) in prev.outer_iter().zip(fut.outer_iter_mut()) {
-            self.diss1d(r0, r1);
+            self.1.diss(r0, r1);
+        }
+    }
+    fn disseta(&self, prev: ArrayView2<Float>, fut: ArrayViewMut2<Float>) {
+        let ba = (self.1, self.0);
+        ba.dissxi(prev.reversed_axes(), fut.reversed_axes())
+    }
+}
+
+impl<UO: UpwindOperator1d> UpwindOperator2d for UO {
+    fn dissxi(&self, prev: ArrayView2<Float>, mut fut: ArrayViewMut2<Float>) {
+        assert_eq!(prev.shape(), fut.shape());
+        for (r0, r1) in prev.outer_iter().zip(fut.outer_iter_mut()) {
+            self.diss(r0, r1);
         }
     }
     fn disseta(&self, prev: ArrayView2<Float>, fut: ArrayViewMut2<Float>) {
@@ -140,7 +212,7 @@ pub(crate) mod testing {
         dfdy: FY,
         eps: Float,
     ) where
-        SBP: SbpOperator,
+        SBP: SbpOperator2d,
         F: Fn(Float, Float) -> Float,
         FX: Fn(Float, Float) -> Float,
         FY: Fn(Float, Float) -> Float,

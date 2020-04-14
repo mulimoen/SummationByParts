@@ -1,14 +1,14 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use sbp::euler::System;
-use sbp::operators::{SbpOperator, Upwind4, UpwindOperator, SBP4};
+use sbp::operators::{SbpOperator2d, Upwind4, UpwindOperator2d, SBP4};
 
-fn advance_system<SBP: SbpOperator>(universe: &mut System<SBP>, n: usize) {
+fn advance_system<SBP: SbpOperator2d>(universe: &mut System<SBP>, n: usize) {
     for _ in 0..n {
         universe.advance(1.0 / 40.0 * 0.2);
     }
 }
 
-fn advance_system_upwind<UO: UpwindOperator>(universe: &mut System<UO>, n: usize) {
+fn advance_system_upwind<UO: UpwindOperator2d>(universe: &mut System<UO>, n: usize) {
     for _ in 0..n {
         universe.advance_upwind(1.0 / 40.0 * 0.2);
     }

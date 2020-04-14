@@ -1,6 +1,6 @@
 use super::grid::{Grid, Metrics};
 use super::integrate;
-use super::operators::{SbpOperator, UpwindOperator};
+use super::operators::{SbpOperator2d, UpwindOperator2d};
 use crate::Float;
 use ndarray::azip;
 use ndarray::prelude::*;
@@ -74,7 +74,7 @@ impl Field {
 }
 
 #[derive(Debug, Clone)]
-pub struct System<SBP: SbpOperator> {
+pub struct System<SBP: SbpOperator2d> {
     sys: (Field, Field),
     wb: WorkBuffers,
     grid: Grid,
@@ -82,14 +82,14 @@ pub struct System<SBP: SbpOperator> {
     op: SBP,
 }
 
-impl<SBP: SbpOperator> System<SBP> {
+impl<SBP: SbpOperator2d> System<SBP> {
     pub fn new(x: Array2<Float>, y: Array2<Float>, op: SBP) -> Self {
         assert_eq!(x.shape(), y.shape());
         let ny = x.shape()[0];
         let nx = x.shape()[1];
 
         let grid = Grid::new(x, y).unwrap();
-        let metrics = grid.metrics(op, op).unwrap();
+        let metrics = grid.metrics(op).unwrap();
 
         Self {
             op,
@@ -146,7 +146,7 @@ impl<SBP: SbpOperator> System<SBP> {
     }
 }
 
-impl<UO: UpwindOperator> System<UO> {
+impl<UO: UpwindOperator2d> System<UO> {
     /// Using artificial dissipation with the upwind operator
     pub fn advance_upwind(&mut self, dt: Float) {
         let op = self.op;
@@ -205,7 +205,7 @@ fn gaussian(x: Float, x0: Float, y: Float, y0: Float) -> Float {
 /// where J is the grid determinant
 ///
 /// This is used both in fluxes and SAT terms
-fn RHS<SBP: SbpOperator>(
+fn RHS<SBP: SbpOperator2d>(
     op: SBP,
     k: &mut Field,
     y: &Field,
@@ -230,7 +230,7 @@ fn RHS<SBP: SbpOperator>(
 }
 
 #[allow(non_snake_case)]
-fn RHS_upwind<UO: UpwindOperator>(
+fn RHS_upwind<UO: UpwindOperator2d>(
     op: UO,
     k: &mut Field,
     y: &Field,
@@ -255,7 +255,7 @@ fn RHS_upwind<UO: UpwindOperator>(
     });
 }
 
-fn fluxes<SBP: SbpOperator>(
+fn fluxes<SBP: super::operators::SbpOperator2d>(
     op: SBP,
     k: &mut Field,
     y: &Field,
@@ -330,7 +330,7 @@ fn fluxes<SBP: SbpOperator>(
     }
 }
 
-fn dissipation<UO: UpwindOperator>(
+fn dissipation<UO: UpwindOperator2d>(
     op: UO,
     k: &mut Field,
     y: &Field,
@@ -432,7 +432,7 @@ pub struct BoundaryTerms {
 
 #[allow(non_snake_case)]
 /// Boundary conditions (SAT)
-fn SAT_characteristics<SBP: SbpOperator>(
+fn SAT_characteristics<SBP: SbpOperator2d>(
     op: SBP,
     k: &mut Field,
     y: &Field,
@@ -464,10 +464,10 @@ fn SAT_characteristics<SBP: SbpOperator>(
             Boundary::This => y.slice(s![.., .., 0]),
         };
         // East boundary
-        let hinv = if op.is_h2() {
-            (nx - 2) as Float / op.h()[0]
+        let hinv = if op.is_h2xi() {
+            (nx - 2) as Float / op.hxi()[0]
         } else {
-            (nx - 1) as Float / op.h()[0]
+            (nx - 1) as Float / op.hxi()[0]
         };
         for ((((mut k, v), g), &kx), &ky) in k
             .slice_mut(s![.., .., nx - 1])
@@ -502,10 +502,10 @@ fn SAT_characteristics<SBP: SbpOperator>(
         let g = match boundaries.east {
             Boundary::This => y.slice(s![.., .., nx - 1]),
         };
-        let hinv = if op.is_h2() {
-            (nx - 2) as Float / op.h()[0]
+        let hinv = if op.is_h2xi() {
+            (nx - 2) as Float / op.hxi()[0]
         } else {
-            (nx - 1) as Float / op.h()[0]
+            (nx - 1) as Float / op.hxi()[0]
         };
         for ((((mut k, v), g), &kx), &ky) in k
             .slice_mut(s![.., .., 0])
@@ -545,10 +545,10 @@ fn SAT_characteristics<SBP: SbpOperator>(
         let g = match boundaries.north {
             Boundary::This => y.slice(s![.., 0, ..]),
         };
-        let hinv = if op.is_h2() {
-            (ny - 2) as Float / op.h()[0]
+        let hinv = if op.is_h2eta() {
+            (ny - 2) as Float / op.heta()[0]
         } else {
-            (ny - 1) as Float / op.h()[0]
+            (ny - 1) as Float / op.heta()[0]
         };
         for ((((mut k, v), g), &kx), &ky) in k
             .slice_mut(s![.., ny - 1, ..])
@@ -582,10 +582,10 @@ fn SAT_characteristics<SBP: SbpOperator>(
         let g = match boundaries.south {
             Boundary::This => y.slice(s![.., ny - 1, ..]),
         };
-        let hinv = if op.is_h2() {
-            (ny - 2) as Float / op.h()[0]
+        let hinv = if op.is_h2eta() {
+            (ny - 2) as Float / op.heta()[0]
         } else {
-            (ny - 1) as Float / op.h()[0]
+            (ny - 1) as Float / op.heta()[0]
         };
         for ((((mut k, v), g), &kx), &ky) in k
             .slice_mut(s![.., 0, ..])

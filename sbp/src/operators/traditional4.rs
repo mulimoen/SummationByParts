@@ -1,4 +1,4 @@
-use super::SbpOperator;
+use super::*;
 use crate::Float;
 use ndarray::{ArrayView1, ArrayViewMut1};
 
@@ -23,8 +23,8 @@ impl SBP4 {
     ];
 }
 
-impl SbpOperator for SBP4 {
-    fn diff1d(&self, prev: ArrayView1<Float>, fut: ArrayViewMut1<Float>) {
+impl SbpOperator1d for SBP4 {
+    fn diff(&self, prev: ArrayView1<Float>, fut: ArrayViewMut1<Float>) {
         super::diff_op_1d(
             ndarray::arr2(Self::BLOCK).view(),
             ndarray::arr1(Self::DIAG).view(),

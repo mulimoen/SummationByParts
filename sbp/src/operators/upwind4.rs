@@ -1,4 +1,4 @@
-use super::{SbpOperator, UpwindOperator};
+use super::*;
 use crate::Float;
 use ndarray::{ArrayView1, ArrayView2, ArrayViewMut1, ArrayViewMut2, Axis};
 
@@ -275,8 +275,8 @@ impl Upwind4 {
     ];
 }
 
-impl SbpOperator for Upwind4 {
-    fn diff1d(&self, prev: ArrayView1<Float>, fut: ArrayViewMut1<Float>) {
+impl SbpOperator1d for Upwind4 {
+    fn diff(&self, prev: ArrayView1<Float>, fut: ArrayViewMut1<Float>) {
         super::diff_op_1d(
             ndarray::arr2(Self::BLOCK).view(),
             ndarray::arr1(Self::DIAG).view(),
@@ -286,6 +286,12 @@ impl SbpOperator for Upwind4 {
             fut,
         )
     }
+    fn h(&self) -> &'static [Float] {
+        Self::HBLOCK
+    }
+}
+
+/*
     fn diffxi(&self, prev: ArrayView2<Float>, mut fut: ArrayViewMut2<Float>) {
         assert_eq!(prev.shape(), fut.shape());
         assert!(prev.shape()[1] >= 2 * Self::BLOCK.len());
@@ -307,10 +313,8 @@ impl SbpOperator for Upwind4 {
         }
     }
 
-    fn h(&self) -> &'static [Float] {
-        Self::HBLOCK
-    }
 }
+*/
 
 #[test]
 fn upwind4_test() {
@@ -326,7 +330,7 @@ fn upwind4_test() {
         target[i] = 1.0;
     }
     res.fill(0.0);
-    Upwind4.diff1d(source.view(), res.view_mut());
+    Upwind4.diff(source.view(), res.view_mut());
     approx::assert_abs_diff_eq!(&res, &target, epsilon = 1e-4);
     {
         let source = source.to_owned().insert_axis(ndarray::Axis(0));
@@ -352,7 +356,7 @@ fn upwind4_test() {
         target[i] = 2.0 * x;
     }
     res.fill(0.0);
-    Upwind4.diff1d(source.view(), res.view_mut());
+    Upwind4.diff(source.view(), res.view_mut());
     approx::assert_abs_diff_eq!(&res, &target, epsilon = 1e-4);
     {
         let source = source.to_owned().insert_axis(ndarray::Axis(0));
@@ -378,7 +382,7 @@ fn upwind4_test() {
         target[i] = 3.0 * x * x;
     }
     res.fill(0.0);
-    Upwind4.diff1d(source.view(), res.view_mut());
+    Upwind4.diff(source.view(), res.view_mut());
     approx::assert_abs_diff_eq!(&res, &target, epsilon = 1e-2);
 
     {
@@ -400,8 +404,8 @@ fn upwind4_test() {
     }
 }
 
-impl UpwindOperator for Upwind4 {
-    fn diss1d(&self, prev: ArrayView1<Float>, fut: ArrayViewMut1<Float>) {
+impl UpwindOperator1d for Upwind4 {
+    fn diss(&self, prev: ArrayView1<Float>, fut: ArrayViewMut1<Float>) {
         super::diff_op_1d(
             ndarray::arr2(Self::DISS_BLOCK).view(),
             ndarray::arr1(Self::DISS_DIAG).view(),
@@ -411,6 +415,9 @@ impl UpwindOperator for Upwind4 {
             fut,
         )
     }
+}
+
+/*
     fn dissxi(&self, prev: ArrayView2<Float>, mut fut: ArrayViewMut2<Float>) {
         assert_eq!(prev.shape(), fut.shape());
         assert!(prev.shape()[1] >= 2 * Self::BLOCK.len());
@@ -432,6 +439,7 @@ impl UpwindOperator for Upwind4 {
         }
     }
 }
+*/
 
 #[test]
 fn upwind4_test2() {

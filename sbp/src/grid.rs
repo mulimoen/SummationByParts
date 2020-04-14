@@ -36,12 +36,11 @@ impl Grid {
         self.y.view()
     }
 
-    pub fn metrics<SBPeta: super::operators::SbpOperator, SBPxi: super::operators::SbpOperator>(
+    pub fn metrics<SBP: super::operators::SbpOperator2d>(
         &self,
-        opeta: SBPeta,
-        opxi: SBPxi,
+        op: SBP,
     ) -> Result<Metrics, ndarray::ShapeError> {
-        Metrics::new(self, opeta, opxi)
+        Metrics::new(self, op)
     }
 
     pub fn north(&self) -> (ndarray::ArrayView1<Float>, ndarray::ArrayView1<Float>) {
@@ -71,10 +70,9 @@ impl Grid {
 }
 
 impl Metrics {
-    fn new<SBPeta: super::operators::SbpOperator, SBPxi: super::operators::SbpOperator>(
+    fn new<SBP: super::operators::SbpOperator2d>(
         grid: &Grid,
-        opeta: SBPeta,
-        opxi: SBPxi,
+        op: SBP,
     ) -> Result<Self, ndarray::ShapeError> {
         let ny = grid.ny();
         let nx = grid.nx();
@@ -82,13 +80,13 @@ impl Metrics {
         let y = &grid.y;
 
         let mut dx_dxi = Array2::zeros((ny, nx));
-        opxi.diffxi(x.view(), dx_dxi.view_mut());
+        op.diffxi(x.view(), dx_dxi.view_mut());
         let mut dx_deta = Array2::zeros((ny, nx));
-        opeta.diffeta(x.view(), dx_deta.view_mut());
+        op.diffeta(x.view(), dx_deta.view_mut());
         let mut dy_dxi = Array2::zeros((ny, nx));
-        opxi.diffxi(y.view(), dy_dxi.view_mut());
+        op.diffxi(y.view(), dy_dxi.view_mut());
         let mut dy_deta = Array2::zeros((ny, nx));
-        opeta.diffeta(y.view(), dy_deta.view_mut());
+        op.diffeta(y.view(), dy_deta.view_mut());
 
         let mut detj = Array2::zeros((ny, nx));
         ndarray::azip!((detj in &mut detj,

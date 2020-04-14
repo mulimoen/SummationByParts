@@ -1,4 +1,4 @@
-use super::{SbpOperator, UpwindOperator};
+use super::*;
 use crate::Float;
 use ndarray::{ArrayView1, ArrayViewMut1};
 
@@ -44,8 +44,8 @@ impl Upwind9 {
     ];
 }
 
-impl SbpOperator for Upwind9 {
-    fn diff1d(&self, prev: ArrayView1<Float>, fut: ArrayViewMut1<Float>) {
+impl SbpOperator1d for Upwind9 {
+    fn diff(&self, prev: ArrayView1<Float>, fut: ArrayViewMut1<Float>) {
         super::diff_op_1d(
             ndarray::arr2(Self::BLOCK).view(),
             ndarray::arr1(Self::DIAG).view(),
@@ -61,8 +61,8 @@ impl SbpOperator for Upwind9 {
     }
 }
 
-impl UpwindOperator for Upwind9 {
-    fn diss1d(&self, prev: ArrayView1<Float>, fut: ArrayViewMut1<Float>) {
+impl UpwindOperator1d for Upwind9 {
+    fn diss(&self, prev: ArrayView1<Float>, fut: ArrayViewMut1<Float>) {
         super::diff_op_1d(
             ndarray::arr2(Self::DISS_BLOCK).view(),
             ndarray::arr1(Self::DISS_DIAG).view(),
