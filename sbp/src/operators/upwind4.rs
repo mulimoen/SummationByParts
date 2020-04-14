@@ -291,10 +291,10 @@ impl SbpOperator1d for Upwind4 {
     }
 }
 
-/*
+impl<SBP: SbpOperator1d> SbpOperator2d for (Upwind4, SBP) {
     fn diffxi(&self, prev: ArrayView2<Float>, mut fut: ArrayViewMut2<Float>) {
         assert_eq!(prev.shape(), fut.shape());
-        assert!(prev.shape()[1] >= 2 * Self::BLOCK.len());
+        assert!(prev.shape()[1] >= 2 * Upwind4::BLOCK.len());
 
         match (prev.strides(), fut.strides()) {
             ([_, 1], [_, 1]) => {
@@ -306,15 +306,13 @@ impl SbpOperator1d for Upwind4 {
             ([_, _], [_, _]) => {
                 // Fallback, work row by row
                 for (r0, r1) in prev.outer_iter().zip(fut.outer_iter_mut()) {
-                    Self.diff1d(r0, r1);
+                    Upwind4.diff(r0, r1);
                 }
             }
             _ => unreachable!("Should only be two elements in the strides vectors"),
         }
     }
-
 }
-*/
 
 #[test]
 fn upwind4_test() {
@@ -417,10 +415,10 @@ impl UpwindOperator1d for Upwind4 {
     }
 }
 
-/*
+impl<SBP: UpwindOperator1d> UpwindOperator2d for (Upwind4, SBP) {
     fn dissxi(&self, prev: ArrayView2<Float>, mut fut: ArrayViewMut2<Float>) {
         assert_eq!(prev.shape(), fut.shape());
-        assert!(prev.shape()[1] >= 2 * Self::BLOCK.len());
+        assert!(prev.shape()[1] >= 2 * Upwind4::BLOCK.len());
 
         match (prev.strides(), fut.strides()) {
             ([_, 1], [_, 1]) => {
@@ -432,14 +430,13 @@ impl UpwindOperator1d for Upwind4 {
             ([_, _], [_, _]) => {
                 // Fallback, work row by row
                 for (r0, r1) in prev.outer_iter().zip(fut.outer_iter_mut()) {
-                    Self.diss1d(r0, r1);
+                    Upwind4.diss(r0, r1);
                 }
             }
             _ => unreachable!("Should only be two elements in the strides vectors"),
         }
     }
 }
-*/
 
 #[test]
 fn upwind4_test2() {

@@ -1,4 +1,5 @@
 #![feature(str_strip)]
+#![feature(specialization)]
 
 #[cfg(feature = "f32")]
 pub type Float = f32;
