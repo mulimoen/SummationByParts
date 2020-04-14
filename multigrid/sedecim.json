@@ -1,0 +1,156 @@
+{
+    "grids": [
+        {
+            "name": "grid00",
+            "x": "linspace:-5:-2.5:128",
+            "y": "linspace:2.5:5:128",
+            "dirS": "grid01",
+            "dirN": "grid11",
+            "dirE": "grid03",
+            "dirW": "grid33"
+        },
+        {
+            "name": "grid01",
+            "x": "linspace:-5:-2.5:128",
+            "y": "linspace:0:2.5:128",
+            "dirS": "grid10",
+            "dirN": "grid00",
+            "dirE": "grid02",
+            "dirW": "grid32"
+        },
+        {
+            "name": "grid02",
+            "x": "linspace:-2.5:0:128",
+            "y": "linspace:0:2.5:128",
+            "dirS": "grid13",
+            "dirN": "grid03",
+            "dirE": "grid31",
+            "dirW": "grid01"
+        },
+        {
+            "name": "grid03",
+            "x": "linspace:-2.5:0:128",
+            "y": "linspace:2.5:5:128",
+            "dirS": "grid02",
+            "dirN": "grid12",
+            "dirE": "grid30",
+            "dirW": "grid00"
+        },
+        {
+            "name": "grid10",
+            "x": "linspace:-5:-2.5:128",
+            "y": "linspace:-2.5:0:128",
+            "dirS": "grid11",
+            "dirN": "grid01",
+            "dirE": "grid13",
+            "dirW": "grid23"
+        },
+        {
+            "name": "grid11",
+            "x": "linspace:-5:-2.5:128",
+            "y": "linspace:-5:-2.5:128",
+            "dirS": "grid00",
+            "dirN": "grid10",
+            "dirE": "grid12",
+            "dirW": "grid22"
+        },
+        {
+            "name": "grid12",
+            "x": "linspace:-2.5:0:128",
+            "y": "linspace:-5:-2.5:128",
+            "dirS": "grid03",
+            "dirN": "grid13",
+            "dirE": "grid21",
+            "dirW": "grid11"
+        },
+        {
+            "name": "grid13",
+            "x": "linspace:-2.5:0:128",
+            "y": "linspace:-2.5:0:128",
+            "dirS": "grid12",
+            "dirN": "grid02",
+            "dirE": "grid20",
+            "dirW": "grid10"
+        },
+        {
+            "name": "grid20",
+            "x": "linspace:0:2.5:128",
+            "y": "linspace:-2.5:0:128",
+            "dirS": "grid21",
+            "dirN": "grid31",
+            "dirE": "grid23",
+            "dirW": "grid13"
+        },
+        {
+            "name": "grid21",
+            "x": "linspace:0:2.5:128",
+            "y": "linspace:-5:-2.5:128",
+            "dirS": "grid30",
+            "dirN": "grid20",
+            "dirE": "grid22",
+            "dirW": "grid12"
+        },
+        {
+            "name": "grid22",
+            "x": "linspace:2.5:5:128",
+            "y": "linspace:-5:-2.5:128",
+            "dirS": "grid33",
+            "dirN": "grid23",
+            "dirE": "grid11",
+            "dirW": "grid21"
+        },
+        {
+            "name": "grid23",
+            "x": "linspace:2.5:5:128",
+            "y": "linspace:-2.5:0:128",
+            "dirS": "grid22",
+            "dirN": "grid32",
+            "dirE": "grid10",
+            "dirW": "grid20"
+        },
+        {
+            "name": "grid30",
+            "x": "linspace:0:2.5:128",
+            "y": "linspace:2.5:5:128",
+            "dirS": "grid31",
+            "dirN": "grid21",
+            "dirE": "grid33",
+            "dirW": "grid03"
+        },
+        {
+            "name": "grid31",
+            "x": "linspace:0:2.5:128",
+            "y": "linspace:0:2.5:128",
+            "dirS": "grid20",
+            "dirN": "grid30",
+            "dirE": "grid32",
+            "dirW": "grid02"
+        },
+        {
+            "name": "grid32",
+            "x": "linspace:2.5:5:128",
+            "y": "linspace:0:2.5:128",
+            "dirS": "grid23",
+            "dirN": "grid33",
+            "dirE": "grid01",
+            "dirW": "grid31"
+        },
+        {
+            "name": "grid33",
+            "x": "linspace:2.5:5:128",
+            "y": "linspace:2.5:5:128",
+            "dirS": "grid32",
+            "dirN": "grid22",
+            "dirE": "grid00",
+            "dirW": "grid30"
+        }
+    ],
+    "integration_time": 2.0,
+    "vortex": {
+        "x0": -1.0,
+        "y0": 0.0,
+        "mach": 0.5,
+        "rstar": 0.5,
+        "eps": 1.0
+    }
+}
