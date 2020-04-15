@@ -1,17 +1,180 @@
+use super::DiffOp;
 use crate::grid::Grid;
 use crate::Float;
+use either::*;
+use json::JsonValue;
+use sbp::utils::h2linspace;
 
-#[derive(Debug, Clone)]
-pub struct ExtendedGrid {
-    pub grid: Grid,
-    pub name: Option<String>,
-    pub dire: Option<String>,
-    pub dirw: Option<String>,
-    pub dirn: Option<String>,
-    pub dirs: Option<String>,
+pub fn json_to_grids(
+    mut jsongrids: JsonValue,
+    vortexparams: sbp::euler::VortexParameters,
+) -> (
+    Vec<String>,
+    Vec<sbp::grid::Grid>,
+    Vec<sbp::euler::BoundaryCharacteristics>,
+    Vec<DiffOp>,
+) {
+    let default = jsongrids.remove("default");
+    let default_operator = {
+        let operators = &default["operators"];
+        let defaultxi = operators["xi"].as_str().unwrap_or("upwind4");
+        let defaulteta = operators["eta"].as_str().unwrap_or("upwind4");
+
+        (defaulteta.to_string(), defaultxi.to_string())
+    };
+    /*
+    let default_bc: sbp::utils::Direction<Option<String>> = {
+        let bc = &default["boundary_conditions"];
+        Direction {
+            south: bc["south"].as_str().map(|x| x.to_string()),
+            north: bc["north"].as_str().map(|x| x.to_string()),
+            west: bc["west"].as_str().map(|x| x.to_string()),
+            east: bc["east"].as_str().map(|x| x.to_string()),
+        }
+    };
+    */
+    let mut names = Vec::new();
+    let mut grids = Vec::new();
+
+    let mut operators: Vec<DiffOp> = Vec::new();
+    for (name, grid) in jsongrids.entries() {
+        names.push(name.to_string());
+        grids.push(json2grid(grid["x"].clone(), grid["y"].clone()).unwrap());
+
+        operators.push({
+            use sbp::operators::*;
+            let opxi = grid["operators"]["xi"]
+                .as_str()
+                .unwrap_or(&default_operator.1);
+
+            let opeta = grid["operators"]["eta"]
+                .as_str()
+                .unwrap_or(&default_operator.1);
+
+            match (opeta, opxi) {
+                ("upwind4", "upwind4") => Left(Box::new(Upwind4) as Box<dyn SbpOperator2d>),
+                ("upwind9", "upwind9") => Left(Box::new(Upwind9) as Box<dyn SbpOperator2d>),
+                ("upwind4h2", "upwind4h2") => Left(Box::new(Upwind4h2) as Box<dyn SbpOperator2d>),
+                ("upwind9h2", "upwind9h2") => Left(Box::new(Upwind9h2) as Box<dyn SbpOperator2d>),
+
+                ("upwind4", "upwind9") => {
+                    Left(Box::new((&Upwind4, &Upwind9)) as Box<dyn SbpOperator2d>)
+                }
+                ("upwind4", "upwind4h2") => {
+                    Left(Box::new((&Upwind4, &Upwind4h2)) as Box<dyn SbpOperator2d>)
+                }
+                ("upwind4", "upwind9h2") => {
+                    Left(Box::new((&Upwind4, &Upwind9h2)) as Box<dyn SbpOperator2d>)
+                }
+
+                ("upwind9", "upwind4") => {
+                    Left(Box::new((&Upwind9, &Upwind4)) as Box<dyn SbpOperator2d>)
+                }
+                ("upwind9", "upwind4h2") => {
+                    Left(Box::new((&Upwind9, &Upwind4h2)) as Box<dyn SbpOperator2d>)
+                }
+                ("upwind9", "upwind9h2") => {
+                    Left(Box::new((&Upwind9, &Upwind9h2)) as Box<dyn SbpOperator2d>)
+                }
+
+                ("upwind4h2", "upwind4") => {
+                    Left(Box::new((&Upwind4h2, &Upwind4)) as Box<dyn SbpOperator2d>)
+                }
+                ("upwind4h2", "upwind9") => {
+                    Left(Box::new((&Upwind4h2, &Upwind9)) as Box<dyn SbpOperator2d>)
+                }
+                ("upwind4h2", "upwind9h2") => {
+                    Left(Box::new((&Upwind4h2, &Upwind9h2)) as Box<dyn SbpOperator2d>)
+                }
+
+                ("upwind9h2", "upwind4") => {
+                    Left(Box::new((&Upwind9h2, &Upwind4)) as Box<dyn SbpOperator2d>)
+                }
+                ("upwind9h2", "upwind9") => {
+                    Left(Box::new((&Upwind9h2, &Upwind9)) as Box<dyn SbpOperator2d>)
+                }
+                ("upwind9h2", "upwind4h2") => {
+                    Left(Box::new((&Upwind9h2, &Upwind4h2)) as Box<dyn SbpOperator2d>)
+                }
+
+                (opeta, opxi) => panic!("combination {} {} not yet implemented", opeta, opxi),
+            }
+        });
+    }
+
+    let mut bcs = Vec::new();
+    let determine_bc = |dir: Option<&str>| match dir {
+        Some(dir) => {
+            if dir == "vortex" {
+                sbp::euler::BoundaryCharacteristic::Vortex(vortexparams)
+            } else if let Some(grid) = dir.strip_prefix("interpolate:") {
+                use sbp::operators::*;
+                let (grid, int_op) = if let Some(rest) = grid.strip_prefix("4:") {
+                    (
+                        rest,
+                        Box::new(Interpolation4) as Box<dyn InterpolationOperator>,
+                    )
+                } else if let Some(rest) = grid.strip_prefix("9:") {
+                    (
+                        rest,
+                        Box::new(Interpolation9) as Box<dyn InterpolationOperator>,
+                    )
+                } else if let Some(rest) = grid.strip_prefix("8:") {
+                    (
+                        rest,
+                        Box::new(Interpolation8) as Box<dyn InterpolationOperator>,
+                    )
+                } else if let Some(rest) = grid.strip_prefix("9h2:") {
+                    (
+                        rest,
+                        Box::new(Interpolation9h2) as Box<dyn InterpolationOperator>,
+                    )
+                } else {
+                    (
+                        grid,
+                        Box::new(Interpolation4) as Box<dyn InterpolationOperator>,
+                    )
+                };
+                sbp::euler::BoundaryCharacteristic::Interpolate(
+                    names.iter().position(|other| other == grid).unwrap(),
+                    int_op,
+                )
+            } else {
+                sbp::euler::BoundaryCharacteristic::Grid(
+                    names.iter().position(|other| other == dir).unwrap(),
+                )
+            }
+        }
+        None => sbp::euler::BoundaryCharacteristic::This,
+    };
+    for name in &names {
+        let bc = &jsongrids[name]["boundary_conditions"];
+        let bc_n = determine_bc(bc["north"].as_str());
+        let bc_s = determine_bc(bc["south"].as_str());
+        let bc_e = determine_bc(bc["east"].as_str());
+        let bc_w = determine_bc(bc["west"].as_str());
+
+        let bc = sbp::euler::BoundaryCharacteristics {
+            north: bc_n,
+            south: bc_s,
+            east: bc_e,
+            west: bc_w,
+        };
+
+        bcs.push(bc);
+    }
+
+    (names, grids, bcs, operators)
+}
+#[derive(Debug)]
+enum ArrayForm {
+    /// Only know the one dimension, will broadcast to
+    /// two dimensions once we know about both dims
+    Array1(ndarray::Array1<Float>),
+    /// The usize is the inner dimension (nx)
+    Array2(ndarray::Array2<Float>),
 }
 
-use json::JsonValue;
 /// Parsing json strings to some gridlike form
 ///
 /// Each grid should be an object with the descriptors on the form
@@ -29,245 +192,136 @@ use json::JsonValue;
 /// Optional parameters:
 /// * name (for relating boundaries)
 /// * dir{e,w,n,s} (for boundary terms)
-pub fn json_to_grids(json: JsonValue) -> Result<Vec<ExtendedGrid>, String> {
-    fn json_to_grid(mut grid: JsonValue) -> Result<ExtendedGrid, String> {
-        #[derive(Debug)]
-        enum ArrayForm {
-            /// Only know the one dimension, will broadcast to
-            /// two dimensions once we know about both dims
-            Array1(ndarray::Array1<Float>),
-            /// The usize is the inner dimension (nx)
-            Array2(ndarray::Array2<Float>),
-        }
-        if grid.is_empty() {
-            return Err("empty object".to_string());
-        }
-        let name = grid.remove("name").take_string();
-        let dire = grid.remove("dirE").take_string();
-        let dirw = grid.remove("dirW").take_string();
-        let dirn = grid.remove("dirN").take_string();
-        let dirs = grid.remove("dirS").take_string();
-
-        let to_array_form = |mut x: JsonValue| {
-            if let Some(s) = x.take_string() {
-                if let Some(s) = s.strip_prefix("linspace:") {
-                    let (s, h2) = if let Some(s) = s.strip_prefix("h2:") {
-                        (s, true)
-                    } else {
-                        (s, false)
-                    };
-
-                    // linspace:start:stop:steps
-                    let mut iter = s.split(':');
-
-                    let start = iter.next();
-                    let start: Float = match start {
-                        Some(x) => x.parse().map_err(|e| format!("linspace: {}", e))?,
-                        None => return Err(format!("")),
-                    };
-                    let end = iter.next();
-                    let end: Float = match end {
-                        Some(x) => x.parse().map_err(|e| format!("linspace: {}", e))?,
-                        None => return Err(format!("")),
-                    };
-                    let steps = iter.next();
-                    let steps: usize = match steps {
-                        Some(x) => x.parse().map_err(|e| format!("linspace: {}", e))?,
-                        None => return Err(format!("")),
-                    };
-                    if iter.next().is_some() {
-                        return Err("linspace: contained more than expected".to_string());
-                    }
-                    Ok(ArrayForm::Array1(if h2 {
-                        h2linspace(start, end, steps)
-                    } else {
-                        ndarray::Array::linspace(start, end, steps)
-                    }))
+fn json2grid(x: JsonValue, y: JsonValue) -> Result<Grid, String> {
+    let to_array_form = |mut x: JsonValue| {
+        if let Some(s) = x.take_string() {
+            if let Some(s) = s.strip_prefix("linspace:") {
+                let (s, h2) = if let Some(s) = s.strip_prefix("h2:") {
+                    (s, true)
                 } else {
-                    Err("Could not parse gridline".to_string())
+                    (s, false)
+                };
+
+                // linspace:start:stop:steps
+                let mut iter = s.split(':');
+
+                let start = iter.next();
+                let start: Float = match start {
+                    Some(x) => x.parse().map_err(|e| format!("linspace: {}", e))?,
+                    None => return Err(format!("")),
+                };
+                let end = iter.next();
+                let end: Float = match end {
+                    Some(x) => x.parse().map_err(|e| format!("linspace: {}", e))?,
+                    None => return Err(format!("")),
+                };
+                let steps = iter.next();
+                let steps: usize = match steps {
+                    Some(x) => x.parse().map_err(|e| format!("linspace: {}", e))?,
+                    None => return Err(format!("")),
+                };
+                if iter.next().is_some() {
+                    return Err("linspace: contained more than expected".to_string());
                 }
-            } else if x.is_array() {
-                let arrlen = x.len();
-                if arrlen == 0 {
+                Ok(ArrayForm::Array1(if h2 {
+                    h2linspace(start, end, steps)
+                } else {
+                    ndarray::Array::linspace(start, end, steps)
+                }))
+            } else {
+                Err("Could not parse gridline".to_string())
+            }
+        } else if x.is_array() {
+            let arrlen = x.len();
+            if arrlen == 0 {
+                return Err("gridline does not have any members".to_string());
+            }
+            if !x[0].is_array() {
+                let v = x
+                    .members()
+                    .map(|x: &JsonValue| -> Result<Float, String> {
+                        Ok(x.as_number()
+                            .ok_or_else(|| {
+                                "Array contained something that could not be converted to an array"
+                                    .to_string()
+                            })?
+                            .into())
+                    })
+                    .collect::<Result<Vec<Float>, _>>()?;
+                Ok(ArrayForm::Array1(ndarray::Array::from(v)))
+            } else {
+                let arrlen2 = x[0].len();
+                if arrlen2 == 0 {
                     return Err("gridline does not have any members".to_string());
                 }
-                if !x[0].is_array() {
-                    let v = x
-                        .members()
-                        .map(|x: &JsonValue| -> Result<Float, String> {
-                            Ok(x.as_number().ok_or_else(|| "Array contained something that could not be converted to an array".to_string())?.into())
-                        })
-                        .collect::<Result<Vec<Float>, _>>()?;
-                    Ok(ArrayForm::Array1(ndarray::Array::from(v)))
-                } else {
-                    let arrlen2 = x[0].len();
-                    if arrlen2 == 0 {
-                        return Err("gridline does not have any members".to_string());
+                for member in x.members() {
+                    if arrlen2 != member.len() {
+                        return Err("some arrays seems to have differing lengths".to_string());
                     }
-                    for member in x.members() {
-                        if arrlen2 != member.len() {
-                            return Err("some arrays seems to have differing lengths".to_string());
-                        }
-                    }
-                    let mut arr = ndarray::Array::zeros((arrlen, arrlen2));
-                    for (mut arr, member) in arr.outer_iter_mut().zip(x.members()) {
-                        for (a, m) in arr.iter_mut().zip(member.members()) {
-                            *a = m
-                                .as_number()
-                                .ok_or_else(|| {
-                                    "array contained something which was not a number".to_string()
-                                })?
-                                .into()
-                        }
-                    }
-                    Ok(ArrayForm::Array2(arr))
                 }
-            } else {
-                Err("Inner object was not a string value, or an array".to_string())
+                let mut arr = ndarray::Array::zeros((arrlen, arrlen2));
+                for (mut arr, member) in arr.outer_iter_mut().zip(x.members()) {
+                    for (a, m) in arr.iter_mut().zip(member.members()) {
+                        *a = m
+                            .as_number()
+                            .ok_or_else(|| {
+                                "array contained something which was not a number".to_string()
+                            })?
+                            .into()
+                    }
+                }
+                Ok(ArrayForm::Array2(arr))
             }
-        };
-
-        let x = grid.remove("x");
-        if x.is_empty() {
-            return Err("x was empty".to_string());
+        } else {
+            Err("Inner object was not a string value, or an array".to_string())
         }
-        let x = to_array_form(x)?;
+    };
 
-        let y = grid.remove("y");
-        if y.is_empty() {
-            return Err("y was empty".to_string());
-        }
-        let y = to_array_form(y)?;
-
-        let (x, y) = match (x, y) {
-            (ArrayForm::Array1(x), ArrayForm::Array1(y)) => {
-                let xlen = x.len();
-                let ylen = y.len();
-                let x = x.broadcast((ylen, xlen)).unwrap().to_owned();
-                let y = y
-                    .broadcast((xlen, ylen))
-                    .unwrap()
-                    .reversed_axes()
-                    .to_owned();
-
-                (x, y)
-            }
-            (ArrayForm::Array2(x), ArrayForm::Array2(y)) => {
-                assert_eq!(x.shape(), y.shape());
-                (x, y)
-            }
-            (ArrayForm::Array1(x), ArrayForm::Array2(y)) => {
-                assert_eq!(x.len(), y.shape()[1]);
-                let x = x.broadcast((y.shape()[1], x.len())).unwrap().to_owned();
-                (x, y)
-            }
-            (ArrayForm::Array2(x), ArrayForm::Array1(y)) => {
-                assert_eq!(x.shape()[0], y.len());
-                let y = y
-                    .broadcast((x.shape()[1], y.len()))
-                    .unwrap()
-                    .reversed_axes()
-                    .to_owned();
-                (x, y)
-            }
-        };
-        assert_eq!(x.shape(), y.shape());
-
-        if !grid.is_empty() {
-            eprintln!("Grid contains some unused entries");
-            for i in grid.entries() {
-                eprintln!("{:#?}", i);
-            }
-        }
-
-        Ok(ExtendedGrid {
-            grid: Grid::new(x, y).unwrap(),
-            name,
-            dire,
-            dirw,
-            dirn,
-            dirs,
-        })
+    if x.is_empty() {
+        return Err("x was empty".to_string());
     }
+    let x = to_array_form(x)?;
 
-    match json {
-        JsonValue::Array(a) => a
-            .into_iter()
-            .map(json_to_grid)
-            .collect::<Result<Vec<_>, _>>(),
-        grid => Ok(vec![json_to_grid(grid)?]),
+    if y.is_empty() {
+        return Err("y was empty".to_string());
     }
-}
+    let y = to_array_form(y)?;
 
-#[test]
-fn parse_linspace() {
-    let grids = json_to_grids(
-        json::parse(r#"[{"name": "main", "x": "linspace:0:10:20", "y": "linspace:0:10:21"}]"#)
-            .unwrap(),
-    )
-    .unwrap();
-    assert_eq!(grids.len(), 1);
-    assert_eq!(grids[0].grid.x.shape(), [21, 20]);
-    assert_eq!(grids[0].grid.y.shape(), [21, 20]);
-    assert_eq!(grids[0].name.as_ref().unwrap(), "main");
-    let grids = json_to_grids(
-        json::parse(r#"{"name": "main", "x": "linspace:0:10:20", "y": "linspace:0:10:21"}"#)
-            .unwrap(),
-    )
-    .unwrap();
-    assert_eq!(grids.len(), 1);
-    assert_eq!(grids[0].grid.x.shape(), [21, 20]);
-    assert_eq!(grids[0].grid.y.shape(), [21, 20]);
-    assert_eq!(grids[0].name.as_ref().unwrap(), "main");
-}
+    let (x, y) = match (x, y) {
+        (ArrayForm::Array1(x), ArrayForm::Array1(y)) => {
+            let xlen = x.len();
+            let ylen = y.len();
+            let x = x.broadcast((ylen, xlen)).unwrap().to_owned();
+            let y = y
+                .broadcast((xlen, ylen))
+                .unwrap()
+                .reversed_axes()
+                .to_owned();
 
-#[test]
-fn parse_1d() {
-    let grids =
-        json_to_grids(json::parse(r#"{"x": [1, 2, 3, 4, 5.1, 3], "y": [1, 2]}"#).unwrap()).unwrap();
-    assert_eq!(grids.len(), 1);
-    let grid = &grids[0];
-    assert_eq!(grid.grid.x.shape(), &[2, 6]);
-    assert_eq!(grid.grid.x.shape(), grid.grid.y.shape());
-}
+            (x, y)
+        }
+        (ArrayForm::Array2(x), ArrayForm::Array2(y)) => {
+            assert_eq!(x.shape(), y.shape());
+            (x, y)
+        }
+        (ArrayForm::Array1(x), ArrayForm::Array2(y)) => {
+            assert_eq!(x.len(), y.shape()[1]);
+            let x = x.broadcast((y.shape()[1], x.len())).unwrap().to_owned();
+            (x, y)
+        }
+        (ArrayForm::Array2(x), ArrayForm::Array1(y)) => {
+            assert_eq!(x.shape()[0], y.len());
+            let y = y
+                .broadcast((x.shape()[1], y.len()))
+                .unwrap()
+                .reversed_axes()
+                .to_owned();
+            (x, y)
+        }
+    };
+    assert_eq!(x.shape(), y.shape());
 
-#[test]
-fn parse_2d() {
-    let grids =
-        json_to_grids(json::parse(r#"{"x": [[1, 2], [3, 4], [5.1, 3]], "y": [1, 2, 3]}"#).unwrap())
-            .unwrap();
-    assert_eq!(grids.len(), 1);
-    let grid = &grids[0];
-    assert_eq!(grid.grid.x.shape(), &[3, 2]);
-    assert_eq!(grid.grid.x.shape(), grid.grid.y.shape());
-    json_to_grids(
-        json::parse(r#"{"x": [[1, 2], [3, 4], [5.1, 3], [1]], "y": [1, 2, 3]}"#).unwrap(),
-    )
-    .unwrap_err();
-    json_to_grids(
-        json::parse(r#"{"y": [[1, 2], [3, 4], [5.1, 3], [1]], "x": [1, 2, 3]}"#).unwrap(),
-    )
-    .unwrap_err();
-    let grids = json_to_grids(
-        json::parse(r#"{"x": [[1, 2], [3, 4], [5.1, 3]], "y": [[1, 2], [3, 4], [5, 6]]}"#).unwrap(),
-    )
-    .unwrap();
-    assert_eq!(grids.len(), 1);
-    json_to_grids(
-        json::parse(r#"{"x": [[1, 2], [3, 4], [5.1, 3]], "y": [[1, 2], [3, 4], [5]]}"#).unwrap(),
-    )
-    .unwrap_err();
-}
-
-#[test]
-fn parse_err() {
-    json_to_grids(json::parse(r#"{}"#).unwrap()).unwrap_err();
-    json_to_grids(json::parse(r#"0.45"#).unwrap()).unwrap_err();
-    json_to_grids(json::parse(r#"{"x": "linspace", "y": [0.1, 0.2]}"#).unwrap()).unwrap_err();
-    json_to_grids(json::parse(r#"{"x": "linspace:::", "y": [0.1, 0.2]}"#).unwrap()).unwrap_err();
-    json_to_grids(json::parse(r#"{"x": "linspace:1.2:3.1:412.2", "y": [0.1, 0.2]}"#).unwrap())
-        .unwrap_err();
-    json_to_grids(json::parse(r#"{"x": [-2, -3, "dfd"], "y": [0.1, 0.2]}"#).unwrap()).unwrap_err();
+    Ok(Grid::new(x, y).unwrap())
 }
 
 pub fn json_to_vortex(mut json: JsonValue) -> super::euler::VortexParameters {
@@ -290,29 +344,5 @@ pub fn json_to_vortex(mut json: JsonValue) -> super::euler::VortexParameters {
         mach,
         rstar,
         eps,
-    }
-}
-
-pub fn h2linspace(start: Float, end: Float, n: usize) -> ndarray::Array1<Float> {
-    let h = (end - start) / (n - 2) as Float;
-    ndarray::Array1::from_shape_fn(n, |i| match i {
-        0 => start,
-        i if i == n - 1 => end,
-        i => start + h * (i as Float - 0.5),
-    })
-}
-
-#[test]
-fn test_h2linspace() {
-    let x = h2linspace(-1.0, 1.0, 50);
-    println!("{}", x);
-    approx::assert_abs_diff_eq!(x[0], -1.0, epsilon = 1e-6);
-    approx::assert_abs_diff_eq!(x[49], 1.0, epsilon = 1e-6);
-    let hend = x[1] - x[0];
-    let h = x[2] - x[1];
-    approx::assert_abs_diff_eq!(x[49] - x[48], hend, epsilon = 1e-6);
-    approx::assert_abs_diff_eq!(2.0 * hend, h, epsilon = 1e-6);
-    for i in 1..48 {
-        approx::assert_abs_diff_eq!(x[i + 1] - x[i], h, epsilon = 1e-6);
     }
 }

@@ -1,150 +1,166 @@
 {
-    "grids": [
-        {
-            "name": "grid00",
+    "grids": {
+        "grid00": {
             "x": "linspace:-5:-2.5:128",
             "y": "linspace:2.5:5:128",
-            "dirS": "grid01",
-            "dirN": "grid11",
-            "dirE": "grid03",
-            "dirW": "grid33"
+            "boundary_conditions": {
+                "south": "grid01",
+                "north": "grid11",
+                "east": "grid03",
+                "west": "grid33"
+            }
         },
-        {
-            "name": "grid01",
+        "grid01": {
             "x": "linspace:-5:-2.5:128",
             "y": "linspace:0:2.5:128",
-            "dirS": "grid10",
-            "dirN": "grid00",
-            "dirE": "grid02",
-            "dirW": "grid32"
+            "boundary_conditions": {
+                "south": "grid10",
+                "north": "grid00",
+                "east": "grid02",
+                "west": "grid32"
+            }
         },
-        {
-            "name": "grid02",
+        "grid02": {
             "x": "linspace:-2.5:0:128",
             "y": "linspace:0:2.5:128",
-            "dirS": "grid13",
-            "dirN": "grid03",
-            "dirE": "grid31",
-            "dirW": "grid01"
+            "boundary_conditions": {
+                "south": "grid13",
+                "north": "grid03",
+                "east": "grid31",
+                "west": "grid01"
+            }
         },
-        {
-            "name": "grid03",
+        "grid03": {
             "x": "linspace:-2.5:0:128",
             "y": "linspace:2.5:5:128",
-            "dirS": "grid02",
-            "dirN": "grid12",
-            "dirE": "grid30",
-            "dirW": "grid00"
+            "boundary_conditions": {
+                "south": "grid02",
+                "north": "grid12",
+                "east": "grid30",
+                "west": "grid00"
+            }
         },
-        {
-            "name": "grid10",
+        "grid10": {
             "x": "linspace:-5:-2.5:128",
             "y": "linspace:-2.5:0:128",
-            "dirS": "grid11",
-            "dirN": "grid01",
-            "dirE": "grid13",
-            "dirW": "grid23"
+            "boundary_conditions": {
+                "south": "grid11",
+                "north": "grid01",
+                "east": "grid13",
+                "west": "grid23"
+            }
         },
-        {
-            "name": "grid11",
+        "grid11": {
             "x": "linspace:-5:-2.5:128",
             "y": "linspace:-5:-2.5:128",
-            "dirS": "grid00",
-            "dirN": "grid10",
-            "dirE": "grid12",
-            "dirW": "grid22"
+            "boundary_conditions": {
+                "south": "grid00",
+                "north": "grid10",
+                "east": "grid12",
+                "west": "grid22"
+            }
         },
-        {
-            "name": "grid12",
+        "grid12": {
             "x": "linspace:-2.5:0:128",
             "y": "linspace:-5:-2.5:128",
-            "dirS": "grid03",
-            "dirN": "grid13",
-            "dirE": "grid21",
-            "dirW": "grid11"
+            "boundary_conditions": {
+                "south": "grid03",
+                "north": "grid13",
+                "east": "grid21",
+                "west": "grid11"
+            }
         },
-        {
-            "name": "grid13",
+        "grid13": {
             "x": "linspace:-2.5:0:128",
             "y": "linspace:-2.5:0:128",
-            "dirS": "grid12",
-            "dirN": "grid02",
-            "dirE": "grid20",
-            "dirW": "grid10"
+            "boundary_conditions": {
+                "south": "grid12",
+                "north": "grid02",
+                "east": "grid20",
+                "west": "grid10"
+            }
         },
-        {
-            "name": "grid20",
+        "grid20": {
             "x": "linspace:0:2.5:128",
             "y": "linspace:-2.5:0:128",
-            "dirS": "grid21",
-            "dirN": "grid31",
-            "dirE": "grid23",
-            "dirW": "grid13"
+            "boundary_conditions": {
+                "south": "grid21",
+                "north": "grid31",
+                "east": "grid23",
+                "west": "grid13"
+            }
         },
-        {
-            "name": "grid21",
+        "grid21": {
             "x": "linspace:0:2.5:128",
             "y": "linspace:-5:-2.5:128",
-            "dirS": "grid30",
-            "dirN": "grid20",
-            "dirE": "grid22",
-            "dirW": "grid12"
+            "boundary_conditions": {
+                "south": "grid30",
+                "north": "grid20",
+                "east": "grid22",
+                "west": "grid12"
+            }
         },
-        {
-            "name": "grid22",
+        "grid22": {
             "x": "linspace:2.5:5:128",
             "y": "linspace:-5:-2.5:128",
-            "dirS": "grid33",
-            "dirN": "grid23",
-            "dirE": "grid11",
-            "dirW": "grid21"
+            "boundary_conditions": {
+                "south": "grid33",
+                "north": "grid23",
+                "east": "grid11",
+                "west": "grid21"
+            }
         },
-        {
-            "name": "grid23",
+        "grid23": {
             "x": "linspace:2.5:5:128",
             "y": "linspace:-2.5:0:128",
-            "dirS": "grid22",
-            "dirN": "grid32",
-            "dirE": "grid10",
-            "dirW": "grid20"
+            "boundary_conditions": {
+                "south": "grid22",
+                "north": "grid32",
+                "east": "grid10",
+                "west": "grid20"
+            }
         },
-        {
-            "name": "grid30",
+        "grid30": {
             "x": "linspace:0:2.5:128",
             "y": "linspace:2.5:5:128",
-            "dirS": "grid31",
-            "dirN": "grid21",
-            "dirE": "grid33",
-            "dirW": "grid03"
+            "boundary_conditions": {
+                "south": "grid31",
+                "north": "grid21",
+                "east": "grid33",
+                "west": "grid03"
+            }
         },
-        {
-            "name": "grid31",
+        "grid31": {
             "x": "linspace:0:2.5:128",
             "y": "linspace:0:2.5:128",
-            "dirS": "grid20",
-            "dirN": "grid30",
-            "dirE": "grid32",
-            "dirW": "grid02"
+            "boundary_conditions": {
+                "south": "grid20",
+                "north": "grid30",
+                "east": "grid32",
+                "west": "grid02"
+            }
         },
-        {
-            "name": "grid32",
+        "grid32": {
             "x": "linspace:2.5:5:128",
             "y": "linspace:0:2.5:128",
-            "dirS": "grid23",
-            "dirN": "grid33",
-            "dirE": "grid01",
-            "dirW": "grid31"
+            "boundary_conditions": {
+                "south": "grid23",
+                "north": "grid33",
+                "east": "grid01",
+                "west": "grid31"
+            }
         },
-        {
-            "name": "grid33",
+        "grid33": {
             "x": "linspace:2.5:5:128",
             "y": "linspace:2.5:5:128",
-            "dirS": "grid32",
-            "dirN": "grid22",
-            "dirE": "grid00",
-            "dirW": "grid30"
+            "boundary_conditions": {
+                "south": "grid32",
+                "north": "grid22",
+                "east": "grid00",
+                "west": "grid30"
+            }
         }
-    ],
+    },
     "integration_time": 2.0,
     "vortex": {
         "x0": -1.0,

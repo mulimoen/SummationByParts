@@ -10,6 +10,8 @@ use parsing::{json_to_grids, json_to_vortex};
 mod file;
 use file::*;
 
+pub(crate) type DiffOp = Either<Box<dyn SbpOperator2d>, Box<dyn UpwindOperator2d>>;
+
 struct System {
     fnow: Vec<euler::Field>,
     fnext: Vec<euler::Field>,
@@ -20,16 +22,14 @@ struct System {
     bt: Vec<euler::BoundaryCharacteristics>,
     eb: Vec<euler::BoundaryStorage>,
     time: Float,
-    operators: Vec<Either<Box<dyn SbpOperator2d>, Box<dyn UpwindOperator2d>>>,
-    interpolation_operators: Vec<euler::InterpolationOperators>,
+    operators: Vec<DiffOp>,
 }
 
 impl System {
     fn new(
         grids: Vec<grid::Grid>,
         bt: Vec<euler::BoundaryCharacteristics>,
-        interpolation_operators: Vec<euler::InterpolationOperators>,
-        operators: Vec<Either<Box<dyn SbpOperator2d>, Box<dyn UpwindOperator2d>>>,
+        operators: Vec<DiffOp>,
     ) -> Self {
         let fnow = grids
             .iter()
@@ -66,7 +66,6 @@ impl System {
             bt,
             eb,
             time: 0.0,
-            interpolation_operators,
             operators,
         }
     }
@@ -83,7 +82,6 @@ impl System {
         let bt = &self.bt;
         let wb = &mut self.wb;
         let mut eb = &mut self.eb;
-        let intops = &self.interpolation_operators;
         let operators = &self.operators;
 
         let rhs = move |fut: &mut [euler::Field],
@@ -91,7 +89,7 @@ impl System {
                         time: Float,
                         _c: (),
                         _mt: &mut ()| {
-            let bc = euler::extract_boundaries(prev, &bt, &mut eb, &grids, time, Some(intops));
+            let bc = euler::extract_boundaries(prev, &bt, &mut eb, &grids, time);
             pool.scope(|s| {
                 for (((((fut, prev), bc), wb), metrics), op) in fut
                     .iter_mut()
@@ -162,63 +160,13 @@ fn main() {
     let filecontents = std::fs::read_to_string(&opt.json).unwrap();
 
     let json = json::parse(&filecontents).unwrap();
-    let jgrids = json_to_grids(json["grids"].clone()).unwrap();
+
     let vortexparams = json_to_vortex(json["vortex"].clone());
-
-    let mut bt = Vec::with_capacity(jgrids.len());
-    let determine_bc = |dir: Option<&String>| match dir {
-        Some(dir) => {
-            if dir == "vortex" {
-                euler::BoundaryCharacteristic::Vortex(vortexparams)
-            } else if let Some(grid) = dir.strip_prefix("interpolate:") {
-                euler::BoundaryCharacteristic::Interpolate(
-                    jgrids
-                        .iter()
-                        .position(|other| other.name.as_ref().map_or(false, |name| name == grid))
-                        .unwrap(),
-                )
-            } else {
-                euler::BoundaryCharacteristic::Grid(
-                    jgrids
-                        .iter()
-                        .position(|other| other.name.as_ref().map_or(false, |name| name == dir))
-                        .unwrap(),
-                )
-            }
-        }
-        None => euler::BoundaryCharacteristic::This,
-    };
-    for grid in &jgrids {
-        bt.push(euler::BoundaryCharacteristics {
-            north: determine_bc(grid.dirn.as_ref()),
-            south: determine_bc(grid.dirs.as_ref()),
-            east: determine_bc(grid.dire.as_ref()),
-            west: determine_bc(grid.dirw.as_ref()),
-        });
-    }
-    let interpolation_operators = jgrids
-        .iter()
-        .map(|_g| euler::InterpolationOperators {
-            north: Some(Box::new(operators::Interpolation4)),
-            south: Some(Box::new(operators::Interpolation4)),
-            east: Some(Box::new(operators::Interpolation4)),
-            west: Some(Box::new(operators::Interpolation4)),
-        })
-        .collect::<Vec<_>>();
-
-    let grids = jgrids
-        .into_iter()
-        .map(|egrid| egrid.grid)
-        .collect::<Vec<grid::Grid>>();
+    let (_names, grids, bt, operators) = json_to_grids(json["grids"].clone(), vortexparams);
 
     let integration_time: Float = json["integration_time"].as_number().unwrap().into();
 
-    let operators = grids
-        .iter()
-        .map(|_| Right(Box::new(operators::Upwind4) as Box<dyn UpwindOperator2d>))
-        .collect::<Vec<_>>();
-
-    let mut sys = System::new(grids, bt, interpolation_operators, operators);
+    let mut sys = System::new(grids, bt, operators);
     sys.vortex(0.0, vortexparams);
 
     let max_n = {

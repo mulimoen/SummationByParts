@@ -185,7 +185,7 @@ mod traditional8;
 pub use traditional8::SBP8;
 
 mod interpolation;
-pub use interpolation::Interpolation4;
+pub use interpolation::{Interpolation4, Interpolation8, Interpolation9, Interpolation9h2};
 
 #[cfg(test)]
 pub(crate) mod testing {

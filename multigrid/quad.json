@@ -1,42 +1,52 @@
 {
-    "grids": [
-        {
-            "name": "grid0",
+    "grids": {
+        "default": {
+            "operators": {
+                "xi": "upwind9",
+                "eta": "upwind9"
+            }
+        },
+        "grid0": {
             "x": "linspace:-5:0:50",
             "y": "linspace:0:5:50",
-            "dirS": "grid1",
-            "dirN": "grid1",
-            "dirE": "grid3",
-            "dirW": "grid3"
+            "boundary_conditions": {
+                "south": "grid1",
+                "north": "grid1",
+                "east": "grid3",
+                "west": "grid3"
+            }
         },
-        {
-            "name": "grid1",
+        "grid1": {
             "x": "linspace:-5:0:50",
             "y": "linspace:-5:0:50",
-            "dirS": "grid0",
-            "dirN": "grid0",
-            "dirE": "grid2",
-            "dirW": "grid2"
+            "boundary_conditions": {
+                "south": "grid0",
+                "north": "grid0",
+                "east": "grid2",
+                "west": "grid2"
+            }
         },
-        {
-            "name": "grid2",
+        "grid2": {
             "x": "linspace:0:5:50",
             "y": "linspace:-5:0:50",
-            "dirS": "grid3",
-            "dirN": "grid3",
-            "dirE": "grid1",
-            "dirW": "grid1"
+            "boundary_conditions": {
+                "south": "grid3",
+                "north": "grid3",
+                "east": "grid1",
+                "west": "grid1"
+            }
         },
-        {
-            "name": "grid3",
+        "grid3": {
             "x": "linspace:0:5:50",
             "y": "linspace:0:5:50",
-            "dirS": "grid2",
-            "dirN": "grid2",
-            "dirE": "grid0",
-            "dirW": "grid0"
+            "boundary_conditions": {
+                "south": "grid2",
+                "north": "grid2",
+                "east": "grid0",
+                "west": "grid0"
+            }
         }
-    ],
+    },
     "integration_time": 2.0,
     "vortex": {
         "x0": -1.0,
