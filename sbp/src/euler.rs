@@ -272,7 +272,7 @@ impl Field {
 
 impl Field {
     /// sqrt((self-other)^T*H*(self-other))
-    pub fn h2_err<SBP: SbpOperator2d>(&self, other: &Self, op: &SBP) -> Float {
+    pub fn h2_err(&self, other: &Self, op: &dyn SbpOperator2d) -> Float {
         assert_eq!(self.nx(), other.nx());
         assert_eq!(self.ny(), other.ny());
 
@@ -406,8 +406,8 @@ fn pressure(gamma: Float, rho: Float, rhou: Float, rhov: Float, e: Float) -> Flo
 }
 
 #[allow(non_snake_case)]
-pub fn RHS_trad<SBP: SbpOperator2d>(
-    op: &SBP,
+pub fn RHS_trad(
+    op: &dyn SbpOperator2d,
     k: &mut Field,
     y: &Field,
     metrics: &Metrics,
@@ -441,8 +441,8 @@ pub fn RHS_trad<SBP: SbpOperator2d>(
 }
 
 #[allow(non_snake_case)]
-pub fn RHS_upwind<UO: UpwindOperator2d>(
-    op: &UO,
+pub fn RHS_upwind(
+    op: &dyn UpwindOperator2d,
     k: &mut Field,
     y: &Field,
     metrics: &Metrics,
@@ -478,12 +478,12 @@ pub fn RHS_upwind<UO: UpwindOperator2d>(
         *out = (-eflux - fflux + ad_xi + ad_eta)/detj
     });
 
-    SAT_characteristics(op, k, y, metrics, boundaries);
+    SAT_characteristics(op.as_sbp(), k, y, metrics, boundaries);
 }
 
 #[allow(clippy::many_single_char_names)]
-fn upwind_dissipation<UO: UpwindOperator2d>(
-    op: &UO,
+fn upwind_dissipation(
+    op: &dyn UpwindOperator2d,
     k: (&mut Field, &mut Field),
     y: &Field,
     metrics: &Metrics,
@@ -843,8 +843,8 @@ fn vortexify(
 
 #[allow(non_snake_case)]
 /// Boundary conditions (SAT)
-fn SAT_characteristics<SBP: SbpOperator2d>(
-    op: &SBP,
+fn SAT_characteristics(
+    op: &dyn SbpOperator2d,
     k: &mut Field,
     y: &Field,
     metrics: &Metrics,

@@ -1,3 +1,4 @@
+use super::operators::SbpOperator2d;
 use crate::Float;
 use ndarray::Array2;
 
@@ -36,10 +37,7 @@ impl Grid {
         self.y.view()
     }
 
-    pub fn metrics<SBP: super::operators::SbpOperator2d>(
-        &self,
-        op: &SBP,
-    ) -> Result<Metrics, ndarray::ShapeError> {
+    pub fn metrics(&self, op: &dyn SbpOperator2d) -> Result<Metrics, ndarray::ShapeError> {
         Metrics::new(self, op)
     }
 
@@ -70,10 +68,7 @@ impl Grid {
 }
 
 impl Metrics {
-    fn new<SBP: super::operators::SbpOperator2d>(
-        grid: &Grid,
-        op: &SBP,
-    ) -> Result<Self, ndarray::ShapeError> {
+    fn new(grid: &Grid, op: &dyn SbpOperator2d) -> Result<Self, ndarray::ShapeError> {
         let ny = grid.ny();
         let nx = grid.nx();
         let x = &grid.x;
