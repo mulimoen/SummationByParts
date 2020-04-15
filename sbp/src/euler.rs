@@ -597,14 +597,6 @@ fn fluxes(k: (&mut Field, &mut Field), y: &Field, metrics: &Metrics) {
 }
 
 #[derive(Clone, Debug)]
-pub struct BoundaryTerms<'a> {
-    pub north: ArrayView2<'a, Float>,
-    pub south: ArrayView2<'a, Float>,
-    pub east: ArrayView2<'a, Float>,
-    pub west: ArrayView2<'a, Float>,
-}
-
-#[derive(Clone, Debug)]
 pub enum BoundaryCharacteristic {
     This,
     Grid(usize),
@@ -620,6 +612,7 @@ pub struct Direction<T> {
     pub east: T,
 }
 
+pub type BoundaryTerms<'a> = Direction<ArrayView2<'a, Float>>;
 pub type BoundaryCharacteristics = Direction<BoundaryCharacteristic>;
 
 fn boundary_extractor<'a>(
@@ -679,12 +672,12 @@ pub fn extract_boundaries<'a>(
                 BoundaryCharacteristic::This => field.south(),
                 BoundaryCharacteristic::Grid(g) => fields[g].south(),
                 BoundaryCharacteristic::Vortex(v) => {
-                    let field = eb.n.as_mut().unwrap();
+                    let field = eb.north.as_mut().unwrap();
                     vortexify(field.view_mut(), grid.north(), v, time);
                     field.view()
                 }
                 BoundaryCharacteristic::Interpolate(g) => {
-                    let to = eb.n.as_mut().unwrap();
+                    let to = eb.north.as_mut().unwrap();
                     let fine2coarse = field.nx() < fields[g].nx();
 
                     let operator = interpolation_operators.as_ref().unwrap()[ig]
@@ -706,12 +699,12 @@ pub fn extract_boundaries<'a>(
                 BoundaryCharacteristic::This => field.north(),
                 BoundaryCharacteristic::Grid(g) => fields[g].north(),
                 BoundaryCharacteristic::Vortex(v) => {
-                    let field = eb.s.as_mut().unwrap();
+                    let field = eb.south.as_mut().unwrap();
                     vortexify(field.view_mut(), grid.south(), v, time);
                     field.view()
                 }
                 BoundaryCharacteristic::Interpolate(g) => {
-                    let to = eb.s.as_mut().unwrap();
+                    let to = eb.south.as_mut().unwrap();
                     let fine2coarse = field.nx() < fields[g].nx();
                     let operator = interpolation_operators.as_ref().unwrap()[ig]
                         .south
@@ -732,12 +725,12 @@ pub fn extract_boundaries<'a>(
                 BoundaryCharacteristic::This => field.east(),
                 BoundaryCharacteristic::Grid(g) => fields[g].east(),
                 BoundaryCharacteristic::Vortex(v) => {
-                    let field = eb.w.as_mut().unwrap();
+                    let field = eb.west.as_mut().unwrap();
                     vortexify(field.view_mut(), grid.west(), v, time);
                     field.view()
                 }
                 BoundaryCharacteristic::Interpolate(g) => {
-                    let to = eb.w.as_mut().unwrap();
+                    let to = eb.west.as_mut().unwrap();
                     let fine2coarse = field.ny() < fields[g].ny();
                     let operator = interpolation_operators.as_ref().unwrap()[ig]
                         .west
@@ -758,12 +751,12 @@ pub fn extract_boundaries<'a>(
                 BoundaryCharacteristic::This => field.west(),
                 BoundaryCharacteristic::Grid(g) => fields[g].west(),
                 BoundaryCharacteristic::Vortex(v) => {
-                    let field = eb.e.as_mut().unwrap();
+                    let field = eb.east.as_mut().unwrap();
                     vortexify(field.view_mut(), grid.east(), v, time);
                     field.view()
                 }
                 BoundaryCharacteristic::Interpolate(g) => {
-                    let to = eb.e.as_mut().unwrap();
+                    let to = eb.east.as_mut().unwrap();
                     let fine2coarse = field.ny() < fields[g].ny();
                     let operator = interpolation_operators.as_ref().unwrap()[ig]
                         .east
@@ -784,37 +777,31 @@ pub fn extract_boundaries<'a>(
         .collect()
 }
 
-#[derive(Debug, Clone)]
 /// Used for storing boundary elements
-pub struct BoundaryStorage {
-    pub n: Option<ndarray::Array2<Float>>,
-    pub s: Option<ndarray::Array2<Float>>,
-    pub e: Option<ndarray::Array2<Float>>,
-    pub w: Option<ndarray::Array2<Float>>,
-}
+pub type BoundaryStorage = Direction<Option<ndarray::Array2<Float>>>;
 
 impl BoundaryStorage {
     pub fn new(bt: &BoundaryCharacteristics, grid: &Grid) -> Self {
         Self {
-            n: match bt.north {
+            north: match bt.north {
                 BoundaryCharacteristic::Vortex(_) | BoundaryCharacteristic::Interpolate(_) => {
                     Some(ndarray::Array2::zeros((4, grid.nx())))
                 }
                 _ => None,
             },
-            s: match bt.south {
+            south: match bt.south {
                 BoundaryCharacteristic::Vortex(_) | BoundaryCharacteristic::Interpolate(_) => {
                     Some(ndarray::Array2::zeros((4, grid.nx())))
                 }
                 _ => None,
             },
-            e: match bt.east {
+            east: match bt.east {
                 BoundaryCharacteristic::Vortex(_) | BoundaryCharacteristic::Interpolate(_) => {
                     Some(ndarray::Array2::zeros((4, grid.ny())))
                 }
                 _ => None,
             },
-            w: match bt.west {
+            west: match bt.west {
                 BoundaryCharacteristic::Vortex(_) | BoundaryCharacteristic::Interpolate(_) => {
                     Some(ndarray::Array2::zeros((4, grid.ny())))
                 }
