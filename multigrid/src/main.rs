@@ -1,10 +1,12 @@
 #![feature(str_strip)]
 use either::*;
-use sbp::operators::{SbpOperator2d, UpwindOperator2d};
-use sbp::utils::json_to_grids;
-use sbp::*;
 use structopt::StructOpt;
 
+use sbp::operators::{SbpOperator2d, UpwindOperator2d};
+use sbp::*;
+
+mod parsing;
+use parsing::{json_to_grids, json_to_vortex};
 mod file;
 use file::*;
 
@@ -161,7 +163,7 @@ fn main() {
 
     let json = json::parse(&filecontents).unwrap();
     let jgrids = json_to_grids(json["grids"].clone()).unwrap();
-    let vortexparams = utils::json_to_vortex(json["vortex"].clone());
+    let vortexparams = json_to_vortex(json["vortex"].clone());
 
     let mut bt = Vec::with_capacity(jgrids.len());
     let determine_bc = |dir: Option<&String>| match dir {
