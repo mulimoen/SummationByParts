@@ -2,6 +2,13 @@ use crate::grid::Grid;
 use crate::Float;
 use json::JsonValue;
 
+pub struct Direction<T> {
+    pub north: T,
+    pub south: T,
+    pub west: T,
+    pub east: T,
+}
+
 #[derive(Debug, Clone)]
 pub struct ExtendedGrid {
     pub grid: Grid,

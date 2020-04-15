@@ -1,6 +1,7 @@
 use super::grid::{Grid, Metrics};
 use super::integrate;
 use super::operators::{InterpolationOperator, SbpOperator2d, UpwindOperator2d};
+use super::utils::Direction;
 use super::Float;
 use ndarray::azip;
 use ndarray::prelude::*;
@@ -603,13 +604,6 @@ pub enum BoundaryCharacteristic {
     Vortex(VortexParameters),
     // Vortices(Vec<VortexParameters>),
     Interpolate(usize),
-}
-
-pub struct Direction<T> {
-    pub north: T,
-    pub south: T,
-    pub west: T,
-    pub east: T,
 }
 
 pub type BoundaryTerms<'a> = Direction<ArrayView2<'a, Float>>;
