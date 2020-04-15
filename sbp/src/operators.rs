@@ -72,11 +72,13 @@ impl<SBP: SbpOperator1d + Copy> SbpOperator2d for SBP {
 
 pub trait UpwindOperator1d: SbpOperator1d + Send + Sync {
     fn diss(&self, prev: ArrayView1<Float>, fut: ArrayViewMut1<Float>);
+    fn as_sbp(&self) -> &dyn SbpOperator1d;
 }
 
 pub trait UpwindOperator2d: SbpOperator2d + Send + Sync {
     fn dissxi(&self, prev: ArrayView2<Float>, fut: ArrayViewMut2<Float>);
     fn disseta(&self, prev: ArrayView2<Float>, fut: ArrayViewMut2<Float>);
+    fn as_sbp(&self) -> &dyn SbpOperator2d;
 }
 
 impl<UOeta: UpwindOperator1d, UOxi: UpwindOperator1d> UpwindOperator2d for (&UOeta, &UOxi) {
@@ -90,6 +92,9 @@ impl<UOeta: UpwindOperator1d, UOxi: UpwindOperator1d> UpwindOperator2d for (&UOe
         let ba = (self.1, self.0);
         ba.dissxi(prev.reversed_axes(), fut.reversed_axes())
     }
+    fn as_sbp(&self) -> &dyn SbpOperator2d {
+        self
+    }
 }
 
 impl<UO: UpwindOperator1d + Copy> UpwindOperator2d for UO {
@@ -98,6 +103,9 @@ impl<UO: UpwindOperator1d + Copy> UpwindOperator2d for UO {
     }
     fn disseta(&self, prev: ArrayView2<Float>, fut: ArrayViewMut2<Float>) {
         <(&UO, &UO) as UpwindOperator2d>::disseta(&(self, self), prev, fut)
+    }
+    fn as_sbp(&self) -> &dyn SbpOperator2d {
+        self
     }
 }
 

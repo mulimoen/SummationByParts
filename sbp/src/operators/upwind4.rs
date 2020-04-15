@@ -413,6 +413,10 @@ impl UpwindOperator1d for Upwind4 {
             fut,
         )
     }
+
+    fn as_sbp(&self) -> &dyn SbpOperator1d {
+        self
+    }
 }
 
 impl<SBP: UpwindOperator1d> UpwindOperator2d for (&Upwind4, &SBP) {

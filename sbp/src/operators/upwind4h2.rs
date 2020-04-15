@@ -92,4 +92,8 @@ impl UpwindOperator1d for Upwind4h2 {
             fut,
         )
     }
+
+    fn as_sbp(&self) -> &dyn SbpOperator1d {
+        self
+    }
 }
