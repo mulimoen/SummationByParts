@@ -291,7 +291,7 @@ impl SbpOperator1d for Upwind4 {
     }
 }
 
-impl<SBP: SbpOperator1d> SbpOperator2d for (Upwind4, SBP) {
+impl<SBP: SbpOperator1d> SbpOperator2d for (&Upwind4, &SBP) {
     fn diffxi(&self, prev: ArrayView2<Float>, mut fut: ArrayViewMut2<Float>) {
         assert_eq!(prev.shape(), fut.shape());
         assert!(prev.shape()[1] >= 2 * Upwind4::BLOCK.len());
@@ -415,7 +415,7 @@ impl UpwindOperator1d for Upwind4 {
     }
 }
 
-impl<SBP: UpwindOperator1d> UpwindOperator2d for (Upwind4, SBP) {
+impl<SBP: UpwindOperator1d> UpwindOperator2d for (&Upwind4, &SBP) {
     fn dissxi(&self, prev: ArrayView2<Float>, mut fut: ArrayViewMut2<Float>) {
         assert_eq!(prev.shape(), fut.shape());
         assert!(prev.shape()[1] >= 2 * Upwind4::BLOCK.len());

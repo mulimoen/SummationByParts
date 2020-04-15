@@ -89,7 +89,7 @@ impl<SBP: SbpOperator2d> System<SBP> {
         let nx = x.shape()[1];
 
         let grid = Grid::new(x, y).unwrap();
-        let metrics = grid.metrics(op).unwrap();
+        let metrics = grid.metrics(&op).unwrap();
 
         Self {
             op,
@@ -117,7 +117,7 @@ impl<SBP: SbpOperator2d> System<SBP> {
     }
 
     pub fn advance(&mut self, dt: Float) {
-        let op = self.op;
+        let op = &self.op;
         let rhs_adaptor = move |fut: &mut Field,
                                 prev: &Field,
                                 _time: Float,
@@ -149,7 +149,7 @@ impl<SBP: SbpOperator2d> System<SBP> {
 impl<UO: UpwindOperator2d> System<UO> {
     /// Using artificial dissipation with the upwind operator
     pub fn advance_upwind(&mut self, dt: Float) {
-        let op = self.op;
+        let op = &self.op;
         let rhs_adaptor = move |fut: &mut Field,
                                 prev: &Field,
                                 _time: Float,
@@ -206,7 +206,7 @@ fn gaussian(x: Float, x0: Float, y: Float, y0: Float) -> Float {
 ///
 /// This is used both in fluxes and SAT terms
 fn RHS<SBP: SbpOperator2d>(
-    op: SBP,
+    op: &SBP,
     k: &mut Field,
     y: &Field,
     _grid: &Grid,
@@ -231,7 +231,7 @@ fn RHS<SBP: SbpOperator2d>(
 
 #[allow(non_snake_case)]
 fn RHS_upwind<UO: UpwindOperator2d>(
-    op: UO,
+    op: &UO,
     k: &mut Field,
     y: &Field,
     _grid: &Grid,
@@ -256,7 +256,7 @@ fn RHS_upwind<UO: UpwindOperator2d>(
 }
 
 fn fluxes<SBP: super::operators::SbpOperator2d>(
-    op: SBP,
+    op: &SBP,
     k: &mut Field,
     y: &Field,
     metrics: &Metrics,
@@ -331,7 +331,7 @@ fn fluxes<SBP: super::operators::SbpOperator2d>(
 }
 
 fn dissipation<UO: UpwindOperator2d>(
-    op: UO,
+    op: &UO,
     k: &mut Field,
     y: &Field,
     metrics: &Metrics,
@@ -433,7 +433,7 @@ pub struct BoundaryTerms {
 #[allow(non_snake_case)]
 /// Boundary conditions (SAT)
 fn SAT_characteristics<SBP: SbpOperator2d>(
-    op: SBP,
+    op: &SBP,
     k: &mut Field,
     y: &Field,
     metrics: &Metrics,

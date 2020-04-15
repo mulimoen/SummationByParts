@@ -23,7 +23,7 @@ impl<SBP: SbpOperator2d> System<SBP> {
         let grid = Grid::new(x, y).expect(
             "Could not create grid. Different number of elements compared to width*height?",
         );
-        let metrics = grid.metrics(op).unwrap();
+        let metrics = grid.metrics(&op).unwrap();
         let nx = grid.nx();
         let ny = grid.ny();
         Self {
@@ -47,7 +47,7 @@ impl<SBP: SbpOperator2d> System<SBP> {
             east: BoundaryCharacteristic::This,
             west: BoundaryCharacteristic::This,
         };
-        let op = self.op;
+        let op = &self.op;
         let rhs_trad = |k: &mut Field, y: &Field, _time: Float, gm: &(_, _), wb: &mut _| {
             let (grid, metrics) = gm;
             let boundaries = boundary_extractor(y, grid, &bc);
@@ -108,7 +108,7 @@ impl<UO: UpwindOperator2d> System<UO> {
             east: BoundaryCharacteristic::This,
             west: BoundaryCharacteristic::This,
         };
-        let op = self.op;
+        let op = &self.op;
         let rhs_upwind = |k: &mut Field, y: &Field, _time: Float, gm: &(_, _), wb: &mut _| {
             let (grid, metrics) = gm;
             let boundaries = boundary_extractor(y, grid, &bc);
@@ -272,7 +272,7 @@ impl Field {
 
 impl Field {
     /// sqrt((self-other)^T*H*(self-other))
-    pub fn h2_err<SBP: SbpOperator2d>(&self, op: SBP, other: &Self) -> Float {
+    pub fn h2_err<SBP: SbpOperator2d>(&self, other: &Self, op: &SBP) -> Float {
         assert_eq!(self.nx(), other.nx());
         assert_eq!(self.ny(), other.ny());
 
@@ -339,10 +339,10 @@ fn h2_diff() {
 
     use super::operators::{Upwind4, Upwind9, SBP4, SBP8};
 
-    assert!((field0.h2_err((Upwind4, Upwind4), &field1).powi(2) - 4.0).abs() < 1e-3);
-    assert!((field0.h2_err((Upwind9, Upwind9), &field1).powi(2) - 4.0).abs() < 1e-3);
-    assert!((field0.h2_err((SBP4, SBP4), &field1).powi(2) - 4.0).abs() < 1e-3);
-    assert!((field0.h2_err((SBP8, SBP8), &field1).powi(2) - 4.0).abs() < 1e-3);
+    assert!((field0.h2_err(&field1, &Upwind4).powi(2) - 4.0).abs() < 1e-3);
+    assert!((field0.h2_err(&field1, &Upwind9).powi(2) - 4.0).abs() < 1e-3);
+    assert!((field0.h2_err(&field1, &SBP4).powi(2) - 4.0).abs() < 1e-3);
+    assert!((field0.h2_err(&field1, &SBP8).powi(2) - 4.0).abs() < 1e-3);
 }
 
 #[derive(Copy, Clone, Debug)]
@@ -407,7 +407,7 @@ fn pressure(gamma: Float, rho: Float, rhou: Float, rhov: Float, e: Float) -> Flo
 
 #[allow(non_snake_case)]
 pub fn RHS_trad<SBP: SbpOperator2d>(
-    op: SBP,
+    op: &SBP,
     k: &mut Field,
     y: &Field,
     metrics: &Metrics,
@@ -442,7 +442,7 @@ pub fn RHS_trad<SBP: SbpOperator2d>(
 
 #[allow(non_snake_case)]
 pub fn RHS_upwind<UO: UpwindOperator2d>(
-    op: UO,
+    op: &UO,
     k: &mut Field,
     y: &Field,
     metrics: &Metrics,
@@ -483,7 +483,7 @@ pub fn RHS_upwind<UO: UpwindOperator2d>(
 
 #[allow(clippy::many_single_char_names)]
 fn upwind_dissipation<UO: UpwindOperator2d>(
-    op: UO,
+    op: &UO,
     k: (&mut Field, &mut Field),
     y: &Field,
     metrics: &Metrics,
@@ -844,7 +844,7 @@ fn vortexify(
 #[allow(non_snake_case)]
 /// Boundary conditions (SAT)
 fn SAT_characteristics<SBP: SbpOperator2d>(
-    op: SBP,
+    op: &SBP,
     k: &mut Field,
     y: &Field,
     metrics: &Metrics,

@@ -4,7 +4,7 @@
 use crate::Float;
 use ndarray::{ArrayView1, ArrayView2, ArrayViewMut1, ArrayViewMut2};
 
-pub trait SbpOperator1d: Copy + Clone + core::fmt::Debug {
+pub trait SbpOperator1d: Send + Sync {
     fn diff(&self, prev: ArrayView1<Float>, fut: ArrayViewMut1<Float>);
 
     fn h(&self) -> &'static [Float];
@@ -13,7 +13,7 @@ pub trait SbpOperator1d: Copy + Clone + core::fmt::Debug {
     }
 }
 
-pub trait SbpOperator2d: Copy + Clone {
+pub trait SbpOperator2d: Send + Sync {
     fn diffxi(&self, prev: ArrayView2<Float>, fut: ArrayViewMut2<Float>);
     fn diffeta(&self, prev: ArrayView2<Float>, fut: ArrayViewMut2<Float>);
 
@@ -24,7 +24,7 @@ pub trait SbpOperator2d: Copy + Clone {
     fn is_h2eta(&self) -> bool;
 }
 
-impl<SBPeta: SbpOperator1d, SBPxi: SbpOperator1d> SbpOperator2d for (SBPeta, SBPxi) {
+impl<SBPeta: SbpOperator1d, SBPxi: SbpOperator1d> SbpOperator2d for (&SBPeta, &SBPxi) {
     default fn diffxi(&self, prev: ArrayView2<Float>, mut fut: ArrayViewMut2<Float>) {
         assert_eq!(prev.shape(), fut.shape());
         for (r0, r1) in prev.outer_iter().zip(fut.outer_iter_mut()) {
@@ -49,37 +49,37 @@ impl<SBPeta: SbpOperator1d, SBPxi: SbpOperator1d> SbpOperator2d for (SBPeta, SBP
     }
 }
 
-impl<SBP: SbpOperator1d> SbpOperator2d for SBP {
+impl<SBP: SbpOperator1d + Copy> SbpOperator2d for SBP {
     fn diffxi(&self, prev: ArrayView2<Float>, fut: ArrayViewMut2<Float>) {
-        <(SBP, SBP) as SbpOperator2d>::diffxi(&(*self, *self), prev, fut)
+        <(&SBP, &SBP) as SbpOperator2d>::diffxi(&(self, self), prev, fut)
     }
     fn diffeta(&self, prev: ArrayView2<Float>, fut: ArrayViewMut2<Float>) {
-        <(SBP, SBP) as SbpOperator2d>::diffeta(&(*self, *self), prev, fut)
+        <(&SBP, &SBP) as SbpOperator2d>::diffeta(&(self, self), prev, fut)
     }
     fn hxi(&self) -> &'static [Float] {
-        <(SBP, SBP) as SbpOperator2d>::hxi(&(*self, *self))
+        <(&SBP, &SBP) as SbpOperator2d>::hxi(&(self, self))
     }
     fn heta(&self) -> &'static [Float] {
-        <(SBP, SBP) as SbpOperator2d>::heta(&(*self, *self))
+        <(&SBP, &SBP) as SbpOperator2d>::heta(&(self, self))
     }
     fn is_h2xi(&self) -> bool {
-        <(SBP, SBP) as SbpOperator2d>::is_h2xi(&(*self, *self))
+        <(&SBP, &SBP) as SbpOperator2d>::is_h2xi(&(self, self))
     }
     fn is_h2eta(&self) -> bool {
-        <(SBP, SBP) as SbpOperator2d>::is_h2eta(&(*self, *self))
+        <(&SBP, &SBP) as SbpOperator2d>::is_h2eta(&(self, self))
     }
 }
 
-pub trait UpwindOperator1d: SbpOperator1d + Copy + Clone {
+pub trait UpwindOperator1d: SbpOperator1d + Send + Sync {
     fn diss(&self, prev: ArrayView1<Float>, fut: ArrayViewMut1<Float>);
 }
 
-pub trait UpwindOperator2d: SbpOperator2d + Copy + Clone {
+pub trait UpwindOperator2d: SbpOperator2d + Send + Sync {
     fn dissxi(&self, prev: ArrayView2<Float>, fut: ArrayViewMut2<Float>);
     fn disseta(&self, prev: ArrayView2<Float>, fut: ArrayViewMut2<Float>);
 }
 
-impl<UOeta: UpwindOperator1d, UOxi: UpwindOperator1d> UpwindOperator2d for (UOeta, UOxi) {
+impl<UOeta: UpwindOperator1d, UOxi: UpwindOperator1d> UpwindOperator2d for (&UOeta, &UOxi) {
     default fn dissxi(&self, prev: ArrayView2<Float>, mut fut: ArrayViewMut2<Float>) {
         assert_eq!(prev.shape(), fut.shape());
         for (r0, r1) in prev.outer_iter().zip(fut.outer_iter_mut()) {
@@ -92,12 +92,12 @@ impl<UOeta: UpwindOperator1d, UOxi: UpwindOperator1d> UpwindOperator2d for (UOet
     }
 }
 
-impl<UO: UpwindOperator1d> UpwindOperator2d for UO {
+impl<UO: UpwindOperator1d + Copy> UpwindOperator2d for UO {
     fn dissxi(&self, prev: ArrayView2<Float>, fut: ArrayViewMut2<Float>) {
-        <(UO, UO) as UpwindOperator2d>::dissxi(&(*self, *self), prev, fut)
+        <(&UO, &UO) as UpwindOperator2d>::dissxi(&(self, self), prev, fut)
     }
     fn disseta(&self, prev: ArrayView2<Float>, fut: ArrayViewMut2<Float>) {
-        <(UO, UO) as UpwindOperator2d>::disseta(&(*self, *self), prev, fut)
+        <(&UO, &UO) as UpwindOperator2d>::disseta(&(self, self), prev, fut)
     }
 }
 

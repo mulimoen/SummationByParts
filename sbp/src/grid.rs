@@ -38,7 +38,7 @@ impl Grid {
 
     pub fn metrics<SBP: super::operators::SbpOperator2d>(
         &self,
-        op: SBP,
+        op: &SBP,
     ) -> Result<Metrics, ndarray::ShapeError> {
         Metrics::new(self, op)
     }
@@ -72,7 +72,7 @@ impl Grid {
 impl Metrics {
     fn new<SBP: super::operators::SbpOperator2d>(
         grid: &Grid,
-        op: SBP,
+        op: &SBP,
     ) -> Result<Self, ndarray::ShapeError> {
         let ny = grid.ny();
         let nx = grid.nx();
