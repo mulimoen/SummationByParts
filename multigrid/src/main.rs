@@ -84,11 +84,7 @@ impl System {
         let mut eb = &mut self.eb;
         let operators = &self.operators;
 
-        let rhs = move |fut: &mut [euler::Field],
-                        prev: &[euler::Field],
-                        time: Float,
-                        _c: (),
-                        _mt: &mut ()| {
+        let rhs = move |fut: &mut [euler::Field], prev: &[euler::Field], time: Float| {
             let bc = euler::extract_boundaries(prev, &bt, &mut eb, &grids, time);
             pool.scope(|s| {
                 for (((((fut, prev), bc), wb), metrics), op) in fut
@@ -116,15 +112,13 @@ impl System {
             .iter_mut()
             .map(|k| k.as_mut_slice())
             .collect::<Vec<_>>();
-        sbp::integrate::integrate_multigrid::<sbp::integrate::Rk4, _, _, _, _>(
+        sbp::integrate::integrate_multigrid::<sbp::integrate::Rk4, _, _>(
             rhs,
             &self.fnow,
             &mut self.fnext,
             &mut self.time,
             dt,
             &mut k,
-            (),
-            &mut (),
             pool,
         );
 

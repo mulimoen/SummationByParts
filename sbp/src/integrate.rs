@@ -1,5 +1,5 @@
 use super::Float;
-use ndarray::Array3;
+use ndarray::{ArrayView3, ArrayViewMut3};
 
 pub trait ButcherTableau {
     const S: usize = Self::B.len();
@@ -88,49 +88,45 @@ impl ButcherTableau for Rk6 {
 }
 
 #[allow(clippy::too_many_arguments)]
-pub fn integrate<'a, BTableau, F: 'a, RHS, MT, C>(
+pub fn integrate<BTableau: ButcherTableau, F, RHS>(
     mut rhs: RHS,
     prev: &F,
     fut: &mut F,
     time: &mut Float,
     dt: Float,
     k: &mut [F],
-
-    constants: C,
-    mut mutables: &mut MT,
 ) where
-    C: Copy,
-    F: std::ops::Deref<Target = Array3<Float>> + std::ops::DerefMut<Target = Array3<Float>>,
-    RHS: FnMut(&mut F, &F, Float, C, &mut MT),
-    BTableau: ButcherTableau,
+    for<'r> &'r F: std::convert::Into<ArrayView3<'r, Float>>,
+    for<'r> &'r mut F: std::convert::Into<ArrayViewMut3<'r, Float>>,
+    RHS: FnMut(&mut F, &F, Float),
 {
-    assert_eq!(prev.shape(), fut.shape());
+    assert_eq!(prev.into().shape(), fut.into().shape());
     assert!(k.len() >= BTableau::S);
 
     for i in 0.. {
         let simtime;
         match i {
             0 => {
-                fut.assign(prev);
+                fut.into().assign(&prev.into());
                 simtime = *time;
             }
             i if i < BTableau::S => {
-                fut.assign(prev);
+                fut.into().assign(&prev.into());
                 for (&a, k) in BTableau::A[i - 1].iter().zip(k.iter()) {
                     if a == 0.0 {
                         continue;
                     }
-                    fut.scaled_add(a * dt, &k);
+                    fut.into().scaled_add(a * dt, &k.into());
                 }
                 simtime = *time + dt * BTableau::C[i - 1];
             }
             _ if i == BTableau::S => {
-                fut.assign(prev);
+                fut.into().assign(&prev.into());
                 for (&b, k) in BTableau::B.iter().zip(k.iter()) {
                     if b == 0.0 {
                         continue;
                     }
-                    fut.scaled_add(b * dt, &k);
+                    fut.into().scaled_add(b * dt, &k.into());
                 }
                 *time += dt;
                 return;
@@ -140,13 +136,13 @@ pub fn integrate<'a, BTableau, F: 'a, RHS, MT, C>(
             }
         };
 
-        rhs(&mut k[i], &fut, simtime, constants, &mut mutables);
+        rhs(&mut k[i], &fut, simtime);
     }
 }
 
 #[cfg(feature = "rayon")]
 #[allow(clippy::too_many_arguments)]
-pub fn integrate_multigrid<'a, BTableau, F: 'a, RHS, MT, C>(
+pub fn integrate_multigrid<BTableau: ButcherTableau, F, RHS>(
     mut rhs: RHS,
     prev: &[F],
     fut: &mut [F],
@@ -154,17 +150,12 @@ pub fn integrate_multigrid<'a, BTableau, F: 'a, RHS, MT, C>(
     dt: Float,
     k: &mut [&mut [F]],
 
-    constants: C,
-    mut mutables: &mut MT,
     pool: &rayon::ThreadPool,
 ) where
-    C: Copy,
-    F: std::ops::Deref<Target = Array3<Float>>
-        + std::ops::DerefMut<Target = Array3<Float>>
-        + Send
-        + Sync,
-    RHS: FnMut(&mut [F], &[F], Float, C, &mut MT),
-    BTableau: ButcherTableau,
+    for<'r> &'r F: std::convert::Into<ArrayView3<'r, Float>>,
+    for<'r> &'r mut F: std::convert::Into<ArrayViewMut3<'r, Float>>,
+    RHS: FnMut(&mut [F], &[F], Float),
+    F: Send + Sync,
 {
     for i in 0.. {
         let simtime;
@@ -174,8 +165,8 @@ pub fn integrate_multigrid<'a, BTableau, F: 'a, RHS, MT, C>(
                     assert!(k.len() >= BTableau::S);
                     for (prev, fut) in prev.iter().zip(fut.iter_mut()) {
                         s.spawn(move |_| {
-                            assert_eq!(prev.shape(), fut.shape());
-                            fut.assign(prev);
+                            assert_eq!(prev.into().shape(), fut.into().shape());
+                            fut.into().assign(&prev.into());
                         });
                     }
                 });
@@ -186,12 +177,12 @@ pub fn integrate_multigrid<'a, BTableau, F: 'a, RHS, MT, C>(
                     for (ig, (prev, fut)) in prev.iter().zip(fut.iter_mut()).enumerate() {
                         let k = &k;
                         s.spawn(move |_| {
-                            fut.assign(prev);
+                            fut.into().assign(&prev.into());
                             for (ik, &a) in BTableau::A[i - 1].iter().enumerate() {
                                 if a == 0.0 {
                                     continue;
                                 }
-                                fut.scaled_add(a * dt, &k[ik][ig]);
+                                fut.into().scaled_add(a * dt, &(&k[ik][ig]).into());
                             }
                         });
                     }
@@ -203,12 +194,12 @@ pub fn integrate_multigrid<'a, BTableau, F: 'a, RHS, MT, C>(
                     for (ig, (prev, fut)) in prev.iter().zip(fut.iter_mut()).enumerate() {
                         let k = &k;
                         s.spawn(move |_| {
-                            fut.assign(prev);
+                            fut.into().assign(&prev.into());
                             for (ik, &b) in BTableau::B.iter().enumerate() {
                                 if b == 0.0 {
                                     continue;
                                 }
-                                fut.scaled_add(b * dt, &k[ik][ig]);
+                                fut.into().scaled_add(b * dt, &(&k[ik][ig]).into());
                             }
                         });
                     }
@@ -221,6 +212,6 @@ pub fn integrate_multigrid<'a, BTableau, F: 'a, RHS, MT, C>(
             }
         };
 
-        rhs(&mut k[i], &fut, simtime, constants, &mut mutables);
+        rhs(&mut k[i], &fut, simtime);
     }
 }

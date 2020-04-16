@@ -49,20 +49,20 @@ impl<SBP: SbpOperator2d> System<SBP> {
             west: BoundaryCharacteristic::This,
         };
         let op = &self.op;
-        let rhs_trad = |k: &mut Field, y: &Field, _time: Float, gm: &(_, _), wb: &mut _| {
-            let (grid, metrics) = gm;
+        let wb = &mut self.wb.0;
+        let grid = &self.grid.0;
+        let metrics = &self.grid.1;
+        let rhs_trad = |k: &mut Field, y: &Field, _time: Float| {
             let boundaries = boundary_extractor(y, grid, &bc);
             RHS_trad(op, k, y, metrics, &boundaries, wb)
         };
-        integrate::integrate::<integrate::Rk4, _, _, _, _>(
+        integrate::integrate::<integrate::Rk4, _, _>(
             rhs_trad,
             &self.sys.0,
             &mut self.sys.1,
             &mut 0.0,
             dt,
             &mut self.k,
-            &self.grid,
-            &mut self.wb.0,
         );
         std::mem::swap(&mut self.sys.0, &mut self.sys.1);
     }
@@ -110,20 +110,20 @@ impl<UO: UpwindOperator2d> System<UO> {
             west: BoundaryCharacteristic::This,
         };
         let op = &self.op;
-        let rhs_upwind = |k: &mut Field, y: &Field, _time: Float, gm: &(_, _), wb: &mut _| {
-            let (grid, metrics) = gm;
+        let grid = &self.grid;
+        let wb = &mut self.wb.0;
+        let rhs_upwind = |k: &mut Field, y: &Field, _time: Float| {
+            let (grid, metrics) = grid;
             let boundaries = boundary_extractor(y, grid, &bc);
             RHS_upwind(op, k, y, metrics, &boundaries, wb)
         };
-        integrate::integrate::<integrate::Rk4, _, _, _, _>(
+        integrate::integrate::<integrate::Rk4, _, _>(
             rhs_upwind,
             &self.sys.0,
             &mut self.sys.1,
             &mut 0.0,
             dt,
             &mut self.k,
-            &self.grid,
-            &mut self.wb.0,
         );
         std::mem::swap(&mut self.sys.0, &mut self.sys.1);
     }
@@ -143,6 +143,17 @@ impl std::ops::Deref for Field {
 impl std::ops::DerefMut for Field {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.0
+    }
+}
+
+impl<'a> std::convert::From<&'a Field> for ArrayView3<'a, Float> {
+    fn from(f: &'a Field) -> Self {
+        f.0.view()
+    }
+}
+impl<'a> std::convert::From<&'a mut Field> for ArrayViewMut3<'a, Float> {
+    fn from(f: &'a mut Field) -> Self {
+        f.0.view_mut()
     }
 }
 

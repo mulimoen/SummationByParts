@@ -21,6 +21,17 @@ impl std::ops::DerefMut for Field {
     }
 }
 
+impl<'a> std::convert::From<&'a Field> for ArrayView3<'a, Float> {
+    fn from(f: &'a Field) -> Self {
+        f.0.view()
+    }
+}
+impl<'a> std::convert::From<&'a mut Field> for ArrayViewMut3<'a, Float> {
+    fn from(f: &'a mut Field) -> Self {
+        f.0.view_mut()
+    }
+}
+
 impl Field {
     pub fn new(height: usize, width: usize) -> Self {
         let field = Array3::zeros((3, height, width));
@@ -118,29 +129,20 @@ impl<SBP: SbpOperator2d> System<SBP> {
 
     pub fn advance(&mut self, dt: Float) {
         let op = &self.op;
-        let rhs_adaptor = move |fut: &mut Field,
-                                prev: &Field,
-                                _time: Float,
-                                c: &(&Grid, &Metrics),
-                                m: &mut (
-            Array2<Float>,
-            Array2<Float>,
-            Array2<Float>,
-            Array2<Float>,
-        )| {
-            let (grid, metrics) = c;
-            RHS(op, fut, prev, grid, metrics, m);
+        let grid = &self.grid;
+        let metrics = &self.metrics;
+        let wb = &mut self.wb.tmp;
+        let rhs_adaptor = move |fut: &mut Field, prev: &Field, _time: Float| {
+            RHS(op, fut, prev, grid, metrics, wb);
         };
         let mut _time = 0.0;
-        integrate::integrate::<integrate::Rk4, _, _, _, _>(
+        integrate::integrate::<integrate::Rk4, _, _>(
             rhs_adaptor,
             &self.sys.0,
             &mut self.sys.1,
             &mut _time,
             dt,
             &mut self.wb.k,
-            &(&self.grid, &self.metrics),
-            &mut self.wb.tmp,
         );
         std::mem::swap(&mut self.sys.0, &mut self.sys.1);
     }
@@ -150,29 +152,20 @@ impl<UO: UpwindOperator2d> System<UO> {
     /// Using artificial dissipation with the upwind operator
     pub fn advance_upwind(&mut self, dt: Float) {
         let op = &self.op;
-        let rhs_adaptor = move |fut: &mut Field,
-                                prev: &Field,
-                                _time: Float,
-                                c: &(&Grid, &Metrics),
-                                m: &mut (
-            Array2<Float>,
-            Array2<Float>,
-            Array2<Float>,
-            Array2<Float>,
-        )| {
-            let (grid, metrics) = c;
-            RHS_upwind(op, fut, prev, grid, metrics, m);
+        let grid = &self.grid;
+        let metrics = &self.metrics;
+        let wb = &mut self.wb.tmp;
+        let rhs_adaptor = move |fut: &mut Field, prev: &Field, _time: Float| {
+            RHS_upwind(op, fut, prev, grid, metrics, wb);
         };
         let mut _time = 0.0;
-        integrate::integrate::<integrate::Rk4, _, _, _, _>(
+        integrate::integrate::<integrate::Rk4, _, _>(
             rhs_adaptor,
             &self.sys.0,
             &mut self.sys.1,
             &mut _time,
             dt,
             &mut self.wb.k,
-            &(&self.grid, &self.metrics),
-            &mut self.wb.tmp,
         );
         std::mem::swap(&mut self.sys.0, &mut self.sys.1);
     }
