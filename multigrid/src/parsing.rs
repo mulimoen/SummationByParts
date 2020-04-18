@@ -52,49 +52,53 @@ pub fn json_to_grids(
                 .unwrap_or(&default_operator.1);
 
             match (opeta, opxi) {
-                ("upwind4", "upwind4") => Left(Box::new(Upwind4) as Box<dyn SbpOperator2d>),
-                ("upwind9", "upwind9") => Left(Box::new(Upwind9) as Box<dyn SbpOperator2d>),
-                ("upwind4h2", "upwind4h2") => Left(Box::new(Upwind4h2) as Box<dyn SbpOperator2d>),
-                ("upwind9h2", "upwind9h2") => Left(Box::new(Upwind9h2) as Box<dyn SbpOperator2d>),
+                ("upwind4", "upwind4") => Right(Box::new(Upwind4) as Box<dyn UpwindOperator2d>),
+                ("upwind9", "upwind9") => Right(Box::new(Upwind9) as Box<dyn UpwindOperator2d>),
+                ("upwind4h2", "upwind4h2") => {
+                    Right(Box::new(Upwind4h2) as Box<dyn UpwindOperator2d>)
+                }
+                ("upwind9h2", "upwind9h2") => {
+                    Right(Box::new(Upwind9h2) as Box<dyn UpwindOperator2d>)
+                }
 
                 ("upwind4", "upwind9") => {
-                    Left(Box::new((&Upwind4, &Upwind9)) as Box<dyn SbpOperator2d>)
+                    Right(Box::new((&Upwind4, &Upwind9)) as Box<dyn UpwindOperator2d>)
                 }
                 ("upwind4", "upwind4h2") => {
-                    Left(Box::new((&Upwind4, &Upwind4h2)) as Box<dyn SbpOperator2d>)
+                    Right(Box::new((&Upwind4, &Upwind4h2)) as Box<dyn UpwindOperator2d>)
                 }
                 ("upwind4", "upwind9h2") => {
-                    Left(Box::new((&Upwind4, &Upwind9h2)) as Box<dyn SbpOperator2d>)
+                    Right(Box::new((&Upwind4, &Upwind9h2)) as Box<dyn UpwindOperator2d>)
                 }
 
                 ("upwind9", "upwind4") => {
-                    Left(Box::new((&Upwind9, &Upwind4)) as Box<dyn SbpOperator2d>)
+                    Right(Box::new((&Upwind9, &Upwind4)) as Box<dyn UpwindOperator2d>)
                 }
                 ("upwind9", "upwind4h2") => {
-                    Left(Box::new((&Upwind9, &Upwind4h2)) as Box<dyn SbpOperator2d>)
+                    Right(Box::new((&Upwind9, &Upwind4h2)) as Box<dyn UpwindOperator2d>)
                 }
                 ("upwind9", "upwind9h2") => {
-                    Left(Box::new((&Upwind9, &Upwind9h2)) as Box<dyn SbpOperator2d>)
+                    Right(Box::new((&Upwind9, &Upwind9h2)) as Box<dyn UpwindOperator2d>)
                 }
 
                 ("upwind4h2", "upwind4") => {
-                    Left(Box::new((&Upwind4h2, &Upwind4)) as Box<dyn SbpOperator2d>)
+                    Right(Box::new((&Upwind4h2, &Upwind4)) as Box<dyn UpwindOperator2d>)
                 }
                 ("upwind4h2", "upwind9") => {
-                    Left(Box::new((&Upwind4h2, &Upwind9)) as Box<dyn SbpOperator2d>)
+                    Right(Box::new((&Upwind4h2, &Upwind9)) as Box<dyn UpwindOperator2d>)
                 }
                 ("upwind4h2", "upwind9h2") => {
-                    Left(Box::new((&Upwind4h2, &Upwind9h2)) as Box<dyn SbpOperator2d>)
+                    Right(Box::new((&Upwind4h2, &Upwind9h2)) as Box<dyn UpwindOperator2d>)
                 }
 
                 ("upwind9h2", "upwind4") => {
-                    Left(Box::new((&Upwind9h2, &Upwind4)) as Box<dyn SbpOperator2d>)
+                    Right(Box::new((&Upwind9h2, &Upwind4)) as Box<dyn UpwindOperator2d>)
                 }
                 ("upwind9h2", "upwind9") => {
-                    Left(Box::new((&Upwind9h2, &Upwind9)) as Box<dyn SbpOperator2d>)
+                    Right(Box::new((&Upwind9h2, &Upwind9)) as Box<dyn UpwindOperator2d>)
                 }
                 ("upwind9h2", "upwind4h2") => {
-                    Left(Box::new((&Upwind9h2, &Upwind4h2)) as Box<dyn SbpOperator2d>)
+                    Right(Box::new((&Upwind9h2, &Upwind4h2)) as Box<dyn UpwindOperator2d>)
                 }
 
                 (opeta, opxi) => panic!("combination {} {} not yet implemented", opeta, opxi),
