@@ -1,0 +1,38 @@
+{
+    "grids": {
+        "default": {
+            "operators": {
+                "xi": "upwind9",
+                "eta": "upwind9"
+            }
+        },
+        "grid0": {
+            "x": "linspace:-5:5:50",
+            "y": "linspace:0:5:25",
+            "boundary_conditions": {
+                "south": "interpolate:9:grid1",
+                "north": "vortex",
+                "east": "vortex",
+                "west": "vortex"
+            }
+        },
+        "grid1": {
+            "x": "linspace:-5:5:99",
+            "y": "linspace:-5:0:50",
+            "boundary_conditions": {
+                "south": "vortex",
+                "north": "interpolate:9:grid0",
+                "east": "vortex",
+                "west": "vortex"
+            }
+        }
+    },
+    "integration_time": 2.0,
+    "vortex": {
+        "x0": -1.0,
+        "y0": 0.0,
+        "mach": 0.5,
+        "rstar": 0.5,
+        "eps": 1.0
+    }
+}
