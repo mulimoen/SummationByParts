@@ -8,6 +8,10 @@ pub trait ButcherTableau {
     const C: &'static [Float];
 }
 
+pub trait EmbeddedButcherTableau: ButcherTableau {
+    const BSTAR: &'static [Float];
+}
+
 pub struct Rk4;
 impl ButcherTableau for Rk4 {
     const A: &'static [&'static [Float]] = &[&[0.5], &[0.0, 0.5], &[0.0, 0.0, 1.0]];
@@ -87,6 +91,51 @@ impl ButcherTableau for Rk6 {
     ];
 }
 
+pub struct Fehlberg;
+
+impl ButcherTableau for Fehlberg {
+    #[rustfmt::skip]
+    const A: &'static [&'static [Float]] = &[
+        &[1.0 / 4.0],
+        &[3.0 / 32.0, 9.0 / 32.0],
+        &[1932.0 / 2197.0, -7200.0 / 2197.0, 7296.0 / 2197.0],
+        &[439.0 / 216.0, -8.0, 3680.0 / 513.0, -845.0 / 4104.0],
+        &[-8.0 / 27.0, 2.0, -3544.0 / 2565.0, 1859.0 / 4104.0, -11.0 / 40.0],
+    ];
+    #[rustfmt::skip]
+    const B: &'static [Float] = &[
+        16.0 / 135.0, 0.0, 6656.0 / 12825.0, 28561.0 / 56430.0, -9.0 / 50.0, 2.0 / 55.0,
+    ];
+    const C: &'static [Float] = &[0.0, 1.0 / 4.0, 3.0 / 8.0, 12.0 / 13.0, 1.0, 1.0 / 2.0];
+}
+
+impl EmbeddedButcherTableau for Fehlberg {
+    const BSTAR: &'static [Float] = &[
+        25.0 / 216.0,
+        0.0,
+        1408.0 / 2565.0,
+        2197.0 / 4104.0,
+        -1.0 / 5.0,
+        0.0,
+    ];
+}
+
+pub struct BogackiShampine;
+
+impl ButcherTableau for BogackiShampine {
+    const A: &'static [&'static [Float]] = &[
+        &[1.0 / 2.0],
+        &[0.0, 3.0 / 4.0],
+        &[2.0 / 9.0, 1.0 / 3.0, 4.0 / 9.0],
+    ];
+    const B: &'static [Float] = &[2.0 / 9.0, 1.0 / 3.0, 4.0 / 9.0, 0.0];
+    const C: &'static [Float] = &[0.0, 1.0 / 2.0, 3.0 / 4.0, 1.0];
+}
+
+impl EmbeddedButcherTableau for BogackiShampine {
+    const BSTAR: &'static [Float] = &[7.0 / 24.0, 1.0 / 4.0, 1.0 / 3.0, 1.0 / 8.0];
+}
+
 #[allow(clippy::too_many_arguments)]
 pub fn integrate<BTableau: ButcherTableau, F, RHS>(
     mut rhs: RHS,
@@ -137,6 +186,30 @@ pub fn integrate<BTableau: ButcherTableau, F, RHS>(
         };
 
         rhs(&mut k[i], &fut, simtime);
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+pub fn integrate_embedded_rk<BTableau: EmbeddedButcherTableau, F, RHS>(
+    rhs: RHS,
+    prev: &F,
+    fut: &mut F,
+    fut2: &mut F,
+    time: &mut Float,
+    dt: Float,
+    k: &mut [F],
+) where
+    for<'r> &'r F: std::convert::Into<ArrayView3<'r, Float>>,
+    for<'r> &'r mut F: std::convert::Into<ArrayViewMut3<'r, Float>>,
+    RHS: FnMut(&mut F, &F, Float),
+{
+    integrate::<BTableau, F, RHS>(rhs, prev, fut, time, dt, k);
+    fut2.into().assign(&prev.into());
+    for (&b, k) in BTableau::BSTAR.iter().zip(k.iter()) {
+        if b == 0.0 {
+            continue;
+        }
+        fut2.into().scaled_add(b * dt, &k.into());
     }
 }
 

@@ -99,6 +99,13 @@ impl<SBP: SbpOperator2d> System<SBP> {
     pub fn y(&self) -> ArrayView2<Float> {
         self.grid.0.y.view()
     }
+
+    pub fn nx(&self) -> usize {
+        self.grid.0.nx()
+    }
+    pub fn ny(&self) -> usize {
+        self.grid.0.ny()
+    }
 }
 
 impl<UO: UpwindOperator2d> System<UO> {
@@ -126,6 +133,43 @@ impl<UO: UpwindOperator2d> System<UO> {
             &mut self.k,
         );
         std::mem::swap(&mut self.sys.0, &mut self.sys.1);
+    }
+    pub fn advance_adaptive(&mut self, dt: Float, guess_dt: &mut Float, maxerr: Float) {
+        let bc = BoundaryCharacteristics {
+            north: BoundaryCharacteristic::This,
+            south: BoundaryCharacteristic::This,
+            east: BoundaryCharacteristic::This,
+            west: BoundaryCharacteristic::This,
+        };
+        let op = &self.op;
+        let grid = &self.grid;
+        let wb = &mut self.wb.0;
+        let mut rhs_upwind = |k: &mut Field, y: &Field, _time: Float| {
+            let (grid, metrics) = grid;
+            let boundaries = boundary_extractor(y, grid, &bc);
+            RHS_upwind(op, k, y, metrics, &boundaries, wb)
+        };
+        let mut time = 0.0;
+        let mut sys2 = self.sys.0.clone();
+        while time < dt {
+            integrate::integrate_embedded_rk::<integrate::BogackiShampine, _, _>(
+                &mut rhs_upwind,
+                &self.sys.0,
+                &mut self.sys.1,
+                &mut sys2,
+                &mut time,
+                *guess_dt,
+                &mut self.k,
+            );
+            let err = self.sys.0.h2_err(&sys2, &self.op);
+            if err < maxerr {
+                time += *guess_dt;
+                std::mem::swap(&mut self.sys.0, &mut self.sys.1);
+                *guess_dt *= 1.05;
+            } else {
+                *guess_dt *= 0.8;
+            }
+        }
     }
 }
 
