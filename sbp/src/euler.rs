@@ -614,6 +614,7 @@ pub enum BoundaryCharacteristic {
     Vortex(VortexParameters),
     // Vortices(Vec<VortexParameters>),
     Interpolate(usize, Box<dyn InterpolationOperator>),
+    MultiGrid(Vec<(usize, usize, usize)>),
 }
 
 pub type BoundaryTerms<'a> = Direction<ArrayView2<'a, Float>>;
@@ -628,30 +629,30 @@ fn boundary_extractor<'a>(
         north: match bc.north {
             BoundaryCharacteristic::This => field.south(),
             BoundaryCharacteristic::Vortex(_params) => todo!(),
-            BoundaryCharacteristic::Grid(_) | BoundaryCharacteristic::Interpolate(_, _) => {
-                panic!("Only working on self grid")
-            }
+            BoundaryCharacteristic::Grid(_)
+            | BoundaryCharacteristic::Interpolate(_, _)
+            | BoundaryCharacteristic::MultiGrid(_) => panic!("Only working on self grid"),
         },
         south: match bc.south {
             BoundaryCharacteristic::This => field.north(),
             BoundaryCharacteristic::Vortex(_params) => todo!(),
-            BoundaryCharacteristic::Grid(_) | BoundaryCharacteristic::Interpolate(_, _) => {
-                panic!("Only working on self grid")
-            }
+            BoundaryCharacteristic::Grid(_)
+            | BoundaryCharacteristic::Interpolate(_, _)
+            | BoundaryCharacteristic::MultiGrid(_) => panic!("Only working on self grid"),
         },
         west: match bc.west {
             BoundaryCharacteristic::This => field.east(),
             BoundaryCharacteristic::Vortex(_params) => todo!(),
-            BoundaryCharacteristic::Grid(_) | BoundaryCharacteristic::Interpolate(_, _) => {
-                panic!("Only working on self grid")
-            }
+            BoundaryCharacteristic::Grid(_)
+            | BoundaryCharacteristic::Interpolate(_, _)
+            | BoundaryCharacteristic::MultiGrid(_) => panic!("Only working on self grid"),
         },
         east: match bc.east {
             BoundaryCharacteristic::This => field.west(),
             BoundaryCharacteristic::Vortex(_params) => todo!(),
-            BoundaryCharacteristic::Grid(_) | BoundaryCharacteristic::Interpolate(_, _) => {
-                panic!("Only working on self grid")
-            }
+            BoundaryCharacteristic::Grid(_)
+            | BoundaryCharacteristic::Interpolate(_, _)
+            | BoundaryCharacteristic::MultiGrid(_) => panic!("Only working on self grid"),
         },
     }
 }
@@ -689,6 +690,25 @@ pub fn extract_boundaries<'a>(
                     }
                     to.view()
                 }
+                BoundaryCharacteristic::MultiGrid(grids) => {
+                    let to = eb.north.as_mut().unwrap();
+                    let mut i = 0;
+                    let mut remaining = grids.len();
+                    for &(g, start, end) in grids.iter() {
+                        let n: usize = end - start;
+                        to.slice_mut(s![.., i..i + n])
+                            .assign(&fields[g].south().slice(s![.., start..end]));
+                        remaining -= 1;
+                        if remaining != 0 {
+                            to.slice_mut(s![.., i]).iter_mut().for_each(|x| *x /= 2.0);
+                            i += n - 1;
+                        } else {
+                            i += n;
+                            assert_eq!(i, to.len_of(Axis(1)));
+                        }
+                    }
+                    to.view()
+                }
             },
             south: match &bt.south {
                 BoundaryCharacteristic::This => field.north(),
@@ -707,6 +727,25 @@ pub fn extract_boundaries<'a>(
                             operator.fine2coarse(from.view(), to.view_mut());
                         } else {
                             operator.coarse2fine(from.view(), to.view_mut());
+                        }
+                    }
+                    to.view()
+                }
+                BoundaryCharacteristic::MultiGrid(grids) => {
+                    let to = eb.south.as_mut().unwrap();
+                    let mut i = 0;
+                    let mut remaining = grids.len();
+                    for &(g, start, end) in grids.iter() {
+                        let n: usize = end - start;
+                        to.slice_mut(s![.., i..i + n])
+                            .assign(&fields[g].north().slice(s![.., start..end]));
+                        remaining -= 1;
+                        if remaining != 0 {
+                            to.slice_mut(s![.., i]).iter_mut().for_each(|x| *x /= 2.0);
+                            i += n - 1;
+                        } else {
+                            i += n;
+                            assert_eq!(i, to.len_of(Axis(1)));
                         }
                     }
                     to.view()
@@ -733,6 +772,25 @@ pub fn extract_boundaries<'a>(
                     }
                     to.view()
                 }
+                BoundaryCharacteristic::MultiGrid(grids) => {
+                    let to = eb.west.as_mut().unwrap();
+                    let mut i = 0;
+                    let mut remaining = grids.len();
+                    for &(g, start, end) in grids.iter() {
+                        let n: usize = end - start;
+                        to.slice_mut(s![.., i..i + n])
+                            .assign(&fields[g].east().slice(s![.., start..end]));
+                        remaining -= 1;
+                        if remaining != 0 {
+                            to.slice_mut(s![.., i]).iter_mut().for_each(|x| *x /= 2.0);
+                            i += n - 1;
+                        } else {
+                            i += n;
+                            assert_eq!(i, to.len_of(Axis(1)));
+                        }
+                    }
+                    to.view()
+                }
             },
             east: match &bt.east {
                 BoundaryCharacteristic::This => field.west(),
@@ -755,6 +813,25 @@ pub fn extract_boundaries<'a>(
                     }
                     to.view()
                 }
+                BoundaryCharacteristic::MultiGrid(grids) => {
+                    let to = eb.east.as_mut().unwrap();
+                    let mut i = 0;
+                    let mut remaining = grids.len();
+                    for &(g, start, end) in grids.iter() {
+                        let n: usize = end - start;
+                        to.slice_mut(s![.., i..i + n])
+                            .assign(&fields[g].west().slice(s![.., start..end]));
+                        remaining -= 1;
+                        if remaining != 0 {
+                            to.slice_mut(s![.., i]).iter_mut().for_each(|x| *x /= 2.0);
+                            i += n - 1;
+                        } else {
+                            i += n;
+                            assert_eq!(i, to.len_of(Axis(1)));
+                        }
+                    }
+                    to.view()
+                }
             },
         })
         .collect()
@@ -767,25 +844,33 @@ impl BoundaryStorage {
     pub fn new(bt: &BoundaryCharacteristics, grid: &Grid) -> Self {
         Self {
             north: match bt.north {
-                BoundaryCharacteristic::Vortex(_) | BoundaryCharacteristic::Interpolate(_, _) => {
+                BoundaryCharacteristic::Vortex(_)
+                | BoundaryCharacteristic::Interpolate(_, _)
+                | BoundaryCharacteristic::MultiGrid(_) => {
                     Some(ndarray::Array2::zeros((4, grid.nx())))
                 }
                 _ => None,
             },
             south: match bt.south {
-                BoundaryCharacteristic::Vortex(_) | BoundaryCharacteristic::Interpolate(_, _) => {
+                BoundaryCharacteristic::Vortex(_)
+                | BoundaryCharacteristic::Interpolate(_, _)
+                | BoundaryCharacteristic::MultiGrid(_) => {
                     Some(ndarray::Array2::zeros((4, grid.nx())))
                 }
                 _ => None,
             },
             east: match bt.east {
-                BoundaryCharacteristic::Vortex(_) | BoundaryCharacteristic::Interpolate(_, _) => {
+                BoundaryCharacteristic::Vortex(_)
+                | BoundaryCharacteristic::Interpolate(_, _)
+                | BoundaryCharacteristic::MultiGrid(_) => {
                     Some(ndarray::Array2::zeros((4, grid.ny())))
                 }
                 _ => None,
             },
             west: match bt.west {
-                BoundaryCharacteristic::Vortex(_) | BoundaryCharacteristic::Interpolate(_, _) => {
+                BoundaryCharacteristic::Vortex(_)
+                | BoundaryCharacteristic::Interpolate(_, _)
+                | BoundaryCharacteristic::MultiGrid(_) => {
                     Some(ndarray::Array2::zeros((4, grid.ny())))
                 }
                 _ => None,

@@ -143,6 +143,27 @@ pub fn json_to_grids(
                     names.iter().position(|other| other == grid).unwrap(),
                     int_op,
                 )
+            } else if let Some(multigrid) = dir.strip_prefix("multi:") {
+                let grids = multigrid.split(":");
+                sbp::euler::BoundaryCharacteristic::MultiGrid(
+                    grids
+                        .map(|g| {
+                            let rparen = g.find('(').unwrap();
+                            let gridname = &g[..rparen];
+
+                            let gridnumber =
+                                names.iter().position(|other| other == gridname).unwrap();
+
+                            let paren = &g[rparen + 1..];
+                            let paren = &paren[..paren.len() - 1];
+                            let mut pareni = paren.split(',');
+                            let start = pareni.next().unwrap().parse::<usize>().unwrap();
+                            let end = pareni.next().unwrap().parse::<usize>().unwrap();
+
+                            (gridnumber, start, end)
+                        })
+                        .collect::<Vec<_>>(),
+                )
             } else {
                 sbp::euler::BoundaryCharacteristic::Grid(
                     names.iter().position(|other| other == dir).unwrap(),
