@@ -27,3 +27,7 @@ harness = false
 [[bench]]
 name = "euler"
 harness = false
+
+[[bench]]
+name = "sbpoperators"
+harness = false
