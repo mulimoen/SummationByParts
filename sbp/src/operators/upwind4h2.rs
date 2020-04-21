@@ -1,4 +1,6 @@
-use super::{diff_op_row, SbpOperator1d, SbpOperator2d, UpwindOperator1d, UpwindOperator2d};
+use super::{
+    diff_op_col, diff_op_row, SbpOperator1d, SbpOperator2d, UpwindOperator1d, UpwindOperator2d,
+};
 use crate::Float;
 use ndarray::{ArrayView1, ArrayView2, ArrayViewMut1, ArrayViewMut2};
 
@@ -58,6 +60,9 @@ impl<SBP: SbpOperator1d> SbpOperator2d for (&SBP, &Upwind4h2) {
             ([_, 1], [_, 1]) => {
                 diff_op_row(Upwind4h2::BLOCK, Upwind4h2::DIAG, false, true, prev, fut);
             }
+            ([1, _], [1, _]) => {
+                diff_op_col(Upwind4h2::BLOCK, Upwind4h2::DIAG, false, true, prev, fut);
+            }
             ([_, _], [_, _]) => {
                 // Fallback, work row by row
                 for (r0, r1) in prev.outer_iter().zip(fut.outer_iter_mut()) {
@@ -77,6 +82,16 @@ impl<UO: UpwindOperator1d> UpwindOperator2d for (&UO, &Upwind4h2) {
         match (prev.strides(), fut.strides()) {
             ([_, 1], [_, 1]) => {
                 diff_op_row(
+                    Upwind4h2::DISS_BLOCK,
+                    Upwind4h2::DISS_DIAG,
+                    true,
+                    true,
+                    prev,
+                    fut,
+                );
+            }
+            ([1, _], [1, _]) => {
+                diff_op_col(
                     Upwind4h2::DISS_BLOCK,
                     Upwind4h2::DISS_DIAG,
                     true,

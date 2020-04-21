@@ -1,4 +1,4 @@
-use super::{diff_op_row, SbpOperator1d, SbpOperator2d};
+use super::{diff_op_col, diff_op_row, SbpOperator1d, SbpOperator2d};
 use crate::Float;
 use ndarray::{ArrayView1, ArrayView2, ArrayViewMut1, ArrayViewMut2};
 
@@ -41,6 +41,9 @@ impl<SBP: SbpOperator1d> SbpOperator2d for (&SBP, &SBP4) {
         match (prev.strides(), fut.strides()) {
             ([_, 1], [_, 1]) => {
                 diff_op_row(SBP4::BLOCK, SBP4::DIAG, false, false, prev, fut);
+            }
+            ([1, _], [1, _]) => {
+                diff_op_col(SBP4::BLOCK, SBP4::DIAG, false, false, prev, fut);
             }
             ([_, _], [_, _]) => {
                 // Fallback, work row by row
