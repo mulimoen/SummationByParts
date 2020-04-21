@@ -254,19 +254,19 @@ impl Upwind4 {
         -1.0 / 24.0, 1.0 / 4.0, -7.0 / 8.0, 0.0, 7.0 / 8.0, -1.0 / 4.0, 1.0 / 24.0
     ];
     #[rustfmt::skip]
-    const BLOCK: &'static [[Float; 7]] = &[
-        [  -72.0 / 49.0, 187.0 / 98.0,   -20.0 / 49.0,   -3.0 / 98.0,           0.0,           0.0,         0.0],
-        [-187.0 / 366.0,          0.0,   69.0 / 122.0, -16.0 / 183.0,    2.0 / 61.0,           0.0,         0.0],
-        [  20.0 / 123.0, -69.0 / 82.0,            0.0, 227.0 / 246.0,  -12.0 / 41.0,    2.0 / 41.0,         0.0],
-        [   3.0 / 298.0, 16.0 / 149.0, -227.0 / 298.0,           0.0, 126.0 / 149.0, -36.0 / 149.0, 6.0 / 149.0],
+    const BLOCK: &'static [&'static [Float]] = &[
+        &[  -72.0 / 49.0, 187.0 / 98.0,   -20.0 / 49.0,   -3.0 / 98.0,           0.0,           0.0,         0.0],
+        &[-187.0 / 366.0,          0.0,   69.0 / 122.0, -16.0 / 183.0,    2.0 / 61.0,           0.0,         0.0],
+        &[  20.0 / 123.0, -69.0 / 82.0,            0.0, 227.0 / 246.0,  -12.0 / 41.0,    2.0 / 41.0,         0.0],
+        &[   3.0 / 298.0, 16.0 / 149.0, -227.0 / 298.0,           0.0, 126.0 / 149.0, -36.0 / 149.0, 6.0 / 149.0],
     ];
 
     #[rustfmt::skip]
-    const DISS_BLOCK: &'static [[Float; 7]; 4] = &[
-        [-3.0 / 49.0,    9.0 / 49.0,  -9.0 / 49.0,     3.0 / 49.0,          0.0,           0.0,         0.0],
-        [ 3.0 / 61.0,  -11.0 / 61.0,  15.0 / 61.0,    -9.0 / 61.0,   2.0 / 61.0,           0.0,         0.0],
-        [-3.0 / 41.0,   15.0 / 41.0, -29.0 / 41.0,    27.0 / 41.0, -12.0 / 41.0,    2.0 / 41.0,         0.0],
-        [3.0 / 149.0, -27.0 / 149.0, 81.0 / 149.0, -117.0 / 149.0, 90.0 / 149.0, -36.0 / 149.0, 6.0 / 149.0],
+    const DISS_BLOCK: &'static [&'static [Float]] = &[
+        &[-3.0 / 49.0,    9.0 / 49.0,  -9.0 / 49.0,     3.0 / 49.0,          0.0,           0.0,         0.0],
+        &[ 3.0 / 61.0,  -11.0 / 61.0,  15.0 / 61.0,    -9.0 / 61.0,   2.0 / 61.0,           0.0,         0.0],
+        &[-3.0 / 41.0,   15.0 / 41.0, -29.0 / 41.0,    27.0 / 41.0, -12.0 / 41.0,    2.0 / 41.0,         0.0],
+        &[3.0 / 149.0, -27.0 / 149.0, 81.0 / 149.0, -117.0 / 149.0, 90.0 / 149.0, -36.0 / 149.0, 6.0 / 149.0],
     ];
 
     #[rustfmt::skip]
@@ -277,14 +277,7 @@ impl Upwind4 {
 
 impl SbpOperator1d for Upwind4 {
     fn diff(&self, prev: ArrayView1<Float>, fut: ArrayViewMut1<Float>) {
-        super::diff_op_1d(
-            ndarray::arr2(Self::BLOCK).view(),
-            ndarray::arr1(Self::DIAG).view(),
-            false,
-            false,
-            prev,
-            fut,
-        )
+        super::diff_op_1d(Self::BLOCK, Self::DIAG, false, false, prev, fut)
     }
     fn h(&self) -> &'static [Float] {
         Self::HBLOCK
@@ -404,14 +397,7 @@ fn upwind4_test() {
 
 impl UpwindOperator1d for Upwind4 {
     fn diss(&self, prev: ArrayView1<Float>, fut: ArrayViewMut1<Float>) {
-        super::diff_op_1d(
-            ndarray::arr2(Self::DISS_BLOCK).view(),
-            ndarray::arr1(Self::DISS_DIAG).view(),
-            true,
-            false,
-            prev,
-            fut,
-        )
+        super::diff_op_1d(Self::DISS_BLOCK, Self::DISS_DIAG, true, false, prev, fut)
     }
 
     fn as_sbp(&self) -> &dyn SbpOperator1d {
