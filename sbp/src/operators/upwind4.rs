@@ -1,4 +1,4 @@
-use super::*;
+use super::{SbpOperator1d, SbpOperator2d, UpwindOperator1d, UpwindOperator2d};
 use crate::Float;
 use ndarray::{ArrayView1, ArrayView2, ArrayViewMut1, ArrayViewMut2, Axis};
 
@@ -284,7 +284,7 @@ impl SbpOperator1d for Upwind4 {
     }
 }
 
-impl<SBP: SbpOperator1d> SbpOperator2d for (&Upwind4, &SBP) {
+impl<SBP: SbpOperator1d> SbpOperator2d for (&SBP, &Upwind4) {
     fn diffxi(&self, prev: ArrayView2<Float>, mut fut: ArrayViewMut2<Float>) {
         assert_eq!(prev.shape(), fut.shape());
         assert!(prev.shape()[1] >= 2 * Upwind4::BLOCK.len());
@@ -405,7 +405,7 @@ impl UpwindOperator1d for Upwind4 {
     }
 }
 
-impl<SBP: UpwindOperator1d> UpwindOperator2d for (&Upwind4, &SBP) {
+impl<UO: UpwindOperator1d> UpwindOperator2d for (&UO, &Upwind4) {
     fn dissxi(&self, prev: ArrayView2<Float>, mut fut: ArrayViewMut2<Float>) {
         assert_eq!(prev.shape(), fut.shape());
         assert!(prev.shape()[1] >= 2 * Upwind4::BLOCK.len());

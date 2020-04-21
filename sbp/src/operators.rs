@@ -169,6 +169,72 @@ pub(crate) fn diff_op_1d(
     }
 }
 
+#[inline(always)]
+pub(crate) fn diff_op_row(
+    block: &[&[Float]],
+    diag: &[Float],
+    symmetric: bool,
+    is_h2: bool,
+    prev: ArrayView2<Float>,
+    mut fut: ArrayViewMut2<Float>,
+) {
+    assert_eq!(prev.shape(), fut.shape());
+    let nx = prev.shape()[1];
+    assert!(nx >= 2 * block.len());
+
+    assert_eq!(prev.strides()[1], 1);
+    assert_eq!(fut.strides()[1], 1);
+
+    let dx = if is_h2 {
+        1.0 / (nx - 2) as Float
+    } else {
+        1.0 / (nx - 1) as Float
+    };
+    let idx = 1.0 / dx;
+
+    for (prev, mut fut) in prev
+        .axis_iter(ndarray::Axis(0))
+        .zip(fut.axis_iter_mut(ndarray::Axis(0)))
+    {
+        let prev = prev.as_slice().unwrap();
+        let fut = fut.as_slice_mut().unwrap();
+
+        for (bl, f) in block.iter().zip(fut.iter_mut()) {
+            let diff = bl
+                .iter()
+                .zip(prev.iter())
+                .map(|(x, y)| x * y)
+                .sum::<Float>();
+            *f = diff * idx;
+        }
+
+        // The window needs to be aligned to the diagonal elements,
+        // based on the block size
+        let window_elems_to_skip = block.len() - ((diag.len() - 1) / 2);
+
+        for (window, f) in prev
+            .windows(diag.len())
+            .into_iter()
+            .skip(window_elems_to_skip)
+            .zip(fut.iter_mut().skip(block.len()))
+            .take(nx - 2 * block.len())
+        {
+            let diff = diag.iter().zip(window).map(|(&x, &y)| x * y).sum::<Float>();
+            *f = diff * idx;
+        }
+
+        for (bl, f) in block.iter().zip(fut.iter_mut().rev()) {
+            let diff = bl
+                .iter()
+                .zip(prev.iter().rev())
+                .map(|(x, y)| x * y)
+                .sum::<Float>();
+
+            *f = idx * if symmetric { diff } else { -diff };
+        }
+    }
+}
+
 mod upwind4;
 pub use upwind4::Upwind4;
 mod upwind9;

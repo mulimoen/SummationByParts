@@ -1,6 +1,6 @@
-use super::*;
+use super::{diff_op_row, SbpOperator1d, SbpOperator2d};
 use crate::Float;
-use ndarray::{ArrayView1, ArrayViewMut1};
+use ndarray::{ArrayView1, ArrayView2, ArrayViewMut1, ArrayViewMut2};
 
 #[derive(Debug, Copy, Clone)]
 pub struct SBP4;
@@ -30,6 +30,26 @@ impl SbpOperator1d for SBP4 {
 
     fn h(&self) -> &'static [Float] {
         Self::HBLOCK
+    }
+}
+
+impl<SBP: SbpOperator1d> SbpOperator2d for (&SBP, &SBP4) {
+    fn diffxi(&self, prev: ArrayView2<Float>, mut fut: ArrayViewMut2<Float>) {
+        assert_eq!(prev.shape(), fut.shape());
+        assert!(prev.shape()[1] >= 2 * SBP4::BLOCK.len());
+
+        match (prev.strides(), fut.strides()) {
+            ([_, 1], [_, 1]) => {
+                diff_op_row(SBP4::BLOCK, SBP4::DIAG, false, false, prev, fut);
+            }
+            ([_, _], [_, _]) => {
+                // Fallback, work row by row
+                for (r0, r1) in prev.outer_iter().zip(fut.outer_iter_mut()) {
+                    SBP4.diff(r0, r1);
+                }
+            }
+            _ => unreachable!("Should only be two elements in the strides vectors"),
+        }
     }
 }
 

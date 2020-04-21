@@ -1,6 +1,6 @@
-use super::*;
+use super::{diff_op_row, SbpOperator1d, SbpOperator2d, UpwindOperator1d, UpwindOperator2d};
 use crate::Float;
-use ndarray::{ArrayView1, ArrayViewMut1};
+use ndarray::{ArrayView1, ArrayView2, ArrayViewMut1, ArrayViewMut2};
 
 #[derive(Debug, Copy, Clone)]
 pub struct Upwind4h2;
@@ -46,6 +46,53 @@ impl SbpOperator1d for Upwind4h2 {
     }
     fn is_h2(&self) -> bool {
         true
+    }
+}
+
+impl<SBP: SbpOperator1d> SbpOperator2d for (&SBP, &Upwind4h2) {
+    fn diffxi(&self, prev: ArrayView2<Float>, mut fut: ArrayViewMut2<Float>) {
+        assert_eq!(prev.shape(), fut.shape());
+        assert!(prev.shape()[1] >= 2 * Upwind4h2::BLOCK.len());
+
+        match (prev.strides(), fut.strides()) {
+            ([_, 1], [_, 1]) => {
+                diff_op_row(Upwind4h2::BLOCK, Upwind4h2::DIAG, false, true, prev, fut);
+            }
+            ([_, _], [_, _]) => {
+                // Fallback, work row by row
+                for (r0, r1) in prev.outer_iter().zip(fut.outer_iter_mut()) {
+                    Upwind4h2.diff(r0, r1);
+                }
+            }
+            _ => unreachable!("Should only be two elements in the strides vectors"),
+        }
+    }
+}
+
+impl<UO: UpwindOperator1d> UpwindOperator2d for (&UO, &Upwind4h2) {
+    fn dissxi(&self, prev: ArrayView2<Float>, mut fut: ArrayViewMut2<Float>) {
+        assert_eq!(prev.shape(), fut.shape());
+        assert!(prev.shape()[1] >= 2 * Upwind4h2::BLOCK.len());
+
+        match (prev.strides(), fut.strides()) {
+            ([_, 1], [_, 1]) => {
+                diff_op_row(
+                    Upwind4h2::DISS_BLOCK,
+                    Upwind4h2::DISS_DIAG,
+                    true,
+                    true,
+                    prev,
+                    fut,
+                );
+            }
+            ([_, _], [_, _]) => {
+                // Fallback, work row by row
+                for (r0, r1) in prev.outer_iter().zip(fut.outer_iter_mut()) {
+                    Upwind4h2.diss(r0, r1);
+                }
+            }
+            _ => unreachable!("Should only be two elements in the strides vectors"),
+        }
     }
 }
 
