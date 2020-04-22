@@ -694,6 +694,106 @@ fn boundary_extractor<'a>(
     }
 }
 
+pub fn boundary_extract<'a>(
+    fields: &'a [Field],
+    bc: &BoundaryCharacteristic,
+    field: &'a Field,
+    grid: (ArrayView1<Float>, ArrayView1<Float>),
+    seldir: impl Fn(&Field) -> ArrayView2<Float>,
+    eb: Option<&'a mut Array2<Float>>,
+    time: Float,
+) -> ArrayView2<'a, Float> {
+    match bc {
+        BoundaryCharacteristic::This => seldir(field),
+        BoundaryCharacteristic::Grid(g) => seldir(&fields[*g]),
+        BoundaryCharacteristic::Vortex(v) => {
+            let field = eb.unwrap();
+            vortexify(field.view_mut(), grid, *v, time);
+            field.view()
+        }
+        BoundaryCharacteristic::Interpolate(g, operator) => {
+            let to = eb.unwrap();
+            let fine2coarse = field.nx() < fields[*g].nx();
+
+            for (mut to, from) in to.outer_iter_mut().zip(seldir(&fields[*g]).outer_iter()) {
+                if fine2coarse {
+                    operator.fine2coarse(from.view(), to.view_mut());
+                } else {
+                    operator.coarse2fine(from.view(), to.view_mut());
+                }
+            }
+            to.view()
+        }
+        BoundaryCharacteristic::MultiGrid(grids) => {
+            let to = eb.unwrap();
+            let mut i = 0;
+            let mut remaining = grids.len();
+            for &(g, start, end) in grids.iter() {
+                let n: usize = end - start;
+                to.slice_mut(s![.., i..i + n])
+                    .assign(&seldir(&fields[g]).slice(s![.., start..end]));
+                remaining -= 1;
+                if remaining != 0 {
+                    to.slice_mut(s![.., i]).iter_mut().for_each(|x| *x /= 2.0);
+                    i += n - 1;
+                } else {
+                    i += n;
+                    assert_eq!(i, to.len_of(Axis(1)));
+                }
+            }
+            to.view()
+        }
+    }
+}
+
+pub fn boundary_extracts<'a>(
+    fields: &'a [Field],
+    bt: &BoundaryCharacteristics,
+    field: &'a Field,
+    grid: &Grid,
+    eb: &'a mut BoundaryStorage,
+    time: Float,
+) -> BoundaryTerms<'a> {
+    BoundaryTerms {
+        north: boundary_extract(
+            fields,
+            &bt.north,
+            field,
+            grid.north(),
+            |f| f.south(),
+            eb.north.as_mut(),
+            time,
+        ),
+        south: boundary_extract(
+            fields,
+            &bt.south,
+            field,
+            grid.south(),
+            |f| f.north(),
+            eb.south.as_mut(),
+            time,
+        ),
+        east: boundary_extract(
+            fields,
+            &bt.east,
+            field,
+            grid.east(),
+            |f| f.west(),
+            eb.east.as_mut(),
+            time,
+        ),
+        west: boundary_extract(
+            fields,
+            &bt.west,
+            field,
+            grid.west(),
+            |f| f.east(),
+            eb.west.as_mut(),
+            time,
+        ),
+    }
+}
+
 pub fn extract_boundaries<'a>(
     fields: &'a [Field],
     bt: &[BoundaryCharacteristics],
@@ -705,172 +805,7 @@ pub fn extract_boundaries<'a>(
         .zip(eb)
         .zip(grids)
         .zip(fields)
-        .map(|(((bt, eb), grid), field)| BoundaryTerms {
-            north: match &bt.north {
-                BoundaryCharacteristic::This => field.south(),
-                BoundaryCharacteristic::Grid(g) => fields[*g].south(),
-                BoundaryCharacteristic::Vortex(v) => {
-                    let field = eb.north.as_mut().unwrap();
-                    vortexify(field.view_mut(), grid.north(), *v, time);
-                    field.view()
-                }
-                BoundaryCharacteristic::Interpolate(g, operator) => {
-                    let to = eb.north.as_mut().unwrap();
-                    let fine2coarse = field.nx() < fields[*g].nx();
-
-                    for (mut to, from) in to.outer_iter_mut().zip(fields[*g].south().outer_iter()) {
-                        if fine2coarse {
-                            operator.fine2coarse(from.view(), to.view_mut());
-                        } else {
-                            operator.coarse2fine(from.view(), to.view_mut());
-                        }
-                    }
-                    to.view()
-                }
-                BoundaryCharacteristic::MultiGrid(grids) => {
-                    let to = eb.north.as_mut().unwrap();
-                    let mut i = 0;
-                    let mut remaining = grids.len();
-                    for &(g, start, end) in grids.iter() {
-                        let n: usize = end - start;
-                        to.slice_mut(s![.., i..i + n])
-                            .assign(&fields[g].south().slice(s![.., start..end]));
-                        remaining -= 1;
-                        if remaining != 0 {
-                            to.slice_mut(s![.., i]).iter_mut().for_each(|x| *x /= 2.0);
-                            i += n - 1;
-                        } else {
-                            i += n;
-                            assert_eq!(i, to.len_of(Axis(1)));
-                        }
-                    }
-                    to.view()
-                }
-            },
-            south: match &bt.south {
-                BoundaryCharacteristic::This => field.north(),
-                BoundaryCharacteristic::Grid(g) => fields[*g].north(),
-                BoundaryCharacteristic::Vortex(v) => {
-                    let field = eb.south.as_mut().unwrap();
-                    vortexify(field.view_mut(), grid.south(), *v, time);
-                    field.view()
-                }
-                BoundaryCharacteristic::Interpolate(g, operator) => {
-                    let to = eb.south.as_mut().unwrap();
-                    let fine2coarse = field.nx() < fields[*g].nx();
-
-                    for (mut to, from) in to.outer_iter_mut().zip(fields[*g].north().outer_iter()) {
-                        if fine2coarse {
-                            operator.fine2coarse(from.view(), to.view_mut());
-                        } else {
-                            operator.coarse2fine(from.view(), to.view_mut());
-                        }
-                    }
-                    to.view()
-                }
-                BoundaryCharacteristic::MultiGrid(grids) => {
-                    let to = eb.south.as_mut().unwrap();
-                    let mut i = 0;
-                    let mut remaining = grids.len();
-                    for &(g, start, end) in grids.iter() {
-                        let n: usize = end - start;
-                        to.slice_mut(s![.., i..i + n])
-                            .assign(&fields[g].north().slice(s![.., start..end]));
-                        remaining -= 1;
-                        if remaining != 0 {
-                            to.slice_mut(s![.., i]).iter_mut().for_each(|x| *x /= 2.0);
-                            i += n - 1;
-                        } else {
-                            i += n;
-                            assert_eq!(i, to.len_of(Axis(1)));
-                        }
-                    }
-                    to.view()
-                }
-            },
-            west: match &bt.west {
-                BoundaryCharacteristic::This => field.east(),
-                BoundaryCharacteristic::Grid(g) => fields[*g].east(),
-                BoundaryCharacteristic::Vortex(v) => {
-                    let field = eb.west.as_mut().unwrap();
-                    vortexify(field.view_mut(), grid.west(), *v, time);
-                    field.view()
-                }
-                BoundaryCharacteristic::Interpolate(g, operator) => {
-                    let to = eb.west.as_mut().unwrap();
-                    let fine2coarse = field.ny() < fields[*g].ny();
-
-                    for (mut to, from) in to.outer_iter_mut().zip(fields[*g].east().outer_iter()) {
-                        if fine2coarse {
-                            operator.fine2coarse(from.view(), to.view_mut());
-                        } else {
-                            operator.coarse2fine(from.view(), to.view_mut());
-                        }
-                    }
-                    to.view()
-                }
-                BoundaryCharacteristic::MultiGrid(grids) => {
-                    let to = eb.west.as_mut().unwrap();
-                    let mut i = 0;
-                    let mut remaining = grids.len();
-                    for &(g, start, end) in grids.iter() {
-                        let n: usize = end - start;
-                        to.slice_mut(s![.., i..i + n])
-                            .assign(&fields[g].east().slice(s![.., start..end]));
-                        remaining -= 1;
-                        if remaining != 0 {
-                            to.slice_mut(s![.., i]).iter_mut().for_each(|x| *x /= 2.0);
-                            i += n - 1;
-                        } else {
-                            i += n;
-                            assert_eq!(i, to.len_of(Axis(1)));
-                        }
-                    }
-                    to.view()
-                }
-            },
-            east: match &bt.east {
-                BoundaryCharacteristic::This => field.west(),
-                BoundaryCharacteristic::Grid(g) => fields[*g].west(),
-                BoundaryCharacteristic::Vortex(v) => {
-                    let field = eb.east.as_mut().unwrap();
-                    vortexify(field.view_mut(), grid.east(), *v, time);
-                    field.view()
-                }
-                BoundaryCharacteristic::Interpolate(g, operator) => {
-                    let to = eb.east.as_mut().unwrap();
-                    let fine2coarse = field.ny() < fields[*g].ny();
-
-                    for (mut to, from) in to.outer_iter_mut().zip(fields[*g].west().outer_iter()) {
-                        if fine2coarse {
-                            operator.fine2coarse(from.view(), to.view_mut());
-                        } else {
-                            operator.coarse2fine(from.view(), to.view_mut());
-                        }
-                    }
-                    to.view()
-                }
-                BoundaryCharacteristic::MultiGrid(grids) => {
-                    let to = eb.east.as_mut().unwrap();
-                    let mut i = 0;
-                    let mut remaining = grids.len();
-                    for &(g, start, end) in grids.iter() {
-                        let n: usize = end - start;
-                        to.slice_mut(s![.., i..i + n])
-                            .assign(&fields[g].west().slice(s![.., start..end]));
-                        remaining -= 1;
-                        if remaining != 0 {
-                            to.slice_mut(s![.., i]).iter_mut().for_each(|x| *x /= 2.0);
-                            i += n - 1;
-                        } else {
-                            i += n;
-                            assert_eq!(i, to.len_of(Axis(1)));
-                        }
-                    }
-                    to.view()
-                }
-            },
-        })
+        .map(|(((bt, eb), grid), field)| boundary_extracts(fields, bt, field, grid, eb, time))
         .collect()
 }
 
