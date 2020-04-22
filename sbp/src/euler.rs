@@ -694,7 +694,7 @@ fn boundary_extractor<'a>(
     }
 }
 
-pub fn boundary_extract<'a>(
+fn boundary_extract<'a>(
     fields: &'a [Field],
     bc: &BoundaryCharacteristic,
     field: &'a Field,

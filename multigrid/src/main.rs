@@ -81,26 +81,31 @@ impl System {
         let grids = &self.grids;
         let bt = &self.bt;
         let wb = &mut self.wb;
-        let mut eb = &mut self.eb;
+        let eb = &mut self.eb;
         let operators = &self.operators;
 
         let rhs = move |fut: &mut [euler::Field], prev: &[euler::Field], time: Float| {
-            let bc = euler::extract_boundaries(prev, &bt, &mut eb, &grids, time);
+            let prev_all = &prev;
             pool.scope(|s| {
-                for (((((fut, prev), bc), wb), metrics), op) in fut
+                for (((((((fut, prev), wb), grid), metrics), op), bt), eb) in fut
                     .iter_mut()
                     .zip(prev.iter())
-                    .zip(bc)
                     .zip(wb.iter_mut())
+                    .zip(grids)
                     .zip(metrics.iter())
                     .zip(operators.iter())
+                    .zip(bt.iter())
+                    .zip(eb.iter_mut())
                 {
-                    s.spawn(move |_| match op.as_ref() {
-                        Left(sbp) => {
-                            euler::RHS_trad(&**sbp, fut, prev, metrics, &bc, &mut wb.0);
-                        }
-                        Right(uo) => {
-                            euler::RHS_upwind(&**uo, fut, prev, metrics, &bc, &mut wb.0);
+                    s.spawn(move |_| {
+                        let bc = euler::boundary_extracts(prev_all, bt, prev, grid, eb, time);
+                        match op.as_ref() {
+                            Left(sbp) => {
+                                euler::RHS_trad(&**sbp, fut, prev, metrics, &bc, &mut wb.0);
+                            }
+                            Right(uo) => {
+                                euler::RHS_upwind(&**uo, fut, prev, metrics, &bc, &mut wb.0);
+                            }
                         }
                     })
                 }
