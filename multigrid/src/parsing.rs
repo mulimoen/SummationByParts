@@ -144,7 +144,7 @@ pub fn json_to_grids(
                     int_op,
                 )
             } else if let Some(multigrid) = dir.strip_prefix("multi:") {
-                let grids = multigrid.split(":");
+                let grids = multigrid.split(':');
                 sbp::euler::BoundaryCharacteristic::MultiGrid(
                     grids
                         .map(|g| {

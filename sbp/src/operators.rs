@@ -275,7 +275,6 @@ pub(crate) fn diff_op_row(
 
         for (window, f) in prev
             .windows(diag.len())
-            .into_iter()
             .skip(window_elems_to_skip)
             .zip(fut.iter_mut().skip(block.len()))
             .take(nx - 2 * block.len())
