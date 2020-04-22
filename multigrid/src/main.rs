@@ -70,9 +70,9 @@ impl System {
         }
     }
 
-    fn vortex(&mut self, t: Float, vortex_params: euler::VortexParameters) {
+    fn vortex(&mut self, t: Float, vortex_params: &euler::VortexParameters) {
         for (f, g) in self.fnow.iter_mut().zip(&self.grids) {
-            f.vortex(g.x(), g.y(), t, vortex_params);
+            f.vortex(g.x(), g.y(), t, &vortex_params);
         }
     }
 
@@ -161,12 +161,12 @@ fn main() {
     let json = json::parse(&filecontents).unwrap();
 
     let vortexparams = json_to_vortex(json["vortex"].clone());
-    let (names, grids, bt, operators) = json_to_grids(json["grids"].clone(), vortexparams);
+    let (names, grids, bt, operators) = json_to_grids(json["grids"].clone(), vortexparams.clone());
 
     let integration_time: Float = json["integration_time"].as_number().unwrap().into();
 
     let mut sys = System::new(grids, bt, operators);
-    sys.vortex(0.0, vortexparams);
+    sys.vortex(0.0, &vortexparams);
 
     let max_n = {
         let max_nx = sys.grids.iter().map(|g| g.nx()).max().unwrap();
@@ -233,7 +233,7 @@ fn main() {
         let mut e = 0.0;
         for ((fmod, grid), op) in sys.fnow.iter().zip(&sys.grids).zip(&sys.operators) {
             let mut fvort = fmod.clone();
-            fvort.vortex(grid.x(), grid.y(), time, vortexparams);
+            fvort.vortex(grid.x(), grid.y(), time, &vortexparams);
             let sbpop: &dyn SbpOperator2d = op.as_ref().either(|op| &**op, |uo| uo.as_sbp());
             e += fmod.h2_err(&fvort, sbpop);
         }

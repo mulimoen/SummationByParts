@@ -3,6 +3,7 @@ use super::integrate;
 use super::operators::{InterpolationOperator, SbpOperator2d, UpwindOperator2d};
 use super::utils::Direction;
 use super::Float;
+pub use arrayvec::ArrayVec;
 use ndarray::azip;
 use ndarray::prelude::*;
 
@@ -70,23 +71,29 @@ impl<SBP: SbpOperator2d> System<SBP> {
     pub fn vortex(&mut self, t: Float, vortex_parameters: VortexParameters) {
         self.sys
             .0
-            .vortex(self.grid.0.x(), self.grid.0.y(), t, vortex_parameters);
+            .vortex(self.grid.0.x(), self.grid.0.y(), t, &vortex_parameters);
     }
 
     #[allow(clippy::many_single_char_names)]
     pub fn init_with_vortex(&mut self, x0: Float, y0: Float) {
         // Should parametrise such that we have radius, drop in pressure at center, etc
         let vortex_parameters = VortexParameters {
-            x0,
-            y0,
-            rstar: 1.0,
-            eps: 3.0,
+            vortices: {
+                let mut v = ArrayVec::new();
+                v.push(Vortice {
+                    x0,
+                    y0,
+                    rstar: 1.0,
+                    eps: 3.0,
+                });
+                v
+            },
             mach: 0.5,
         };
 
         self.sys
             .0
-            .vortex(self.grid.0.x(), self.grid.0.y(), 0.0, vortex_parameters)
+            .vortex(self.grid.0.x(), self.grid.0.y(), 0.0, &vortex_parameters)
     }
 
     pub fn field(&self) -> &Field {
@@ -297,7 +304,7 @@ impl Field {
         x: ArrayView2<Float>,
         y: ArrayView2<Float>,
         time: Float,
-        vortex_param: VortexParameters,
+        vortex_param: &VortexParameters,
     ) {
         assert_eq!(x.shape(), y.shape());
         assert_eq!(x.shape()[1], self.nx());
@@ -314,7 +321,7 @@ impl Field {
             x.into_shape((n,)).unwrap(),
             y.into_shape((n,)).unwrap(),
             time,
-            vortex_param,
+            &vortex_param,
         )
     }
 }
@@ -395,11 +402,16 @@ fn h2_diff() {
 }
 
 #[derive(Copy, Clone, Debug)]
-pub struct VortexParameters {
+pub struct Vortice {
     pub x0: Float,
     pub y0: Float,
     pub rstar: Float,
     pub eps: Float,
+}
+
+#[derive(Clone, Debug)]
+pub struct VortexParameters {
+    pub vortices: ArrayVec<[Vortice; 5]>,
     pub mach: Float,
 }
 
@@ -412,7 +424,7 @@ pub fn vortex(
     x: ArrayView1<Float>,
     y: ArrayView1<Float>,
     time: Float,
-    vortex_param: VortexParameters,
+    vortex_param: &VortexParameters,
 ) {
     assert_eq!(rho.len(), rhou.len());
     assert_eq!(rho.len(), rhov.len());
@@ -421,10 +433,14 @@ pub fn vortex(
     assert_eq!(rho.len(), y.len());
     assert_eq!(x.shape(), y.shape());
 
-    let eps = vortex_param.eps;
     let m = vortex_param.mach;
-    let rstar = vortex_param.rstar;
     let p_inf = 1.0 / (GAMMA * m * m);
+
+    let rho_inf: Float = 1.0;
+    let u_inf: Float = 1.0;
+    let v_inf: Float = 0.0;
+    let e_inf = p_inf / (GAMMA - 1.0) + rho_inf * (u_inf.powi(2) + v_inf.powi(2)) / 2.0;
+
     azip!((rho in rho,
            rhou in rhou,
            rhov in rhov,
@@ -432,21 +448,36 @@ pub fn vortex(
            x in x,
            y in y)
     {
-        use crate::consts::PI;
 
-        let dx = (x - vortex_param.x0) - time;
-        let dy = y - vortex_param.y0;
-        let f = (1.0 - (dx*dx + dy*dy))/(rstar*rstar);
+        *rho = rho_inf;
+        *rhou = rho_inf*u_inf;
+        *rhou = rho_inf*v_inf;
+        *e = e_inf;
 
-        *rho = Float::powf(1.0 - eps*eps*(GAMMA - 1.0)*m*m/(8.0*PI*PI*p_inf*rstar*rstar)*f.exp(), 1.0/(GAMMA - 1.0));
-        assert!(*rho > 0.0);
-        let p = Float::powf(*rho, GAMMA)*p_inf;
-        assert!(p > 0.0);
-        let u = 1.0 - eps*dy/(2.0*PI*p_inf.sqrt()*rstar*rstar)*(f/2.0).exp();
-        let v =       eps*dx/(2.0*PI*p_inf.sqrt()*rstar*rstar)*(f/2.0).exp();
-        *rhou = *rho*u;
-        *rhov = *rho*v;
-        *e = p/(GAMMA - 1.0) + *rho*(u*u + v*v)/2.0;
+        for vortice in vortex_param.vortices.iter() {
+            use crate::consts::PI;
+
+            let rstar = vortice.rstar;
+            let eps = vortice.eps;
+
+            let dx = (x - vortice.x0) - time;
+            let dy = y - vortice.y0;
+            let f = (1.0 - (dx*dx + dy*dy))/(rstar*rstar);
+
+            let rho_vortice = Float::powf(1.0 - eps*eps*(GAMMA - 1.0)*m*m/(8.0*PI*PI*p_inf*rstar*rstar)*f.exp(), 1.0/(GAMMA - 1.0));
+            let p = Float::powf(rho_vortice, GAMMA)*p_inf;
+            let u = 1.0 - eps*dy/(2.0*PI*p_inf.sqrt()*rstar*rstar)*(f/2.0).exp();
+            let v =       eps*dx/(2.0*PI*p_inf.sqrt()*rstar*rstar)*(f/2.0).exp();
+
+            assert!(rho_vortice > 0.0);
+            assert!(p > 0.0);
+
+            *rho += rho_vortice - rho_inf;
+            assert!(*rho > 0.0);
+            *rhou += rho_vortice*u - rho_inf*u_inf;
+            *rhov += rho_vortice*v - rho_inf*v_inf;
+            *e += (p/(GAMMA - 1.0) + rho_vortice*(u*u + v*v)/2.0) - e_inf;
+        }
     });
 }
 
@@ -663,28 +694,28 @@ fn boundary_extractor<'a>(
     bc: &BoundaryCharacteristics,
 ) -> BoundaryTerms<'a> {
     BoundaryTerms {
-        north: match bc.north {
+        north: match &bc.north {
             BoundaryCharacteristic::This => field.south(),
             BoundaryCharacteristic::Vortex(_params) => todo!(),
             BoundaryCharacteristic::Grid(_)
             | BoundaryCharacteristic::Interpolate(_, _)
             | BoundaryCharacteristic::MultiGrid(_) => panic!("Only working on self grid"),
         },
-        south: match bc.south {
+        south: match &bc.south {
             BoundaryCharacteristic::This => field.north(),
             BoundaryCharacteristic::Vortex(_params) => todo!(),
             BoundaryCharacteristic::Grid(_)
             | BoundaryCharacteristic::Interpolate(_, _)
             | BoundaryCharacteristic::MultiGrid(_) => panic!("Only working on self grid"),
         },
-        west: match bc.west {
+        west: match &bc.west {
             BoundaryCharacteristic::This => field.east(),
             BoundaryCharacteristic::Vortex(_params) => todo!(),
             BoundaryCharacteristic::Grid(_)
             | BoundaryCharacteristic::Interpolate(_, _)
             | BoundaryCharacteristic::MultiGrid(_) => panic!("Only working on self grid"),
         },
-        east: match bc.east {
+        east: match &bc.east {
             BoundaryCharacteristic::This => field.west(),
             BoundaryCharacteristic::Vortex(_params) => todo!(),
             BoundaryCharacteristic::Grid(_)
@@ -708,7 +739,7 @@ fn boundary_extract<'a>(
         BoundaryCharacteristic::Grid(g) => seldir(&fields[*g]),
         BoundaryCharacteristic::Vortex(v) => {
             let field = eb.unwrap();
-            vortexify(field.view_mut(), grid, *v, time);
+            vortexify(field.view_mut(), grid, v, time);
             field.view()
         }
         BoundaryCharacteristic::Interpolate(g, operator) => {
@@ -854,7 +885,7 @@ impl BoundaryStorage {
 fn vortexify(
     mut field: ndarray::ArrayViewMut2<Float>,
     yx: (ndarray::ArrayView1<Float>, ndarray::ArrayView1<Float>),
-    vparams: VortexParameters,
+    vparams: &VortexParameters,
     time: Float,
 ) {
     let mut fiter = field.outer_iter_mut();
@@ -865,7 +896,7 @@ fn vortexify(
         fiter.next().unwrap(),
     );
     let (y, x) = yx;
-    vortex(rho, rhou, rhov, e, x, y, time, vparams);
+    vortex(rho, rhou, rhov, e, x, y, time, &vparams);
 }
 
 #[allow(non_snake_case)]

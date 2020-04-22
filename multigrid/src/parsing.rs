@@ -110,7 +110,7 @@ pub fn json_to_grids(
     let determine_bc = |dir: Option<&str>| match dir {
         Some(dir) => {
             if dir == "vortex" {
-                sbp::euler::BoundaryCharacteristic::Vortex(vortexparams)
+                sbp::euler::BoundaryCharacteristic::Vortex(vortexparams.clone())
             } else if let Some(grid) = dir.strip_prefix("interpolate:") {
                 use sbp::operators::*;
                 let (grid, int_op) = if let Some(rest) = grid.strip_prefix("4:") {
@@ -363,11 +363,13 @@ pub fn json_to_vortex(mut json: JsonValue) -> super::euler::VortexParameters {
         }
     }
 
-    super::euler::VortexParameters {
-        x0,
-        y0,
-        mach,
-        rstar,
-        eps,
-    }
+    let vortice = super::euler::Vortice { x0, y0, eps, rstar };
+
+    let vortices = {
+        let mut a = super::euler::ArrayVec::new();
+        a.push(vortice);
+        a
+    };
+
+    super::euler::VortexParameters { vortices, mach }
 }
