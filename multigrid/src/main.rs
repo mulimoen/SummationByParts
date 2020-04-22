@@ -156,7 +156,7 @@ fn main() {
     let json = json::parse(&filecontents).unwrap();
 
     let vortexparams = json_to_vortex(json["vortex"].clone());
-    let (_names, grids, bt, operators) = json_to_grids(json["grids"].clone(), vortexparams);
+    let (names, grids, bt, operators) = json_to_grids(json["grids"].clone(), vortexparams);
 
     let integration_time: Float = json["integration_time"].as_number().unwrap().into();
 
@@ -197,7 +197,7 @@ fn main() {
         })
     };
 
-    let output = File::create(&opt.output, sys.grids.as_slice()).unwrap();
+    let output = File::create(&opt.output, sys.grids.as_slice(), names).unwrap();
     let mut output = OutputThread::new(output);
 
     let progressbar = progressbar(opt.no_progressbar, ntime);

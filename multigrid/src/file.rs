@@ -65,13 +65,15 @@ impl Drop for OutputThread {
 }
 
 #[derive(Debug, Clone)]
-pub struct File(hdf5::File);
+pub struct File(hdf5::File, Vec<String>);
 
 impl File {
     pub fn create<P: AsRef<std::path::Path>>(
         path: P,
         grids: &[sbp::grid::Grid],
+        names: Vec<String>,
     ) -> Result<Self, Box<dyn std::error::Error>> {
+        assert_eq!(grids.len(), names.len());
         let file = hdf5::File::create(path.as_ref())?;
         let _tds = file
             .new_dataset::<u64>()
@@ -79,8 +81,8 @@ impl File {
             .chunk((1,))
             .create("t", (0,))?;
 
-        for (i, grid) in grids.iter().enumerate() {
-            let g = file.create_group(&i.to_string())?;
+        for (name, grid) in names.iter().zip(grids.iter()) {
+            let g = file.create_group(name)?;
             g.link_soft("/t", "t").unwrap();
 
             let add_dim = |name| {
@@ -108,7 +110,7 @@ impl File {
             add_var("e")?;
         }
 
-        Ok(Self(file))
+        Ok(Self(file, names))
     }
 
     pub fn add_timestep(
@@ -122,8 +124,8 @@ impl File {
         tds.resize((tpos + 1,))?;
         tds.write_slice(&[t], ndarray::s![tpos..tpos + 1])?;
 
-        for (i, fnow) in fields.iter().enumerate() {
-            let g = file.group(&i.to_string())?;
+        for (groupname, fnow) in self.1.iter().zip(fields.iter()) {
+            let g = file.group(groupname)?;
             let (tpos, ny, nx) = {
                 let ds = g.dataset("rho")?;
                 let shape = ds.shape();
