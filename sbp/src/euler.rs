@@ -449,12 +449,42 @@ pub fn vortex(
            y in y)
     {
 
-        *rho = rho_inf;
-        *rhou = rho_inf*u_inf;
-        *rhou = rho_inf*v_inf;
-        *e = e_inf;
+        let mut iterator = vortex_param.vortices.iter();
 
-        for vortice in vortex_param.vortices.iter() {
+        match iterator.next() {
+            None => {
+                *rho = rho_inf;
+                *rhou = rho_inf*u_inf;
+                *rhou = rho_inf*v_inf;
+                *e = e_inf;
+                return;
+            },
+            Some(vortice) => {
+                use crate::consts::PI;
+
+                let rstar = vortice.rstar;
+                let eps = vortice.eps;
+
+                let dx = (x - vortice.x0) - time;
+                let dy = y - vortice.y0;
+                let f = (1.0 - (dx*dx + dy*dy))/(rstar*rstar);
+
+                *rho = Float::powf(1.0 - eps*eps*(GAMMA - 1.0)*m*m/(8.0*PI*PI*p_inf*rstar*rstar)*f.exp(), 1.0/(GAMMA - 1.0));
+                assert!(*rho > 0.0);
+                let p = Float::powf(*rho, GAMMA)*p_inf;
+                let u = 1.0 - eps*dy/(2.0*PI*p_inf.sqrt()*rstar*rstar)*(f/2.0).exp();
+                let v =       eps*dx/(2.0*PI*p_inf.sqrt()*rstar*rstar)*(f/2.0).exp();
+
+                assert!(p > 0.0);
+
+                assert!(*rho > 0.0);
+                *rhou = *rho*u;
+                *rhov = *rho*v;
+                *e = p/(GAMMA - 1.0) + *rho*(u*u + v*v)/2.0;
+            }
+        }
+
+        for vortice in iterator {
             use crate::consts::PI;
 
             let rstar = vortice.rstar;
