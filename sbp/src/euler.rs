@@ -261,15 +261,8 @@ impl Field {
         ArrayViewMut2<Float>,
         ArrayViewMut2<Float>,
     ) {
-        let mut iter = self.0.outer_iter_mut();
-
-        let rho = iter.next().unwrap();
-        let rhou = iter.next().unwrap();
-        let rhov = iter.next().unwrap();
-        let e = iter.next().unwrap();
-        assert_eq!(iter.next(), None);
-
-        (rho, rhou, rhov, e)
+        self.0
+            .multi_slice_mut((s![0, .., ..], s![1, .., ..], s![2, .., ..], s![3, .., ..]))
     }
 
     pub fn north(&self) -> ArrayView2<Float> {

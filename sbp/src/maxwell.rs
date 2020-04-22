@@ -73,14 +73,8 @@ impl Field {
         ArrayViewMut2<Float>,
         ArrayViewMut2<Float>,
     ) {
-        let mut iter = self.0.outer_iter_mut();
-
-        let ex = iter.next().unwrap();
-        let hz = iter.next().unwrap();
-        let ey = iter.next().unwrap();
-        assert_eq!(iter.next(), None);
-
-        (ex, hz, ey)
+        self.0
+            .multi_slice_mut((s![0, .., ..], s![1, .., ..], s![2, .., ..]))
     }
 }
 
