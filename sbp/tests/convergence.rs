@@ -3,7 +3,7 @@ use ndarray::prelude::*;
 use sbp::euler::*;
 use sbp::Float;
 
-fn run_with_size<SBP: sbp::operators::UpwindOperator>(size: usize) -> Float {
+fn run_with_size(size: usize, op: impl sbp::operators::UpwindOperator2d + Copy) -> Float {
     let nx = size;
     let ny = size;
     let x = Array1::linspace(-5.0, 5.0, nx);
@@ -18,15 +18,21 @@ fn run_with_size<SBP: sbp::operators::UpwindOperator>(size: usize) -> Float {
         .to_owned();
 
     let vortex_params = VortexParameters {
-        x0: -1.0,
-        y0: 0.0,
+        vortices: {
+            let mut v = ArrayVec::new();
+            v.push(Vortice {
+                x0: -1.0,
+                y0: 0.0,
+                rstar: 0.5,
+                eps: 1.0,
+            });
+            v
+        },
         mach: 0.5,
-        rstar: 0.5,
-        eps: 1.0,
     };
 
-    let mut sys = System::<SBP>::new(x, y);
-    sys.vortex(0.0, vortex_params);
+    let mut sys = System::new(x, y, op);
+    sys.vortex(0.0, vortex_params.clone());
 
     let time = 0.2;
     let dt = 0.2 * Float::min(1.0 / (nx - 1) as Float, 1.0 / (ny - 1) as Float);
@@ -37,18 +43,18 @@ fn run_with_size<SBP: sbp::operators::UpwindOperator>(size: usize) -> Float {
     }
 
     let mut verifield = Field::new(ny, nx);
-    verifield.vortex(sys.x(), sys.y(), nsteps as Float * dt, vortex_params);
+    verifield.vortex(sys.x(), sys.y(), nsteps as Float * dt, &vortex_params);
 
-    verifield.h2_err::<SBP>(sys.field())
+    verifield.h2_err(sys.field(), &op)
 }
 
-fn convergence<SBP: sbp::operators::UpwindOperator>() {
+fn convergence(op: impl sbp::operators::UpwindOperator2d + Copy) {
     let sizes = [25, 35, 50, 71, 100, 150, 200];
     let mut prev: Option<(usize, Float)> = None;
     println!("Size\tError(h2)\tq");
     for size in &sizes {
         print!("{:3}x{:3}", size, size);
-        let e = run_with_size::<SBP>(*size);
+        let e = run_with_size(*size, op);
         print!("\t{:.10}", e);
         if let Some(prev) = prev.take() {
             let m0 = size * size;
@@ -68,10 +74,10 @@ fn convergence<SBP: sbp::operators::UpwindOperator>() {
 
 #[test]
 fn convergence_upwind4() {
-    convergence::<sbp::operators::Upwind4>();
+    convergence(sbp::operators::Upwind4);
 }
 
 #[test]
 fn convergence_upwind9() {
-    convergence::<sbp::operators::Upwind9>();
+    convergence(sbp::operators::Upwind9);
 }
