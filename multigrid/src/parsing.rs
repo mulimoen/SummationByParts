@@ -350,11 +350,37 @@ fn json2grid(x: JsonValue, y: JsonValue) -> Result<Grid, String> {
 }
 
 pub fn json_to_vortex(mut json: JsonValue) -> super::euler::VortexParameters {
-    let x0 = json.remove("x0").as_number().unwrap().into();
-    let y0 = json.remove("y0").as_number().unwrap().into();
     let mach = json.remove("mach").as_number().unwrap().into();
-    let rstar = json.remove("rstar").as_number().unwrap().into();
-    let eps = json.remove("eps").as_number().unwrap().into();
+
+    // Get max length of any (potential) array
+    let mut maxlen = None;
+    for &name in &["x0", "y0", "rstar", "eps"] {
+        if json[name].is_array() {
+            maxlen = Some(json[name].members().count());
+            break;
+        }
+    }
+    let maxlen = maxlen.unwrap_or(1);
+
+    let into_iterator = move |elem| -> Box<dyn Iterator<Item = Float>> {
+        match elem {
+            JsonValue::Number(x) => Box::new(std::iter::repeat(x.into())),
+            JsonValue::Array(x) => {
+                Box::new(x.into_iter().map(move |x| x.as_number().unwrap().into()))
+            }
+            _ => panic!("This element is not a number of array"),
+        }
+    };
+
+    let x0 = into_iterator(json.remove("x0"));
+    let y0 = into_iterator(json.remove("y0"));
+    let rstar = into_iterator(json.remove("rstar"));
+    let eps = into_iterator(json.remove("eps"));
+
+    let mut vortices = sbp::euler::ArrayVec::new();
+    for (((x0, y0), rstar), eps) in x0.zip(y0).zip(rstar).zip(eps).take(maxlen) {
+        vortices.push(sbp::euler::Vortice { x0, y0, rstar, eps })
+    }
 
     if !json.is_empty() {
         eprintln!("Found unused items when parsing vortex");
@@ -362,14 +388,6 @@ pub fn json_to_vortex(mut json: JsonValue) -> super::euler::VortexParameters {
             eprintln!("\t{} {}", name, val.dump());
         }
     }
-
-    let vortice = super::euler::Vortice { x0, y0, eps, rstar };
-
-    let vortices = {
-        let mut a = super::euler::ArrayVec::new();
-        a.push(vortice);
-        a
-    };
 
     super::euler::VortexParameters { vortices, mach }
 }
