@@ -66,7 +66,7 @@ impl<SBP: SbpOperator1d> SbpOperator2d for (&SBP, &Upwind9h2) {
 
         match (prev.strides(), fut.strides()) {
             ([_, 1], [_, 1]) => {
-                diff_op_row(Upwind9h2::BLOCK, Upwind9h2::DIAG, false, true, prev, fut);
+                diff_op_row(Upwind9h2::BLOCK, Upwind9h2::DIAG, false, true)(prev, fut);
             }
             ([1, _], [1, _]) => {
                 diff_op_col(Upwind9h2::BLOCK, Upwind9h2::DIAG, false, true, prev, fut);
@@ -123,14 +123,7 @@ impl<UO: UpwindOperator1d> UpwindOperator2d for (&UO, &Upwind9h2) {
 
         match (prev.strides(), fut.strides()) {
             ([_, 1], [_, 1]) => {
-                diff_op_row(
-                    Upwind9h2::DISS_BLOCK,
-                    Upwind9h2::DISS_DIAG,
-                    true,
-                    true,
-                    prev,
-                    fut,
-                );
+                diff_op_row(Upwind9h2::DISS_BLOCK, Upwind9h2::DISS_DIAG, true, true)(prev, fut);
             }
             ([1, _], [1, _]) => {
                 diff_op_col(
