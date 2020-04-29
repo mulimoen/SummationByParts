@@ -43,7 +43,7 @@ impl<SBP: SbpOperator1d> SbpOperator2d for (&SBP, &SBP4) {
                 diff_op_row(SBP4::BLOCK, SBP4::DIAG, false, false)(prev, fut);
             }
             ([1, _], [1, _]) => {
-                diff_op_col(SBP4::BLOCK, SBP4::DIAG, false, false, prev, fut);
+                diff_op_col(SBP4::BLOCK, SBP4::DIAG, false, false)(prev, fut);
             }
             ([_, _], [_, _]) => {
                 // Fallback, work row by row

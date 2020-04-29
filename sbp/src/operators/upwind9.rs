@@ -66,7 +66,7 @@ impl<SBP: SbpOperator1d> SbpOperator2d for (&SBP, &Upwind9) {
                 diff_op_row(Upwind9::BLOCK, Upwind9::DIAG, false, false)(prev, fut);
             }
             ([1, _], [1, _]) => {
-                diff_op_col(Upwind9::BLOCK, Upwind9::DIAG, false, false, prev, fut);
+                diff_op_col(Upwind9::BLOCK, Upwind9::DIAG, false, false)(prev, fut);
             }
             ([_, _], [_, _]) => {
                 // Fallback, work row by row
@@ -99,14 +99,7 @@ impl<UO: UpwindOperator1d> UpwindOperator2d for (&UO, &Upwind9) {
                 diff_op_row(Upwind9::DISS_BLOCK, Upwind9::DISS_DIAG, true, false)(prev, fut);
             }
             ([1, _], [1, _]) => {
-                diff_op_col(
-                    Upwind9::DISS_BLOCK,
-                    Upwind9::DISS_DIAG,
-                    true,
-                    false,
-                    prev,
-                    fut,
-                );
+                diff_op_col(Upwind9::DISS_BLOCK, Upwind9::DISS_DIAG, true, false)(prev, fut);
             }
             ([_, _], [_, _]) => {
                 // Fallback, work row by row
