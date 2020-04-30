@@ -49,7 +49,7 @@ pub fn json_to_grids(
 
             let opeta = grid["operators"]["eta"]
                 .as_str()
-                .unwrap_or(&default_operator.1);
+                .unwrap_or(&default_operator.0);
 
             match (opeta, opxi) {
                 ("upwind4", "upwind4") => Right(Box::new(Upwind4) as Box<dyn UpwindOperator2d>),
