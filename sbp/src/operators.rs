@@ -115,11 +115,11 @@ pub trait InterpolationOperator: Send + Sync {
 }
 
 #[inline(always)]
-pub(crate) fn diff_op_1d(
+fn diff_op_1d(
     block: &[&[Float]],
     diag: &[Float],
-    symmetric: bool,
-    is_h2: bool,
+    symmetry: Symmetry,
+    optype: OperatorType,
     prev: ArrayView1<Float>,
     mut fut: ArrayViewMut1<Float>,
 ) {
@@ -127,7 +127,7 @@ pub(crate) fn diff_op_1d(
     let nx = prev.shape()[0];
     assert!(nx >= 2 * block.len());
 
-    let dx = if is_h2 {
+    let dx = if optype == OperatorType::H2 {
         1.0 / (nx - 2) as Float
     } else {
         1.0 / (nx - 1) as Float
@@ -165,16 +165,33 @@ pub(crate) fn diff_op_1d(
             .map(|(x, y)| x * y)
             .sum::<Float>();
 
-        *f = idx * if symmetric { diff } else { -diff };
+        *f = idx
+            * if symmetry == Symmetry::Symmetric {
+                diff
+            } else {
+                -diff
+            };
     }
 }
 
+#[derive(PartialEq, Copy, Clone)]
+enum Symmetry {
+    Symmetric,
+    AntiSymmetric,
+}
+
+#[derive(PartialEq, Copy, Clone)]
+enum OperatorType {
+    Normal,
+    H2,
+}
+
 #[inline(always)]
-pub(crate) fn diff_op_col(
+fn diff_op_col(
     block: &'static [&'static [Float]],
     diag: &'static [Float],
-    symmetric: bool,
-    is_h2: bool,
+    symmetry: Symmetry,
+    optype: OperatorType,
 ) -> impl Fn(ArrayView2<Float>, ArrayViewMut2<Float>) {
     #[inline(always)]
     move |prev: ArrayView2<Float>, mut fut: ArrayViewMut2<Float>| {
@@ -185,7 +202,7 @@ pub(crate) fn diff_op_col(
         assert_eq!(prev.strides()[0], 1);
         assert_eq!(fut.strides()[0], 1);
 
-        let dx = if is_h2 {
+        let dx = if optype == OperatorType::H2 {
             1.0 / (nx - 2) as Float
         } else {
             1.0 / (nx - 1) as Float
@@ -249,7 +266,7 @@ pub(crate) fn diff_op_col(
         for (bl, mut fut) in block.iter().zip(fut.axis_iter_mut(ndarray::Axis(1)).rev()) {
             fut.fill(0.0);
             for (&bl, prev) in bl.iter().zip(prev.axis_iter(ndarray::Axis(1)).rev()) {
-                if symmetric {
+                if symmetry == Symmetry::Symmetric {
                     fut.scaled_add(idx * bl, &prev);
                 } else {
                     fut.scaled_add(-idx * bl, &prev);
@@ -260,11 +277,11 @@ pub(crate) fn diff_op_col(
 }
 
 #[inline(always)]
-pub(crate) fn diff_op_row(
+fn diff_op_row(
     block: &'static [&'static [Float]],
     diag: &'static [Float],
-    symmetric: bool,
-    is_h2: bool,
+    symmetry: Symmetry,
+    optype: OperatorType,
 ) -> impl Fn(ArrayView2<Float>, ArrayViewMut2<Float>) {
     #[inline(always)]
     move |prev: ArrayView2<Float>, mut fut: ArrayViewMut2<Float>| {
@@ -275,7 +292,7 @@ pub(crate) fn diff_op_row(
         assert_eq!(prev.strides()[1], 1);
         assert_eq!(fut.strides()[1], 1);
 
-        let dx = if is_h2 {
+        let dx = if optype == OperatorType::H2 {
             1.0 / (nx - 2) as Float
         } else {
             1.0 / (nx - 1) as Float
@@ -319,7 +336,12 @@ pub(crate) fn diff_op_row(
                     .map(|(x, y)| x * y)
                     .sum::<Float>();
 
-                *f = idx * if symmetric { diff } else { -diff };
+                *f = idx
+                    * if symmetry == Symmetry::Symmetric {
+                        diff
+                    } else {
+                        -diff
+                    };
             }
         }
     }

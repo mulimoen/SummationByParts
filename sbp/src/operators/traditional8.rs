@@ -29,7 +29,14 @@ impl SBP8 {
 
 impl SbpOperator1d for SBP8 {
     fn diff(&self, prev: ArrayView1<Float>, fut: ArrayViewMut1<Float>) {
-        super::diff_op_1d(Self::BLOCK, Self::DIAG, false, false, prev, fut)
+        super::diff_op_1d(
+            Self::BLOCK,
+            Self::DIAG,
+            super::Symmetry::AntiSymmetric,
+            super::OperatorType::Normal,
+            prev,
+            fut,
+        )
     }
 
     fn h(&self) -> &'static [Float] {
@@ -42,12 +49,15 @@ impl<SBP: SbpOperator1d> SbpOperator2d for (&SBP, &SBP8) {
         assert_eq!(prev.shape(), fut.shape());
         assert!(prev.shape()[1] >= 2 * SBP8::BLOCK.len());
 
+        let symmetry = super::Symmetry::AntiSymmetric;
+        let optype = super::OperatorType::Normal;
+
         match (prev.strides(), fut.strides()) {
             ([_, 1], [_, 1]) => {
-                diff_op_row(SBP8::BLOCK, SBP8::DIAG, false, false)(prev, fut);
+                diff_op_row(SBP8::BLOCK, SBP8::DIAG, symmetry, optype)(prev, fut);
             }
             ([1, _], [1, _]) => {
-                diff_op_col(SBP8::BLOCK, SBP8::DIAG, false, false)(prev, fut);
+                diff_op_col(SBP8::BLOCK, SBP8::DIAG, symmetry, optype)(prev, fut);
             }
             ([_, _], [_, _]) => {
                 // Fallback, work row by row

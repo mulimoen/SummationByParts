@@ -195,7 +195,14 @@ impl Upwind4 {
 
 impl SbpOperator1d for Upwind4 {
     fn diff(&self, prev: ArrayView1<Float>, fut: ArrayViewMut1<Float>) {
-        super::diff_op_1d(Self::BLOCK, Self::DIAG, false, false, prev, fut)
+        super::diff_op_1d(
+            Self::BLOCK,
+            Self::DIAG,
+            super::Symmetry::AntiSymmetric,
+            super::OperatorType::Normal,
+            prev,
+            fut,
+        )
     }
     fn h(&self) -> &'static [Float] {
         Self::HBLOCK
@@ -209,7 +216,12 @@ impl<SBP: SbpOperator1d> SbpOperator2d for (&SBP, &Upwind4) {
 
         match (prev.strides(), fut.strides()) {
             ([_, 1], [_, 1]) => {
-                diff_op_row(Upwind4::BLOCK, Upwind4::DIAG, false, false)(prev, fut);
+                diff_op_row(
+                    Upwind4::BLOCK,
+                    Upwind4::DIAG,
+                    super::Symmetry::AntiSymmetric,
+                    super::OperatorType::Normal,
+                )(prev, fut);
             }
             ([1, _], [1, _]) if prev.len_of(Axis(0)) % SimdT::lanes() == 0 => {
                 diff_simd_col(prev, fut);
@@ -315,7 +327,14 @@ fn upwind4_test() {
 
 impl UpwindOperator1d for Upwind4 {
     fn diss(&self, prev: ArrayView1<Float>, fut: ArrayViewMut1<Float>) {
-        super::diff_op_1d(Self::DISS_BLOCK, Self::DISS_DIAG, true, false, prev, fut)
+        super::diff_op_1d(
+            Self::DISS_BLOCK,
+            Self::DISS_DIAG,
+            super::Symmetry::Symmetric,
+            super::OperatorType::Normal,
+            prev,
+            fut,
+        )
     }
 
     fn as_sbp(&self) -> &dyn SbpOperator1d {
@@ -330,7 +349,12 @@ impl<UO: UpwindOperator1d> UpwindOperator2d for (&UO, &Upwind4) {
 
         match (prev.strides(), fut.strides()) {
             ([_, 1], [_, 1]) => {
-                diff_op_row(Upwind4::DISS_BLOCK, Upwind4::DISS_DIAG, true, false)(prev, fut);
+                diff_op_row(
+                    Upwind4::DISS_BLOCK,
+                    Upwind4::DISS_DIAG,
+                    super::Symmetry::Symmetric,
+                    super::OperatorType::Normal,
+                )(prev, fut);
             }
             ([1, _], [1, _]) if prev.len_of(Axis(0)) % SimdT::lanes() == 0 => {
                 diss_simd_col(prev, fut);

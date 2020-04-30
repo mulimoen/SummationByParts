@@ -48,7 +48,14 @@ impl Upwind9h2 {
 
 impl SbpOperator1d for Upwind9h2 {
     fn diff(&self, prev: ArrayView1<Float>, fut: ArrayViewMut1<Float>) {
-        super::diff_op_1d(Self::BLOCK, Self::DIAG, false, true, prev, fut)
+        super::diff_op_1d(
+            Self::BLOCK,
+            Self::DIAG,
+            super::Symmetry::AntiSymmetric,
+            super::OperatorType::H2,
+            prev,
+            fut,
+        )
     }
 
     fn h(&self) -> &'static [Float] {
@@ -64,12 +71,15 @@ impl<SBP: SbpOperator1d> SbpOperator2d for (&SBP, &Upwind9h2) {
         assert_eq!(prev.shape(), fut.shape());
         assert!(prev.shape()[1] >= 2 * Upwind9h2::BLOCK.len());
 
+        let symmetry = super::Symmetry::AntiSymmetric;
+        let optype = super::OperatorType::H2;
+
         match (prev.strides(), fut.strides()) {
             ([_, 1], [_, 1]) => {
-                diff_op_row(Upwind9h2::BLOCK, Upwind9h2::DIAG, false, true)(prev, fut);
+                diff_op_row(Upwind9h2::BLOCK, Upwind9h2::DIAG, symmetry, optype)(prev, fut);
             }
             ([1, _], [1, _]) => {
-                diff_op_col(Upwind9h2::BLOCK, Upwind9h2::DIAG, false, true)(prev, fut);
+                diff_op_col(Upwind9h2::BLOCK, Upwind9h2::DIAG, symmetry, optype)(prev, fut);
             }
             ([_, _], [_, _]) => {
                 // Fallback, work row by row
@@ -109,7 +119,14 @@ fn upwind9h2_test() {
 
 impl UpwindOperator1d for Upwind9h2 {
     fn diss(&self, prev: ArrayView1<Float>, fut: ArrayViewMut1<Float>) {
-        super::diff_op_1d(Self::DISS_BLOCK, Self::DISS_DIAG, true, true, prev, fut)
+        super::diff_op_1d(
+            Self::DISS_BLOCK,
+            Self::DISS_DIAG,
+            super::Symmetry::Symmetric,
+            super::OperatorType::H2,
+            prev,
+            fut,
+        )
     }
     fn as_sbp(&self) -> &dyn SbpOperator1d {
         self
@@ -121,12 +138,25 @@ impl<UO: UpwindOperator1d> UpwindOperator2d for (&UO, &Upwind9h2) {
         assert_eq!(prev.shape(), fut.shape());
         assert!(prev.shape()[1] >= 2 * Upwind9h2::BLOCK.len());
 
+        let symmetry = super::Symmetry::Symmetric;
+        let optype = super::OperatorType::H2;
+
         match (prev.strides(), fut.strides()) {
             ([_, 1], [_, 1]) => {
-                diff_op_row(Upwind9h2::DISS_BLOCK, Upwind9h2::DISS_DIAG, true, true)(prev, fut);
+                diff_op_row(
+                    Upwind9h2::DISS_BLOCK,
+                    Upwind9h2::DISS_DIAG,
+                    symmetry,
+                    optype,
+                )(prev, fut);
             }
             ([1, _], [1, _]) => {
-                diff_op_col(Upwind9h2::DISS_BLOCK, Upwind9h2::DISS_DIAG, true, true)(prev, fut);
+                diff_op_col(
+                    Upwind9h2::DISS_BLOCK,
+                    Upwind9h2::DISS_DIAG,
+                    symmetry,
+                    optype,
+                )(prev, fut);
             }
             ([_, _], [_, _]) => {
                 // Fallback, work row by row
