@@ -1,6 +1,8 @@
 use wasm_bindgen::prelude::*;
 
-use sbp::{euler, maxwell, operators};
+use euler;
+use maxwell;
+use sbp::operators;
 
 #[cfg(feature = "wee_alloc")]
 #[global_allocator]

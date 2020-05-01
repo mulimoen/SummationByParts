@@ -1,5 +1,5 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
-use sbp::maxwell::System;
+use maxwell::System;
 use sbp::operators::{SbpOperator2d, Upwind4, UpwindOperator2d, SBP4};
 use sbp::Float;
 

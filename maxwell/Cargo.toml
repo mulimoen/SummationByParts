@@ -1,0 +1,17 @@
+[package]
+name = "maxwell"
+version = "0.1.0"
+authors = ["Magnus Ulimoen <flymagnus@gmail.com>"]
+edition = "2018"
+
+[dependencies]
+ndarray = "0.13.1"
+sbp = { path = "../sbp" }
+
+[dev-dependencies]
+criterion = "0.3.1"
+
+[[bench]]
+name = "bench"
+harness = false
+

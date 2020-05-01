@@ -1,9 +1,9 @@
-use super::grid::{Grid, Metrics};
-use super::integrate;
-use super::operators::{SbpOperator2d, UpwindOperator2d};
-use crate::Float;
 use ndarray::azip;
 use ndarray::prelude::*;
+use sbp::grid::{Grid, Metrics};
+use sbp::integrate;
+use sbp::operators::{SbpOperator2d, UpwindOperator2d};
+use sbp::Float;
 
 #[derive(Clone, Debug)]
 pub struct Field(pub(crate) Array3<Float>);
@@ -113,7 +113,7 @@ impl<SBP: SbpOperator2d> System<SBP> {
         let (ex, hz, ey) = self.sys.0.components_mut();
         ndarray::azip!(
             (ex in ex, hz in hz, ey in ey,
-             &x in &self.grid.x, &y in &self.grid.y)
+             &x in &self.grid.x(), &y in &self.grid.y())
         {
             *ex = 0.0;
             *ey = 0.0;
@@ -166,7 +166,7 @@ impl<UO: UpwindOperator2d> System<UO> {
 }
 
 fn gaussian(x: Float, x0: Float, y: Float, y0: Float) -> Float {
-    use crate::consts::PI;
+    use sbp::consts::PI;
 
     let x = x - x0;
     let y = y - y0;
@@ -211,7 +211,7 @@ fn RHS<SBP: SbpOperator2d>(
     SAT_characteristics(op, k, y, metrics, &boundaries);
 
     azip!((k in &mut k.0,
-                    &detj in &metrics.detj.broadcast((3, y.ny(), y.nx())).unwrap()) {
+                    &detj in &metrics.detj().broadcast((3, y.ny(), y.nx())).unwrap()) {
         *k /= detj;
     });
 }
@@ -237,12 +237,12 @@ fn RHS_upwind<UO: UpwindOperator2d>(
     SAT_characteristics(op, k, y, metrics, &boundaries);
 
     azip!((k in &mut k.0,
-                    &detj in &metrics.detj.broadcast((3, y.ny(), y.nx())).unwrap()) {
+                    &detj in &metrics.detj().broadcast((3, y.ny(), y.nx())).unwrap()) {
         *k /= detj;
     });
 }
 
-fn fluxes<SBP: super::operators::SbpOperator2d>(
+fn fluxes<SBP: sbp::operators::SbpOperator2d>(
     op: &SBP,
     k: &mut Field,
     y: &Field,
@@ -252,14 +252,14 @@ fn fluxes<SBP: super::operators::SbpOperator2d>(
     // ex = hz_y
     {
         ndarray::azip!((a in &mut tmp.0,
-                        &dxi_dy in &metrics.detj_dxi_dy,
+                        &dxi_dy in &metrics.detj_dxi_dy(),
                         &hz in &y.hz())
             *a = dxi_dy * hz
         );
         op.diffxi(tmp.0.view(), tmp.1.view_mut());
 
         ndarray::azip!((b in &mut tmp.2,
-                        &deta_dy in &metrics.detj_deta_dy,
+                        &deta_dy in &metrics.detj_deta_dy(),
                         &hz in &y.hz())
             *b = deta_dy * hz
         );
@@ -273,8 +273,8 @@ fn fluxes<SBP: super::operators::SbpOperator2d>(
     {
         // hz = -ey_x + ex_y
         ndarray::azip!((a in &mut tmp.0,
-                        &dxi_dx in &metrics.detj_dxi_dx,
-                        &dxi_dy in &metrics.detj_dxi_dy,
+                        &dxi_dx in &metrics.detj_dxi_dx(),
+                        &dxi_dy in &metrics.detj_dxi_dy(),
                         &ex in &y.ex(),
                         &ey in &y.ey())
             *a = dxi_dx * -ey + dxi_dy * ex
@@ -282,8 +282,8 @@ fn fluxes<SBP: super::operators::SbpOperator2d>(
         op.diffxi(tmp.0.view(), tmp.1.view_mut());
 
         ndarray::azip!((b in &mut tmp.2,
-                        &deta_dx in &metrics.detj_deta_dx,
-                        &deta_dy in &metrics.detj_deta_dy,
+                        &deta_dx in &metrics.detj_deta_dx(),
+                        &deta_dy in &metrics.detj_deta_dy(),
                         &ex in &y.ex(),
                         &ey in &y.ey())
             *b = deta_dx * -ey + deta_dy * ex
@@ -298,14 +298,14 @@ fn fluxes<SBP: super::operators::SbpOperator2d>(
     // ey = -hz_x
     {
         ndarray::azip!((a in &mut tmp.0,
-                        &dxi_dx in &metrics.detj_dxi_dx,
+                        &dxi_dx in &metrics.detj_dxi_dx(),
                         &hz in &y.hz())
             *a = dxi_dx * -hz
         );
         op.diffxi(tmp.0.view(), tmp.1.view_mut());
 
         azip!((b in &mut tmp.2,
-                        &deta_dx in &metrics.detj_deta_dx,
+                        &deta_dx in &metrics.detj_deta_dx(),
                         &hz in &y.hz())
             *b = deta_dx * -hz
         );
@@ -327,8 +327,8 @@ fn dissipation<UO: UpwindOperator2d>(
     // ex component
     {
         ndarray::azip!((a in &mut tmp.0,
-                        &kx in &metrics.detj_dxi_dx,
-                        &ky in &metrics.detj_dxi_dy,
+                        &kx in &metrics.detj_dxi_dx(),
+                        &ky in &metrics.detj_dxi_dy(),
                         &ex in &y.ex(),
                         &ey in &y.ey()) {
             let r = Float::hypot(kx, ky);
@@ -337,8 +337,8 @@ fn dissipation<UO: UpwindOperator2d>(
         op.dissxi(tmp.0.view(), tmp.1.view_mut());
 
         ndarray::azip!((b in &mut tmp.2,
-                    &kx in &metrics.detj_deta_dx,
-                    &ky in &metrics.detj_deta_dy,
+                    &kx in &metrics.detj_deta_dx(),
+                    &ky in &metrics.detj_deta_dy(),
                     &ex in &y.ex(),
                     &ey in &y.ey()) {
             let r = Float::hypot(kx, ky);
@@ -354,8 +354,8 @@ fn dissipation<UO: UpwindOperator2d>(
     // hz component
     {
         ndarray::azip!((a in &mut tmp.0,
-                        &kx in &metrics.detj_dxi_dx,
-                        &ky in &metrics.detj_dxi_dy,
+                        &kx in &metrics.detj_dxi_dx(),
+                        &ky in &metrics.detj_dxi_dy(),
                         &hz in &y.hz()) {
             let r = Float::hypot(kx, ky);
             *a = r * hz;
@@ -363,8 +363,8 @@ fn dissipation<UO: UpwindOperator2d>(
         op.dissxi(tmp.0.view(), tmp.1.view_mut());
 
         ndarray::azip!((b in &mut tmp.2,
-                        &kx in &metrics.detj_deta_dx,
-                        &ky in &metrics.detj_deta_dy,
+                        &kx in &metrics.detj_deta_dx(),
+                        &ky in &metrics.detj_deta_dy(),
                         &hz in &y.hz()) {
             let r = Float::hypot(kx, ky);
             *b = r * hz;
@@ -379,8 +379,8 @@ fn dissipation<UO: UpwindOperator2d>(
     // ey
     {
         ndarray::azip!((a in &mut tmp.0,
-                        &kx in &metrics.detj_dxi_dx,
-                        &ky in &metrics.detj_dxi_dy,
+                        &kx in &metrics.detj_dxi_dx(),
+                        &ky in &metrics.detj_dxi_dy(),
                         &ex in &y.ex(),
                         &ey in &y.ey()) {
             let r = Float::hypot(kx, ky);
@@ -389,8 +389,8 @@ fn dissipation<UO: UpwindOperator2d>(
         op.dissxi(tmp.0.view(), tmp.1.view_mut());
 
         ndarray::azip!((b in &mut tmp.2,
-                    &kx in &metrics.detj_deta_dx,
-                    &ky in &metrics.detj_deta_dy,
+                    &kx in &metrics.detj_deta_dx(),
+                    &ky in &metrics.detj_deta_dy(),
                     &ex in &y.ex(),
                     &ey in &y.ey()) {
             let r = Float::hypot(kx, ky);
@@ -462,8 +462,8 @@ fn SAT_characteristics<SBP: SbpOperator2d>(
             .into_iter()
             .zip(y.slice(s![.., .., nx - 1]).gencolumns())
             .zip(g.gencolumns())
-            .zip(metrics.detj_dxi_dx.slice(s![.., nx - 1]))
-            .zip(metrics.detj_dxi_dy.slice(s![.., nx - 1]))
+            .zip(metrics.detj_dxi_dx().slice(s![.., nx - 1]))
+            .zip(metrics.detj_dxi_dy().slice(s![.., nx - 1]))
         {
             // East boundary, positive flux
             let tau = -1.0;
@@ -500,8 +500,8 @@ fn SAT_characteristics<SBP: SbpOperator2d>(
             .into_iter()
             .zip(y.slice(s![.., .., 0]).gencolumns())
             .zip(g.gencolumns())
-            .zip(metrics.detj_dxi_dx.slice(s![.., 0]))
-            .zip(metrics.detj_dxi_dy.slice(s![.., 0]))
+            .zip(metrics.detj_dxi_dx().slice(s![.., 0]))
+            .zip(metrics.detj_dxi_dy().slice(s![.., 0]))
         {
             let tau = 1.0;
 
@@ -543,8 +543,8 @@ fn SAT_characteristics<SBP: SbpOperator2d>(
             .into_iter()
             .zip(y.slice(s![.., ny - 1, ..]).gencolumns())
             .zip(g.gencolumns())
-            .zip(metrics.detj_deta_dx.slice(s![ny - 1, ..]))
-            .zip(metrics.detj_deta_dy.slice(s![ny - 1, ..]))
+            .zip(metrics.detj_deta_dx().slice(s![ny - 1, ..]))
+            .zip(metrics.detj_deta_dy().slice(s![ny - 1, ..]))
         {
             // North boundary, positive flux
             let tau = -1.0;
@@ -580,8 +580,8 @@ fn SAT_characteristics<SBP: SbpOperator2d>(
             .into_iter()
             .zip(y.slice(s![.., 0, ..]).gencolumns())
             .zip(g.gencolumns())
-            .zip(metrics.detj_deta_dx.slice(s![0, ..]))
-            .zip(metrics.detj_deta_dy.slice(s![0, ..]))
+            .zip(metrics.detj_deta_dx().slice(s![0, ..]))
+            .zip(metrics.detj_deta_dy().slice(s![0, ..]))
         {
             // South boundary, negative flux
 

@@ -1,0 +1,22 @@
+[package]
+name = "euler"
+version = "0.1.0"
+authors = ["Magnus Ulimoen <flymagnus@gmail.com>"]
+edition = "2018"
+
+[features]
+# Internal feature flag to gate the expensive tests
+# which should be run only in release builds
+expensive_tests = []
+
+[dependencies]
+ndarray = "0.13.1"
+sbp = { path = "../sbp" }
+arrayvec = "0.5.1"
+
+[dev-dependencies]
+criterion = "0.3.1"
+
+[[bench]]
+name = "bench"
+harness = false

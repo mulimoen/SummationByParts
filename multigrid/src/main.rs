@@ -173,7 +173,14 @@ fn main() {
         let max_ny = sys.grids.iter().map(|g| g.ny()).max().unwrap();
         std::cmp::max(max_nx, max_ny)
     };
-    let dt = 0.2 / (max_n as Float);
+    // Add a robust method for determining CFL, use for example the maximum speed of the initial
+    // field along with \delta x / \delta y
+    // U_max = max(rhou/u, rhov/v)
+    // This requires scaling with the determinant to obtain the "true" speed in computational
+    // space
+    // CFL = 0.2
+    // \delta t = CFL min(\delta x, \delta y) / U_max
+    let dt = 0.02 / (max_n as Float);
 
     let ntime = (integration_time / dt).round() as u64;
 

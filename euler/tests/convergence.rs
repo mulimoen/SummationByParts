@@ -1,6 +1,6 @@
 #![cfg(feature = "expensive_tests")]
+use euler::*;
 use ndarray::prelude::*;
-use sbp::euler::*;
 use sbp::Float;
 
 fn run_with_size(size: usize, op: impl sbp::operators::UpwindOperator2d + Copy) -> Float {

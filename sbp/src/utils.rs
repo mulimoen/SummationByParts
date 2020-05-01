@@ -7,6 +7,33 @@ pub struct Direction<T> {
     pub east: T,
 }
 
+impl<T> Direction<T> {
+    pub fn north(&self) -> &T {
+        &self.north
+    }
+    pub fn north_mut(&mut self) -> &mut T {
+        &mut self.north
+    }
+    pub fn south(&self) -> &T {
+        &self.south
+    }
+    pub fn south_mut(&mut self) -> &mut T {
+        &mut self.south
+    }
+    pub fn east(&self) -> &T {
+        &self.east
+    }
+    pub fn east_mut(&mut self) -> &mut T {
+        &mut self.east
+    }
+    pub fn west(&self) -> &T {
+        &self.west
+    }
+    pub fn west_mut(&mut self) -> &mut T {
+        &mut self.west
+    }
+}
+
 pub fn h2linspace(start: Float, end: Float, n: usize) -> ndarray::Array1<Float> {
     let h = (end - start) / (n - 2) as Float;
     ndarray::Array1::from_shape_fn(n, |i| match i {

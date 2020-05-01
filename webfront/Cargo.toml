@@ -14,3 +14,5 @@ console_error_panic_hook = "0.1.6"
 wee_alloc = "0.4.5"
 sbp = { path = "../sbp", features = ["f32"] }
 ndarray = "0.13.0"
+euler = { path = "../euler" }
+maxwell = { path = "../maxwell" }

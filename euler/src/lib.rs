@@ -1,11 +1,11 @@
-use super::grid::{Grid, Metrics};
-use super::integrate;
-use super::operators::{InterpolationOperator, SbpOperator2d, UpwindOperator2d};
-use super::utils::Direction;
-use super::Float;
 pub use arrayvec::ArrayVec;
 use ndarray::azip;
 use ndarray::prelude::*;
+use sbp::grid::{Grid, Metrics};
+use sbp::integrate;
+use sbp::operators::{InterpolationOperator, SbpOperator2d, UpwindOperator2d};
+use sbp::utils::Direction;
+use sbp::Float;
 
 pub const GAMMA: Float = 1.4;
 
@@ -101,10 +101,10 @@ impl<SBP: SbpOperator2d> System<SBP> {
     }
 
     pub fn x(&self) -> ArrayView2<Float> {
-        self.grid.0.x.view()
+        self.grid.0.x()
     }
     pub fn y(&self) -> ArrayView2<Float> {
-        self.grid.0.y.view()
+        self.grid.0.y()
     }
 
     pub fn nx(&self) -> usize {
@@ -393,7 +393,7 @@ fn h2_diff() {
     }
     let field1 = Field::new(20, 21);
 
-    use super::operators::{Upwind4, Upwind9, SBP4, SBP8};
+    use sbp::operators::{Upwind4, Upwind9, SBP4, SBP8};
 
     assert!((field0.h2_err(&field1, &Upwind4).powi(2) - 4.0).abs() < 1e-3);
     assert!((field0.h2_err(&field1, &Upwind9).powi(2) - 4.0).abs() < 1e-3);
@@ -460,7 +460,7 @@ pub fn vortex(
                 return;
             },
             Some(vortice) => {
-                use crate::consts::PI;
+                use sbp::consts::PI;
 
                 let rstar = vortice.rstar;
                 let eps = vortice.eps;
@@ -485,7 +485,7 @@ pub fn vortex(
         }
 
         for vortice in iterator {
-            use crate::consts::PI;
+            use sbp::consts::PI;
 
             let rstar = vortice.rstar;
             let eps = vortice.eps;
@@ -543,7 +543,7 @@ pub fn RHS_trad(
     azip!((out in &mut k.0,
                     eflux in &dE.0,
                     fflux in &dF.0,
-                    detj in &metrics.detj.broadcast((4, y.ny(), y.nx())).unwrap()) {
+                    detj in &metrics.detj().broadcast((4, y.ny(), y.nx())).unwrap()) {
         *out = (-eflux - fflux)/detj
     });
 
@@ -584,7 +584,7 @@ pub fn RHS_upwind(
                     fflux in &dF.0,
                     ad_xi in &ad_xi.0,
                     ad_eta in &ad_eta.0,
-                    detj in &metrics.detj.broadcast((4, y.ny(), y.nx())).unwrap()) {
+                    detj in &metrics.detj().broadcast((4, y.ny(), y.nx())).unwrap()) {
         *out = (-eflux - fflux + ad_xi + ad_eta)/detj
     });
 
@@ -611,11 +611,11 @@ fn upwind_dissipation(
         .axis_iter(ndarray::Axis(1))
         .zip(tmp0.axis_iter_mut(ndarray::Axis(1)))
         .zip(tmp1.axis_iter_mut(ndarray::Axis(1)))
-        .zip(metrics.detj.iter())
-        .zip(metrics.detj_dxi_dx.iter())
-        .zip(metrics.detj_dxi_dy.iter())
-        .zip(metrics.detj_deta_dx.iter())
-        .zip(metrics.detj_deta_dy.iter())
+        .zip(metrics.detj().iter())
+        .zip(metrics.detj_dxi_dx().iter())
+        .zip(metrics.detj_dxi_dy().iter())
+        .zip(metrics.detj_deta_dx().iter())
+        .zip(metrics.detj_deta_dy().iter())
     {
         let rho = y[0];
         assert!(rho > 0.0);
@@ -661,10 +661,10 @@ fn upwind_dissipation(
 }
 
 fn fluxes(k: (&mut Field, &mut Field), y: &Field, metrics: &Metrics) {
-    let j_dxi_dx = metrics.detj_dxi_dx.view();
-    let j_dxi_dy = metrics.detj_dxi_dy.view();
-    let j_deta_dx = metrics.detj_deta_dx.view();
-    let j_deta_dy = metrics.detj_deta_dy.view();
+    let j_dxi_dx = metrics.detj_dxi_dx();
+    let j_dxi_dy = metrics.detj_dxi_dy();
+    let j_deta_dx = metrics.detj_deta_dx();
+    let j_deta_dy = metrics.detj_deta_dy();
 
     let rho = y.rho();
     let rhou = y.rhou();
@@ -871,12 +871,17 @@ pub fn extract_boundaries<'a>(
 }
 
 /// Used for storing boundary elements
-pub type BoundaryStorage = Direction<Option<ndarray::Array2<Float>>>;
+pub struct BoundaryStorage {
+    north: Option<ndarray::Array2<Float>>,
+    south: Option<ndarray::Array2<Float>>,
+    east: Option<ndarray::Array2<Float>>,
+    west: Option<ndarray::Array2<Float>>,
+}
 
 impl BoundaryStorage {
     pub fn new(bt: &BoundaryCharacteristics, grid: &Grid) -> Self {
         Self {
-            north: match bt.north {
+            north: match bt.north() {
                 BoundaryCharacteristic::Vortex(_)
                 | BoundaryCharacteristic::Interpolate(_, _)
                 | BoundaryCharacteristic::MultiGrid(_) => {
@@ -884,7 +889,7 @@ impl BoundaryStorage {
                 }
                 _ => None,
             },
-            south: match bt.south {
+            south: match bt.south() {
                 BoundaryCharacteristic::Vortex(_)
                 | BoundaryCharacteristic::Interpolate(_, _)
                 | BoundaryCharacteristic::MultiGrid(_) => {
@@ -892,7 +897,7 @@ impl BoundaryStorage {
                 }
                 _ => None,
             },
-            east: match bt.east {
+            east: match bt.east() {
                 BoundaryCharacteristic::Vortex(_)
                 | BoundaryCharacteristic::Interpolate(_, _)
                 | BoundaryCharacteristic::MultiGrid(_) => {
@@ -900,7 +905,7 @@ impl BoundaryStorage {
                 }
                 _ => None,
             },
-            west: match bt.west {
+            west: match bt.west() {
                 BoundaryCharacteristic::Vortex(_)
                 | BoundaryCharacteristic::Interpolate(_, _)
                 | BoundaryCharacteristic::MultiGrid(_) => {
@@ -955,9 +960,9 @@ fn SAT_characteristics(
             hi,
             sign,
             tau,
-            metrics.detj.slice(slice),
-            metrics.detj_deta_dx.slice(slice),
-            metrics.detj_deta_dy.slice(slice),
+            metrics.detj().slice(slice),
+            metrics.detj_deta_dx().slice(slice),
+            metrics.detj_deta_dy().slice(slice),
         );
     }
     // South boundary
@@ -977,9 +982,9 @@ fn SAT_characteristics(
             hi,
             sign,
             tau,
-            metrics.detj.slice(slice),
-            metrics.detj_deta_dx.slice(slice),
-            metrics.detj_deta_dy.slice(slice),
+            metrics.detj().slice(slice),
+            metrics.detj_deta_dx().slice(slice),
+            metrics.detj_deta_dy().slice(slice),
         );
     }
     // West Boundary
@@ -999,9 +1004,9 @@ fn SAT_characteristics(
             hi,
             sign,
             tau,
-            metrics.detj.slice(slice),
-            metrics.detj_dxi_dx.slice(slice),
-            metrics.detj_dxi_dy.slice(slice),
+            metrics.detj().slice(slice),
+            metrics.detj_dxi_dx().slice(slice),
+            metrics.detj_dxi_dy().slice(slice),
         );
     }
     // East Boundary
@@ -1021,9 +1026,9 @@ fn SAT_characteristics(
             hi,
             sign,
             tau,
-            metrics.detj.slice(slice),
-            metrics.detj_dxi_dx.slice(slice),
-            metrics.detj_dxi_dy.slice(slice),
+            metrics.detj().slice(slice),
+            metrics.detj_dxi_dx().slice(slice),
+            metrics.detj_dxi_dy().slice(slice),
         );
     }
 }

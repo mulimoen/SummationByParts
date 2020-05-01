@@ -1,6 +1,6 @@
 use super::operators::SbpOperator2d;
 use crate::Float;
-use ndarray::Array2;
+use ndarray::{Array2, ArrayView2};
 
 #[derive(Debug, Clone)]
 pub struct Grid {
@@ -113,5 +113,23 @@ impl Metrics {
             detj_deta_dx,
             detj_deta_dy,
         })
+    }
+}
+
+impl Metrics {
+    pub fn detj(&self) -> ArrayView2<Float> {
+        self.detj.view()
+    }
+    pub fn detj_dxi_dx(&self) -> ArrayView2<Float> {
+        self.detj_dxi_dx.view()
+    }
+    pub fn detj_dxi_dy(&self) -> ArrayView2<Float> {
+        self.detj_dxi_dy.view()
+    }
+    pub fn detj_deta_dx(&self) -> ArrayView2<Float> {
+        self.detj_deta_dx.view()
+    }
+    pub fn detj_deta_dy(&self) -> ArrayView2<Float> {
+        self.detj_deta_dy.view()
     }
 }

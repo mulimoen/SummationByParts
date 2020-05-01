@@ -1,17 +1,17 @@
 use super::DiffOp;
-use crate::grid::Grid;
-use crate::Float;
 use either::*;
 use json::JsonValue;
+use sbp::grid::Grid;
 use sbp::utils::h2linspace;
+use sbp::Float;
 
 pub fn json_to_grids(
     mut jsongrids: JsonValue,
-    vortexparams: sbp::euler::VortexParameters,
+    vortexparams: euler::VortexParameters,
 ) -> (
     Vec<String>,
     Vec<sbp::grid::Grid>,
-    Vec<sbp::euler::BoundaryCharacteristics>,
+    Vec<euler::BoundaryCharacteristics>,
     Vec<DiffOp>,
 ) {
     let default = jsongrids.remove("default");
@@ -110,7 +110,7 @@ pub fn json_to_grids(
     let determine_bc = |dir: Option<&str>| match dir {
         Some(dir) => {
             if dir == "vortex" {
-                sbp::euler::BoundaryCharacteristic::Vortex(vortexparams.clone())
+                euler::BoundaryCharacteristic::Vortex(vortexparams.clone())
             } else if let Some(grid) = dir.strip_prefix("interpolate:") {
                 use sbp::operators::*;
                 let (grid, int_op) = if let Some(rest) = grid.strip_prefix("4:") {
@@ -139,13 +139,13 @@ pub fn json_to_grids(
                         Box::new(Interpolation4) as Box<dyn InterpolationOperator>,
                     )
                 };
-                sbp::euler::BoundaryCharacteristic::Interpolate(
+                euler::BoundaryCharacteristic::Interpolate(
                     names.iter().position(|other| other == grid).unwrap(),
                     int_op,
                 )
             } else if let Some(multigrid) = dir.strip_prefix("multi:") {
                 let grids = multigrid.split(':');
-                sbp::euler::BoundaryCharacteristic::MultiGrid(
+                euler::BoundaryCharacteristic::MultiGrid(
                     grids
                         .map(|g| {
                             let rparen = g.find('(').unwrap();
@@ -165,12 +165,12 @@ pub fn json_to_grids(
                         .collect::<Vec<_>>(),
                 )
             } else {
-                sbp::euler::BoundaryCharacteristic::Grid(
+                euler::BoundaryCharacteristic::Grid(
                     names.iter().position(|other| other == dir).unwrap(),
                 )
             }
         }
-        None => sbp::euler::BoundaryCharacteristic::This,
+        None => euler::BoundaryCharacteristic::This,
     };
     for name in &names {
         let bc = &jsongrids[name]["boundary_conditions"];
@@ -179,7 +179,7 @@ pub fn json_to_grids(
         let bc_e = determine_bc(bc["east"].as_str());
         let bc_w = determine_bc(bc["west"].as_str());
 
-        let bc = sbp::euler::BoundaryCharacteristics {
+        let bc = euler::BoundaryCharacteristics {
             north: bc_n,
             south: bc_s,
             east: bc_e,
@@ -349,7 +349,7 @@ fn json2grid(x: JsonValue, y: JsonValue) -> Result<Grid, String> {
     Ok(Grid::new(x, y).unwrap())
 }
 
-pub fn json_to_vortex(mut json: JsonValue) -> super::euler::VortexParameters {
+pub fn json_to_vortex(mut json: JsonValue) -> euler::VortexParameters {
     let mach = json.remove("mach").as_number().unwrap().into();
 
     // Get max length of any (potential) array
@@ -377,9 +377,9 @@ pub fn json_to_vortex(mut json: JsonValue) -> super::euler::VortexParameters {
     let rstar = into_iterator(json.remove("rstar"));
     let eps = into_iterator(json.remove("eps"));
 
-    let mut vortices = sbp::euler::ArrayVec::new();
+    let mut vortices = euler::ArrayVec::new();
     for (((x0, y0), rstar), eps) in x0.zip(y0).zip(rstar).zip(eps).take(maxlen) {
-        vortices.push(sbp::euler::Vortice { x0, y0, rstar, eps })
+        vortices.push(euler::Vortice { x0, y0, rstar, eps })
     }
 
     if !json.is_empty() {
@@ -389,5 +389,5 @@ pub fn json_to_vortex(mut json: JsonValue) -> super::euler::VortexParameters {
         }
     }
 
-    super::euler::VortexParameters { vortices, mach }
+    euler::VortexParameters { vortices, mach }
 }
