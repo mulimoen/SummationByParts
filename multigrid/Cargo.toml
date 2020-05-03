@@ -8,7 +8,7 @@ edition = "2018"
 [dependencies]
 sbp = { path = "../sbp", features = ["rayon"] }
 euler = { path = "../euler" }
-hdf5 = { version = "0.6.0", features = ["static"] }
+hdf5 = { version = "0.6.0", features = ["static", "gzip"] }
 rayon = "1.3.0"
 indicatif = "0.14.0"
 structopt = "0.3.13"

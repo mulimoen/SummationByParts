@@ -129,6 +129,52 @@ impl System {
 
         std::mem::swap(&mut self.fnow, &mut self.fnext);
     }
+
+    /// Suggested maximum dt for this problem
+    fn max_dt(&self) -> Float {
+        let c_max = 1.0;
+        let mut max_dt: Float = Float::INFINITY;
+
+        for (field, metrics) in self.fnow.iter().zip(self.metrics.iter()) {
+            let nx = field.nx();
+            let ny = field.ny();
+
+            let rho = field.rho();
+            let rhou = field.rhou();
+            let rhov = field.rhov();
+
+            let mut max_u: Float = 0.0;
+            let mut max_v: Float = 0.0;
+
+            for ((((((rho, rhou), rhov), detj_dxi_dx), detj_dxi_dy), detj_deta_dx), detj_deta_dy) in
+                rho.iter()
+                    .zip(rhou.iter())
+                    .zip(rhov.iter())
+                    .zip(metrics.detj_dxi_dx())
+                    .zip(metrics.detj_dxi_dy())
+                    .zip(metrics.detj_deta_dx())
+                    .zip(metrics.detj_deta_dy())
+            {
+                let u = rhou / rho;
+                let v = rhov / rho;
+
+                let uhat: Float = detj_dxi_dx * u + detj_dxi_dy * v;
+                let vhat: Float = detj_deta_dx * u + detj_deta_dy * v;
+
+                max_u = max_u.max(uhat.abs());
+                max_v = max_v.max(vhat.abs());
+            }
+
+            let dx = 1.0 / nx as Float;
+            let dy = 1.0 / ny as Float;
+
+            let c_dt = Float::max(max_u / dx, max_v / dy);
+
+            max_dt = Float::min(max_dt, c_max / c_dt);
+        }
+
+        max_dt
+    }
 }
 
 #[derive(Debug, StructOpt)]
@@ -168,19 +214,7 @@ fn main() {
     let mut sys = System::new(grids, bt, operators);
     sys.vortex(0.0, &vortexparams);
 
-    let max_n = {
-        let max_nx = sys.grids.iter().map(|g| g.nx()).max().unwrap();
-        let max_ny = sys.grids.iter().map(|g| g.ny()).max().unwrap();
-        std::cmp::max(max_nx, max_ny)
-    };
-    // Add a robust method for determining CFL, use for example the maximum speed of the initial
-    // field along with \delta x / \delta y
-    // U_max = max(rhou/u, rhov/v)
-    // This requires scaling with the determinant to obtain the "true" speed in computational
-    // space
-    // CFL = 0.2
-    // \delta t = CFL min(\delta x, \delta y) / U_max
-    let dt = 0.02 / (max_n as Float);
+    let dt = sys.max_dt();
 
     let ntime = (integration_time / dt).round() as u64;
 
