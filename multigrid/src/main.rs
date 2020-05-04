@@ -132,7 +132,16 @@ impl System {
 
     /// Suggested maximum dt for this problem
     fn max_dt(&self) -> Float {
-        let c_max = 1.0;
+        let c_max = if self.operators.iter().any(|op| {
+            op.as_ref().either(
+                |op| op.is_h2xi() || op.is_h2eta(),
+                |op| op.is_h2xi() || op.is_h2eta(),
+            )
+        }) {
+            0.5
+        } else {
+            1.0
+        };
         let mut max_dt: Float = Float::INFINITY;
 
         for (field, metrics) in self.fnow.iter().zip(self.metrics.iter()) {
