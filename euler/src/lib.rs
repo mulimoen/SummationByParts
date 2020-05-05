@@ -526,7 +526,7 @@ pub fn RHS_trad(
 ) {
     let ehat = &mut tmp.0;
     let fhat = &mut tmp.1;
-    fluxes((ehat, fhat), y, metrics);
+    fluxes((ehat, fhat), y, metrics, &mut tmp.2);
     let dE = &mut tmp.2;
     let dF = &mut tmp.3;
 
@@ -561,7 +561,7 @@ pub fn RHS_upwind(
 ) {
     let ehat = &mut tmp.0;
     let fhat = &mut tmp.1;
-    fluxes((ehat, fhat), y, metrics);
+    fluxes((ehat, fhat), y, metrics, &mut tmp.2);
     let dE = &mut tmp.2;
     let dF = &mut tmp.3;
 
@@ -660,49 +660,59 @@ fn upwind_dissipation(
     op.disseta(tmp.1.e(), k.1.e_mut());
 }
 
-fn fluxes(k: (&mut Field, &mut Field), y: &Field, metrics: &Metrics) {
-    let j_dxi_dx = metrics.detj_dxi_dx();
-    let j_dxi_dy = metrics.detj_dxi_dy();
-    let j_deta_dx = metrics.detj_deta_dx();
-    let j_deta_dy = metrics.detj_deta_dy();
-
+/// Computes the fluxes
+///
+/// eflux = [rhou, rhou*rhou/rho + p, rhou*rhov/rho, rhou*(e+p)/rho]
+/// fflux = [rhov, rhou*rhov/rho, rhov*rhov/rho + p, rhov*(e+p)/rho]
+fn fluxes(k: (&mut Field, &mut Field), y: &Field, metrics: &Metrics, wb: &mut Field) {
     let rho = y.rho();
     let rhou = y.rhou();
     let rhov = y.rhov();
     let e = y.e();
 
-    for j in 0..y.ny() {
-        for i in 0..y.nx() {
-            let rho = rho[(j, i)];
-            assert!(rho > 0.0);
-            let rhou = rhou[(j, i)];
-            let rhov = rhov[(j, i)];
-            let e = e[(j, i)];
-            let p = pressure(GAMMA, rho, rhou, rhov, e);
+    let mut p = wb.rho_mut();
+    azip!((p in &mut p, &rho in &rho, &rhou in &rhou, &rhov in &rhov, &e in &e) {
+        *p = pressure(GAMMA, rho, rhou, rhov, e)
+    });
 
-            assert!(p > 0.0);
+    k.0.rho_mut().assign(&rhou);
+    azip!((eflux in k.0.rhou_mut(), rho in &rho, rhou in &rhou, p in &p) {
+        *eflux = rhou*rhou/rho + p;
+    });
+    azip!((eflux in k.0.rhov_mut(), rho in &rho, rhou in &rhou, rhov in &rhov) {
+        *eflux = rhou*rhov/rho;
+    });
+    azip!((eflux in k.0.e_mut(), rho in &rho, rhou in &rhou, e in &e, p in &p) {
+        *eflux = rhou*(e + p)/rho;
+    });
 
-            let ef = [
-                rhou,
-                rhou * rhou / rho + p,
-                rhou * rhov / rho,
-                rhou * (e + p) / rho,
-            ];
-            let ff = [
-                rhov,
-                rhou * rhov / rho,
-                rhov * rhov / rho + p,
-                rhov * (e + p) / rho,
-            ];
+    k.1.rho_mut().assign(&rhov);
+    k.1.rhou_mut().assign(&k.0.rhov_mut());
+    azip!((fflux in k.1.rhov_mut(), rho in &rho, rhov in &rhov, p in &p) {
+        *fflux = rhov*rhov/rho + p;
+    });
+    azip!((fflux in k.1.e_mut(), rho in &rho, rhov in &rhov, e in &e, p in &p) {
+        *fflux = rhov*(e + p)/rho;
+    });
 
-            for comp in 0..4 {
-                let eflux = j_dxi_dx[(j, i)] * ef[comp] + j_dxi_dy[(j, i)] * ff[comp];
-                let fflux = j_deta_dx[(j, i)] * ef[comp] + j_deta_dy[(j, i)] * ff[comp];
+    let j_dxi_dx = metrics.detj_dxi_dx();
+    let j_dxi_dy = metrics.detj_dxi_dy();
+    let j_deta_dx = metrics.detj_deta_dx();
+    let j_deta_dy = metrics.detj_deta_dy();
+    // Let grid metrics modify the fluxes
+    for comp in 0..4 {
+        azip!((ef in k.0.slice_mut(s![comp, .., ..]),
+               ff in k.1.slice_mut(s![comp, .., ..]),
+               j_dxi_dx in &j_dxi_dx,
+               j_dxi_dy in &j_dxi_dy,
+               j_deta_dx in &j_deta_dx,
+               j_deta_dy in &j_deta_dy) {
 
-                k.0[(comp, j, i)] = eflux;
-                k.1[(comp, j, i)] = fflux;
-            }
-        }
+            let eflux = *ef;
+            let fflux = *ff;
+            *ef = j_dxi_dx * eflux + j_dxi_dy * fflux;
+            *ff = j_deta_dx * eflux + j_deta_dy * fflux;
+        })
     }
 }
 
