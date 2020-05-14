@@ -441,218 +441,15 @@ fn diff_op_col_simd(
 }
 
 #[inline(always)]
-/// Manual unrolling for some common sizes for vectorisation
-///
-/// best used when the lengths of u and v are known at
-/// compile time
-fn product(u: &[Float], v: &[Float]) -> Float {
-    use packed_simd::*;
-    #[cfg(feature = "f32")]
-    type SimdT = f32x2;
-    #[cfg(not(feature = "f32"))]
-    type SimdT = f64x2;
-
-    assert_eq!(u.len(), v.len());
-    match u.len() {
-        0 => 0.0,
-        1 => u[0] * v[0],
-        2 => (SimdT::from_slice_unaligned(&u[0..]) * SimdT::from_slice_unaligned(&v[0..])).sum(),
-        3 => {
-            (SimdT::from_slice_unaligned(&u[0..]) * SimdT::from_slice_unaligned(&v[0..])).sum()
-                + u[2] * v[2]
-        }
-        4 => {
-            let u0 = SimdT::from_slice_unaligned(&u[0..]);
-            let v0 = SimdT::from_slice_unaligned(&v[0..]);
-
-            let u1 = SimdT::from_slice_unaligned(&u[2..]);
-            let v1 = SimdT::from_slice_unaligned(&v[2..]);
-
-            let p = u0 * v0;
-            let p = u1.mul_adde(v1, p);
-            p.sum()
-        }
-        5 => {
-            let u0 = SimdT::from_slice_unaligned(&u[0..]);
-            let v0 = SimdT::from_slice_unaligned(&v[0..]);
-
-            let u1 = SimdT::from_slice_unaligned(&u[2..]);
-            let v1 = SimdT::from_slice_unaligned(&v[2..]);
-
-            let p = u0 * v0;
-            let p = u1.mul_adde(v1, p);
-            p.sum() + u[4] * v[4]
-        }
-        6 => {
-            let u0 = SimdT::from_slice_unaligned(&u[0..]);
-            let v0 = SimdT::from_slice_unaligned(&v[0..]);
-
-            let u1 = SimdT::from_slice_unaligned(&u[2..]);
-            let v1 = SimdT::from_slice_unaligned(&v[2..]);
-
-            let u2 = SimdT::from_slice_unaligned(&u[4..]);
-            let v2 = SimdT::from_slice_unaligned(&v[4..]);
-
-            let p = u0 * v0;
-            let p = u1.mul_adde(v1, p);
-            let p = u2.mul_adde(v2, p);
-            p.sum()
-        }
-        7 => {
-            let u0 = SimdT::from_slice_unaligned(&u[0..]);
-            let v0 = SimdT::from_slice_unaligned(&v[0..]);
-
-            let u1 = SimdT::from_slice_unaligned(&u[2..]);
-            let v1 = SimdT::from_slice_unaligned(&v[2..]);
-
-            let u2 = SimdT::from_slice_unaligned(&u[4..]);
-            let v2 = SimdT::from_slice_unaligned(&v[4..]);
-
-            let p = u0 * v0;
-            let p = u1.mul_adde(v1, p);
-            let p = u2.mul_adde(v2, p);
-            p.sum() + u[6] * v[6]
-        }
-        8 => {
-            let u0 = SimdT::from_slice_unaligned(&u[0..]);
-            let v0 = SimdT::from_slice_unaligned(&v[0..]);
-
-            let u1 = SimdT::from_slice_unaligned(&u[2..]);
-            let v1 = SimdT::from_slice_unaligned(&v[2..]);
-
-            let u2 = SimdT::from_slice_unaligned(&u[4..]);
-            let v2 = SimdT::from_slice_unaligned(&v[4..]);
-
-            let u3 = SimdT::from_slice_unaligned(&u[6..]);
-            let v3 = SimdT::from_slice_unaligned(&v[6..]);
-
-            let p = u0 * v0;
-            let p = u1.mul_adde(v1, p);
-            let p = u2.mul_adde(v2, p);
-            let p = u3.mul_adde(v3, p);
-            p.sum()
-        }
-        9 => {
-            let u0 = SimdT::from_slice_unaligned(&u[0..]);
-            let v0 = SimdT::from_slice_unaligned(&v[0..]);
-
-            let u1 = SimdT::from_slice_unaligned(&u[2..]);
-            let v1 = SimdT::from_slice_unaligned(&v[2..]);
-
-            let u2 = SimdT::from_slice_unaligned(&u[4..]);
-            let v2 = SimdT::from_slice_unaligned(&v[4..]);
-
-            let u3 = SimdT::from_slice_unaligned(&u[6..]);
-            let v3 = SimdT::from_slice_unaligned(&v[6..]);
-
-            let p = u0 * v0;
-            let p = u1.mul_adde(v1, p);
-            let p = u2.mul_adde(v2, p);
-            let p = u3.mul_adde(v3, p);
-            p.sum() + u[8] * v[8]
-        }
-        10 => {
-            let u0 = SimdT::from_slice_unaligned(&u[0..]);
-            let v0 = SimdT::from_slice_unaligned(&v[0..]);
-
-            let u1 = SimdT::from_slice_unaligned(&u[2..]);
-            let v1 = SimdT::from_slice_unaligned(&v[2..]);
-
-            let u2 = SimdT::from_slice_unaligned(&u[4..]);
-            let v2 = SimdT::from_slice_unaligned(&v[4..]);
-
-            let u3 = SimdT::from_slice_unaligned(&u[6..]);
-            let v3 = SimdT::from_slice_unaligned(&v[6..]);
-
-            let u4 = SimdT::from_slice_unaligned(&u[8..]);
-            let v4 = SimdT::from_slice_unaligned(&v[8..]);
-
-            let p = u0 * v0;
-            let p = u1.mul_adde(v1, p);
-            let p = u2.mul_adde(v2, p);
-            let p = u3.mul_adde(v3, p);
-            let p = u4.mul_adde(v4, p);
-            p.sum()
-        }
-        11 => {
-            let u0 = SimdT::from_slice_unaligned(&u[0..]);
-            let v0 = SimdT::from_slice_unaligned(&v[0..]);
-
-            let u1 = SimdT::from_slice_unaligned(&u[2..]);
-            let v1 = SimdT::from_slice_unaligned(&v[2..]);
-
-            let u2 = SimdT::from_slice_unaligned(&u[4..]);
-            let v2 = SimdT::from_slice_unaligned(&v[4..]);
-
-            let u3 = SimdT::from_slice_unaligned(&u[6..]);
-            let v3 = SimdT::from_slice_unaligned(&v[6..]);
-
-            let u4 = SimdT::from_slice_unaligned(&u[8..]);
-            let v4 = SimdT::from_slice_unaligned(&v[8..]);
-
-            let p = u0 * v0;
-            let p = u1.mul_adde(v1, p);
-            let p = u2.mul_adde(v2, p);
-            let p = u3.mul_adde(v3, p);
-            let p = u4.mul_adde(v4, p);
-            p.sum() + u[10] * v[10]
-        }
-        12 => {
-            let u0 = SimdT::from_slice_unaligned(&u[0..]);
-            let v0 = SimdT::from_slice_unaligned(&v[0..]);
-
-            let u1 = SimdT::from_slice_unaligned(&u[2..]);
-            let v1 = SimdT::from_slice_unaligned(&v[2..]);
-
-            let u2 = SimdT::from_slice_unaligned(&u[4..]);
-            let v2 = SimdT::from_slice_unaligned(&v[4..]);
-
-            let u3 = SimdT::from_slice_unaligned(&u[6..]);
-            let v3 = SimdT::from_slice_unaligned(&v[6..]);
-
-            let u4 = SimdT::from_slice_unaligned(&u[8..]);
-            let v4 = SimdT::from_slice_unaligned(&v[8..]);
-
-            let u5 = SimdT::from_slice_unaligned(&u[10..]);
-            let v5 = SimdT::from_slice_unaligned(&v[10..]);
-
-            let p = u0 * v0;
-            let p = u1.mul_adde(v1, p);
-            let p = u2.mul_adde(v2, p);
-            let p = u3.mul_adde(v3, p);
-            let p = u4.mul_adde(v4, p);
-            let p = u5.mul_adde(v5, p);
-            p.sum()
-        }
-        13 => {
-            let u0 = SimdT::from_slice_unaligned(&u[0..]);
-            let v0 = SimdT::from_slice_unaligned(&v[0..]);
-
-            let u1 = SimdT::from_slice_unaligned(&u[2..]);
-            let v1 = SimdT::from_slice_unaligned(&v[2..]);
-
-            let u2 = SimdT::from_slice_unaligned(&u[4..]);
-            let v2 = SimdT::from_slice_unaligned(&v[4..]);
-
-            let u3 = SimdT::from_slice_unaligned(&u[6..]);
-            let v3 = SimdT::from_slice_unaligned(&v[6..]);
-
-            let u4 = SimdT::from_slice_unaligned(&u[8..]);
-            let v4 = SimdT::from_slice_unaligned(&v[8..]);
-
-            let u5 = SimdT::from_slice_unaligned(&u[10..]);
-            let v5 = SimdT::from_slice_unaligned(&v[10..]);
-
-            let p = u0 * v0;
-            let p = u1.mul_adde(v1, p);
-            let p = u2.mul_adde(v2, p);
-            let p = u3.mul_adde(v3, p);
-            let p = u4.mul_adde(v4, p);
-            let p = u5.mul_adde(v5, p);
-            p.sum() + u[12] * v[12]
-        }
-        _ => u.iter().zip(v.iter()).map(|(u, v)| u * v).sum::<Float>(),
-    }
+fn product_fast<'a>(
+    u: impl Iterator<Item = &'a Float>,
+    v: impl Iterator<Item = &'a Float>,
+) -> Float {
+    use std::intrinsics::{fadd_fast, fmul_fast};
+    u.zip(v).fold(0.0, |acc, (&u, &v)| unsafe {
+        // We do not care about the order of multiplication nor addition
+        fadd_fast(acc, fmul_fast(u, v))
+    })
 }
 
 #[inline(always)]
@@ -688,7 +485,7 @@ fn diff_op_row(
             assert!(prev.len() >= 2 * block.len());
 
             for (bl, f) in block.iter().zip(fut.iter_mut()) {
-                let diff = product(bl, &prev[..bl.len()]);
+                let diff = product_fast(bl.iter(), prev[..bl.len()].iter());
                 *f = diff * idx;
             }
 
@@ -702,16 +499,12 @@ fn diff_op_row(
                 .zip(fut.iter_mut().skip(block.len()))
                 .take(nx - 2 * block.len())
             {
-                let diff = product(diag, window);
+                let diff = product_fast(diag.iter(), window.iter());
                 *f = diff * idx;
             }
 
             for (bl, f) in block.iter().zip(fut.iter_mut().rev()) {
-                let diff = bl
-                    .iter()
-                    .zip(prev.iter().rev())
-                    .map(|(x, y)| x * y)
-                    .sum::<Float>();
+                let diff = product_fast(bl.iter(), prev.iter().rev());
 
                 *f = idx
                     * if symmetry == Symmetry::Symmetric {
