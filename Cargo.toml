@@ -12,9 +12,13 @@ members = [
     "multigrid",
     "euler",
     "maxwell",
+    "shallow_water",
 ]
 
 [profile.bench]
+debug = true
+
+[profile.release]
 debug = true
 
 [patch]

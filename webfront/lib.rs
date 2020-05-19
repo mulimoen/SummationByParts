@@ -14,6 +14,14 @@ pub fn set_panic_hook() {
 }
 
 #[wasm_bindgen]
+pub fn set_console_logger() {
+    use std::sync::Once;
+    static LOG_INIT: Once = Once::new();
+
+    LOG_INIT.call_once(|| console_log::init_with_level(log::Level::Trace).unwrap());
+}
+
+#[wasm_bindgen]
 pub struct MaxwellUniverse(maxwell::System<operators::Upwind4>);
 
 #[wasm_bindgen]
@@ -117,5 +125,57 @@ fn start_and_advance_upwind_euler() {
     universe.init(0.5, 0.5);
     for _ in 0..50 {
         universe.advance_upwind(0.01);
+    }
+}
+
+#[wasm_bindgen]
+pub struct ShallowWaterUniverse(shallow_water::System);
+
+#[wasm_bindgen]
+impl ShallowWaterUniverse {
+    #[wasm_bindgen(constructor)]
+    pub fn new(height: usize, width: usize) -> Self {
+        let x = (0.0, 1.0, width);
+        let y = (0.0, 1.0, height);
+        Self(shallow_water::System::new(x, y))
+    }
+
+    pub fn init(&mut self, x0: f32, y0: f32) {
+        let nx = self.0.nx();
+        let ny = self.0.ny();
+        let x = ndarray::Array1::linspace(0.0, 1.0, nx);
+        let y = ndarray::Array1::linspace(0.0, 1.0, ny);
+
+        let (mut eta, mut etau, mut etav) = self.0.components_mut();
+
+        let sigma = 0.1;
+
+        for j in 0..ny {
+            for i in 0..nx {
+                let r = f32::hypot(x[i] - x0, y[j] - y0);
+
+                let f = 1.0 / (sigma * (2.0 * sbp::consts::PI).sqrt())
+                    * f32::exp(-0.5 * (r / sigma).powi(2));
+                eta[(j, i)] = 1.0 - 0.1 * f;
+                etau[(j, i)] = eta[(j, i)] * 0.0;
+                etav[(j, i)] = eta[(j, i)] * 0.0;
+            }
+        }
+    }
+
+    pub fn advance(&mut self) {
+        self.0.advance()
+    }
+
+    pub fn get_eta_ptr(&self) -> *const u8 {
+        self.0.eta().as_ptr() as *const u8
+    }
+
+    pub fn get_etau_ptr(&self) -> *const u8 {
+        self.0.etau().as_ptr() as *const u8
+    }
+
+    pub fn get_etav_ptr(&self) -> *const u8 {
+        self.0.etav().as_ptr() as *const u8
     }
 }

@@ -1,0 +1,155 @@
+\documentclass[british]{scrartcl}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+
+\usepackage{babel}
+\usepackage{amsmath}
+\usepackage{amsthm}
+\usepackage{physics}
+\usepackage{cleveref}
+\usepackage{csquotes}
+
+\newtheorem{definition}{Definition}
+
+\title{Shallow Water Equations}
+\author{Magnus Ulimoen}
+
+\newcommand{\ve}[1]{\mathbf{#1}}
+\newcommand{\kron}{\otimes}
+
+
+\begin{document}
+\maketitle
+
+\section{Introduction}
+
+This is an attempt to solve the shallow water equations (SWE) using the SBP-SAT method. Equations and assumptions are laid out in this document.
+
+
+\section{Formulation}
+
+The SWE takes the conservative form (assuming constant density)
+\begin{gather}
+    \label{eq:conservative_formulation}
+    \pdv{\ve{q}}{t} + \pdv{\ve{E}}{x} + \pdv{\ve{F}}{y} = 0\\
+    \ve{q} = \begin{bmatrix} \eta \\ \eta u \\ \eta v \end{bmatrix}, \hspace{1em}
+        \ve{E} = \begin{bmatrix} \eta u \\ \eta u^2 + \frac{1}{2} g \eta^2 \\ \eta u v\end{bmatrix}, \hspace{1em}
+        \ve{F} = \begin{bmatrix} \eta v \\ \eta u v \\ \eta v^2 + \frac{1}{2} g \eta^2 \end{bmatrix}
+\end{gather}
+where $\eta$ is height above surface, $u$ fluid motion along $x$, $v$ fluid motion along $y$, $g$ acceleration due to gravity.
+
+The equation is discretised in space on a regular cartesian grid, and the operators $\pdv{x}$ is approximated using the SBP operator $D_1$ (likewise for $\pdv{y}$). This operator obeys
+\begin{definition}
+    An operator $D_1$ approximating $\pdv{x}$ on the form
+    \begin{gather*}
+        D_1 = H^{-1} \left( Q + \frac{1}{2} B \right)
+    \end{gather*}
+    where
+    \begin{gather*}
+        Q + Q^T = 0, \\
+        B = -e_0 e_0^T + e_n e_n^T, \\
+        H = H^T, \\
+        x^T H x > 0\,\,\, \forall x \neq 0
+    \end{gather*}
+    is an SBP operator
+\end{definition}
+
+Applying this to a discretised version of \cref{eq:conservative_formulation}:
+\begin{gather}
+    \pdv{\ve{q}}{t} + D_x \ve{E} + D_y \ve{F} = 0
+\end{gather}
+where
+\begin{gather}
+    D_x = I_3 \kron I_y \kron D_1\\
+    D_y = I_3 \kron D_1 \kron I_x
+\end{gather}
+and $\ve{q}$ is a \enquote{flattening} of the vector (x, y, the three fields). This formulation can be discretised in time using some appropriate scheme (eg. Runge Kutta 4).
+
+\subsection{Energy stability}
+To ensure stability, we must ensure no variable grows without bounds. First the continous case, taking the inner product left and right with q (and shifting stuff):
+\begin{gather}
+    \left(q, \pdv{q}{t}\right) + \left(\pdv{q}{t}, q\right)
+    = - \left(q, \pdv{\ve{E}}{x} + \pdv{\ve{F}}{y}\right)
+      - \left(\pdv{\ve{E}}{x} + \pdv{\ve{F}}{y}, q\right)
+    = \frac{1}{2}\pdv{q^2}{t}
+\end{gather}
+Let us linearise this equation, with
+\begin{gather}
+    A = \pdv{E}{q}, \hspace{1em} B = \pdv{F}{q}
+\end{gather}
+which gives us
+\begin{align}
+    \nonumber \left(q, \pdv{q}{t}\right) &= - \left( q, A \pdv{q}{x} + B \pdv{q}{x} \right) \\
+    \nonumber &= {\left(q_x, A q\right)} - {\left[ q^T A q \right]}_{x_0}^{x_n}
+     + {\left(q, B q_y \right)} - {\left[ q^T B q \right]}_{y_0}^{y_n} \\
+    &= {\left(A^T q_x, q\right)} - {\left[ q^T A q \right]}_{x_0}^{x_n}
+     + {\left(B^T q, q_y \right)} - {\left[ q^T B q \right]}_{y_0}^{y_n}
+\end{align}
+and the following
+\begin{align}
+    \nonumber \frac{1}{2}\pdv{q^2}{t} &= \left( q, \pdv{q}{t} \right) + \left( \pdv{q}{t} \right) \\
+    &= (q_x, Aq) - (Aq_x, q) - \left[q^T (A + A^T) q\right] + (q_y, B q) - (B q_y, q) - [q^T(B + B^T)q]
+\end{align}
+
+By symmetrising and changing variables ($\hat{q} = Sq$) we can find a suitable form which allows all the $(q, F) - (F, q)$ forms to disappear. It might not be fully symmetrisable in both $x,y$ simultaneously, but this can be skippped\ldots
+Change of coordinates can be done within the integral,
+\begin{gather}
+    q^T A q_x, \hspace{1em} \hat{q} = Sq, \hspace{1em} S^T \hat{q} = q \\
+    q^T A q_x = {(S^T \hat{q})}^T A (S^T \hat{q}) = \hat{q}^T S S^T D S S^T \hat{q} = \hat{q}D\hat{q}
+\end{gather}
+This does not change anything within the integral, and shows the symmetrisation necessary to make the two forms cancel. The energy is therefore bounded by the boundary terms (which are omitted in the continous form). It is enough to bound
+\begin{gather}
+    A^- \text{on the right} \\
+    A^+ \text{on the left} \\
+    B^- \text{on the top} \\
+    B^+ \text{on the bottom}
+\end{gather}
+
+\subsubsection{Discrete case}
+In this section we will determine the penalty parameter $\tau$ for all directions.
+\begin{gather}
+    \pdv{q}{t} = - D_x (Aq) - D_y (Aq) \\
+\end{gather}
+\begin{align}
+    {\left(q, \pdv{q}{t}\right)}_H &= q^T (H_y \kron H_x) \pdv{q}{t} \\
+    &= - q^T H D_x (Aq) - q^T H D_y (Aq) \\
+    &= -q^T (H_y \kron H_x) (I_y \kron H^{-1} (Q + \frac{1}{2}B )) (I_y \kron A) q + q^T \\
+    &- q^T (H_y \kron H_x) (H^{-1} (Q + \frac{1}{2}B ) \kron I_x) (B \kron I_x) q + q^T
+\end{align}
+
+Let us just do this in one dimension, it is mostly transferable anyway\ldots
+\begin{align}
+    q^T H \pdv{q}{t} &= -q^T H H^{-1} (Q + \frac{1}{2}B) A q \\
+     &= - q^T (Q + \frac{1}{2} B ) A q
+\end{align}
+And the transpose
+\begin{align}
+    {\left(\pdv{q}{t}\right)}^T H q = -{(Aq)}^T H D_1 q = -q^T A^T (Q + \frac{1}{2}B) q
+\end{align}
+Tranpose of this gives (can always transpose a scalar)
+\begin{align}
+    q^T {(A^T (Q + \frac{1}{2}B))}^T q = q^T (Q^T + \frac{1}{2}B^T) A q
+\end{align}
+The sum of these two expressions
+\begin{gather}
+    \frac{1}{2}\pdv{\norm{q}^2_H}{t} = q^T (Q + Q^T + \frac{1}{2}(B + B^T)) A q \\
+    = q^T B A q = -q_0^T A q_0 + q_n^T A q_n
+\end{gather}
+We can thus control the energy rate by controlling $q_0^T A q_0$ and $q_n^T A q_n$ (that is, we set the boundaries). We do this by adding the following SAT\@.
+\begin{gather}
+    SAT = \tau_0 H^{-1} e_0 e_0^T A_- (q - v) + \tau_n H^{-1} e_n e_n^T A_+ (q - v)
+\end{gather}
+Adding this to the energy form above (setting $v=0$ (data independence))
+\begin{gather}
+    E = -q_0^T A q_0 + \tau_0 q_0^T A_- q_0 + \tau_0 q_0^T A_-^T q_0
+     + q_n^T A q_n + \ldots \\
+     = -q_0^T (A - 2\tau_0 A_-) q_0 + \ldots
+\end{gather}
+This sets the following requirements
+\begin{gather}
+    \tau_0 \ge \frac{1}{2} \\
+    \tau_n \le -\frac{1}{2}
+\end{gather}
+
+
+\end{document}
