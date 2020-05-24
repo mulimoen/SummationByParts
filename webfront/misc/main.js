@@ -1,3 +1,6 @@
+import { default as init, set_panic_hook as setPanicHook,
+         MaxwellUniverse, EulerUniverse, ShallowWaterUniverse } from "./sbp_web.js";
+
 function compile_and_link(ctx, vsource, fsource) {
     const program = ctx.createProgram();
     const vsShader = ctx.createShader(ctx.VERTEX_SHADER);
@@ -139,6 +142,8 @@ class LineDrawer {
 }
 
 (async function run() {
+    const wasm = await init("./sbp_web_bg.wasm");
+    setPanicHook();
     const canvas = document.getElementById("glCanvas");
 
     const gl = canvas.getContext("webgl");
@@ -149,26 +154,10 @@ class LineDrawer {
 
     console.info("Successfully opened webgl canvas");
 
-    const width = 23;
-    const height = 21;
-
-    const x = new Float32Array(width * height);
-    const y = new Float32Array(width * height);
-    for (let j = 0; j < height; j += 1) {
-        for (let i = 0; i < width; i += 1) {
-            const n = width*j + i;
-            x[n] = i / (width - 1.0);
-            y[n] = j / (height - 1.0);
-        }
-    }
-
-    const bbox = [+Number(Infinity), -Number(Infinity), +Number(Infinity), -Number(Infinity)];
-    for (let i = 0; i < width*height; i += 1) {
-        bbox[0] = Math.min(bbox[0], x[i]);
-        bbox[1] = Math.max(bbox[1], x[i]);
-        bbox[2] = Math.min(bbox[2], y[i]);
-        bbox[3] = Math.max(bbox[3], y[i]);
-    }
+    let x;
+    let y;
+    let width;
+    let height;
 
     // A nice pink to show missing values
     gl.clearColor(1.0, 0.753, 0.796, 1.0);
@@ -180,22 +169,64 @@ class LineDrawer {
 
     const xBuffer = gl.createBuffer();
     const yBuffer = gl.createBuffer();
-
-    gl.bindBuffer(gl.ARRAY_BUFFER, xBuffer);
-    gl.bufferData(gl.ARRAY_BUFFER, x, gl.STATIC_DRAW);
-    gl.bindBuffer(gl.ARRAY_BUFFER, yBuffer);
-    gl.bufferData(gl.ARRAY_BUFFER, y, gl.STATIC_DRAW);
-
     const lineDrawer = new LineDrawer(gl);
-    lineDrawer.set_xy(width, height, xBuffer, yBuffer, bbox);
 
+    function setup() {
+        width = parseInt(document.getElementById("xN").value);
+        height = parseInt(document.getElementById("yN").value);
 
-    function drawMe() {
+        const x0 = parseFloat(document.getElementById("x0").value);
+        const xn = parseFloat(document.getElementById("xn").value);
+        const y0 = parseFloat(document.getElementById("y0").value);
+        const yn = parseFloat(document.getElementById("yn").value);
+
+        const diamond = document.getElementById("diamond").checked;
+        console.log(diamond);
+
+        x = new Float32Array(width * height);
+        y = new Float32Array(width * height);
+        const dx = (xn - x0) / (width - 1)
+        const dy = (yn - y0) / (height - 1)
+        for (let j = 0; j < height; j += 1) {
+            for (let i = 0; i < width; i += 1) {
+                const n = width*j + i;
+                x[n] = dx*i;
+                y[n] = dy*j;
+
+                if (diamond) {
+                    const xn = x[n];
+                    const yn = y[n];
+
+                    x[n] = xn - yn;
+                    y[n] = xn + yn;
+                }
+            }
+        }
+
+        const bbox = [+Number(Infinity), -Number(Infinity), +Number(Infinity), -Number(Infinity)];
+        for (let i = 0; i < width*height; i += 1) {
+            bbox[0] = Math.min(bbox[0], x[i]);
+            bbox[1] = Math.max(bbox[1], x[i]);
+            bbox[2] = Math.min(bbox[2], y[i]);
+            bbox[3] = Math.max(bbox[3], y[i]);
+        }
+        gl.bindBuffer(gl.ARRAY_BUFFER, xBuffer);
+        gl.bufferData(gl.ARRAY_BUFFER, x, gl.STATIC_DRAW);
+        gl.bindBuffer(gl.ARRAY_BUFFER, yBuffer);
+        gl.bufferData(gl.ARRAY_BUFFER, y, gl.STATIC_DRAW);
+
+        lineDrawer.set_xy(width, height, xBuffer, yBuffer, bbox);
+    }
+
+    function draw() {
         gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
         lineDrawer.draw();
+    }
 
-        window.requestAnimationFrame(drawMe);
+    function drawMe() {
+        draw();
+        animation = window.requestAnimationFrame(drawMe);
     }
 
     function resizeCanvas() {
@@ -208,7 +239,8 @@ class LineDrawer {
 
     resizeCanvas();
     window.addEventListener("resize", resizeCanvas, false);
-    window.requestAnimationFrame(drawMe);
+
+    // window.requestAnimationFrame(drawMe);
 
     const menu = document.getElementById("menu");
     const menu_toggle = document.getElementById("toggle-menu");
@@ -225,6 +257,27 @@ class LineDrawer {
         console.log("equation changed, wants: ", e.target.value);
     });
 
+    let animation = null;
+    let is_setup = false;
     const play_button = document.getElementById("toggle-playing");
+    play_button.addEventListener("click", (_e) => {
+        console.log("play/pause pressed");
+        if (!animation) {
+            if (!is_setup) {
+                setup();
+            }
+            animation = window.requestAnimationFrame(drawMe);
+        } else {
+            window.cancelAnimationFrame(animation);
+            animation = null;
+        }
+    });
     const reset_button = document.getElementById("reset");
+    reset_button.addEventListener("click", (_e) => {
+        window.cancelAnimationFrame(animation);
+        animation = null;
+        is_setup = false;
+        setup();
+        draw();
+    });
 }());
