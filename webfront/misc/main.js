@@ -1,32 +1,9 @@
-function lineProgram(ctx) {
-    const LINE_VERTEX_SHADER = String.raw`
-        #version 100
-        attribute mediump float aX;
-        attribute mediump float aY;
-
-        uniform vec4 uBbox;
-
-        void main() {
-            mediump float x = (aX - uBbox.x)*uBbox.y;
-            mediump float y = (aY - uBbox.z)*uBbox.w;
-            gl_Position = vec4(2.0*x - 1.0, 2.0*y - 1.0, 1.0, 1.0);
-        }
-
-    `;
-
-    const LINE_FRAGMENT_SHADER = String.raw`
-        #version 100
-
-        void main() {
-            gl_FragColor = vec4(0.0, 1.0, 0.0, 1.0);
-        }
-    `;
-
+function compile_and_link(ctx, vsource, fsource) {
     const program = ctx.createProgram();
     const vsShader = ctx.createShader(ctx.VERTEX_SHADER);
-    ctx.shaderSource(vsShader, LINE_VERTEX_SHADER);
+    ctx.shaderSource(vsShader, vsource);
     const fsShader = ctx.createShader(ctx.FRAGMENT_SHADER);
-    ctx.shaderSource(fsShader, LINE_FRAGMENT_SHADER);
+    ctx.shaderSource(fsShader, fsource);
 
     ctx.compileShader(vsShader);
     ctx.compileShader(fsShader);
@@ -45,10 +22,121 @@ function lineProgram(ctx) {
     ctx.deleteShader(vsShader);
     ctx.deleteShader(fsShader);
 
-    const uBbox = ctx.getUniformLocation(program, "uBbox");
+    return program;
+}
 
-    return {program: program, uniforms: {"uBbox": uBbox}};
-};
+class LineDrawer {
+    constructor(ctx) {
+        function lineProgram(ctx) {
+            const LINE_VERTEX_SHADER = String.raw`
+                #version 100
+                attribute mediump float aX;
+                attribute mediump float aY;
+
+                uniform vec4 uBbox;
+
+                void main() {
+                    mediump float x = (aX - uBbox.x)*uBbox.y;
+                    mediump float y = (aY - uBbox.z)*uBbox.w;
+                    gl_Position = vec4(2.0*x - 1.0, 2.0*y - 1.0, 1.0, 1.0);
+                }
+
+            `;
+            const LINE_FRAGMENT_SHADER = String.raw`
+                #version 100
+
+                void main() {
+                    gl_FragColor = vec4(0.0, 1.0, 0.0, 1.0);
+                }
+            `;
+            const program = compile_and_link(ctx, LINE_VERTEX_SHADER, LINE_FRAGMENT_SHADER);
+
+            const uBbox = ctx.getUniformLocation(program, "uBbox");
+
+            return {inner: program, uniforms: {"uBbox": uBbox}};
+        };
+        this.program = lineProgram(ctx);
+        this.ctx = ctx;
+    }
+    set_xy(width, height, xBuffer, yBuffer, bbox) {
+        const ctx = this.ctx;
+        ctx.useProgram(this.program.inner);
+        {
+            let loc = ctx.getAttribLocation(this.program.inner, "aX");
+            ctx.bindBuffer(ctx.ARRAY_BUFFER, xBuffer);
+            ctx.vertexAttribPointer(loc, 1, ctx.FLOAT, false, 0, 0);
+            ctx.enableVertexAttribArray(loc);
+
+            loc = ctx.getAttribLocation(this.program.inner, "aY");
+            ctx.bindBuffer(ctx.ARRAY_BUFFER, yBuffer);
+            ctx.vertexAttribPointer(loc, 1, ctx.FLOAT, false, 0, 0);
+            ctx.enableVertexAttribArray(loc);
+        }
+        const lineIdxBuffer = new Uint16Array(2*width*height - 1);
+        {
+            let n = 0;
+            for (let j = 0; j < height; j++) {
+                for (let i = 0; i < width; i++) {
+                    if (j % 2 == 0) {
+                        lineIdxBuffer[n] = width*j + i;
+                    } else {
+                        lineIdxBuffer[n] = width*(j + 1) - i - 1;
+                    }
+                    n += 1;
+                }
+            }
+            let m = lineIdxBuffer[n-1];
+            let updown = "down";
+            let lr;
+            if (height % 2 === 0) {
+                lr = "left";
+            } else {
+                lr = "right";
+            }
+            for (let i = 0; i < width; i++) {
+                for (let j = 0; j < height-1; j++) {
+                    if (updown === "up") {
+                        m += width;
+                    } else {
+                        m -= width;
+                    }
+                    lineIdxBuffer[n] = m;
+                    n += 1;
+                }
+                if (n === 2*width*height - 1) {
+                    continue;
+                }
+                if (lr === "left") {
+                    m += 1;
+                } else {
+                    m -= 1;
+                }
+                lineIdxBuffer[n] = m;
+                n += 1;
+
+                if (updown === "down") {
+                    updown = "up";
+                } else {
+                    updown = "down";
+                }
+            }
+        }
+        this.indexBuffer = ctx.createBuffer();
+        ctx.bindBuffer(ctx.ELEMENT_ARRAY_BUFFER, this.indexBuffer);
+        ctx.bufferData(ctx.ELEMENT_ARRAY_BUFFER, lineIdxBuffer, ctx.STATIC_DRAW);
+
+        ctx.uniform4f(this.program.uniforms.uBbox, bbox[0], 1.0/(bbox[1] - bbox[0]), bbox[2], 1.0/(bbox[3] - bbox[2]));
+        this.width = width;
+        this.height = height;
+    }
+    draw() {
+        const ctx = this.ctx;
+        ctx.useProgram(this.program.inner);
+        ctx.bindBuffer(ctx.ELEMENT_ARRAY_BUFFER, this.indexBuffer);
+
+        ctx.drawElements(ctx.LINE_STRIP, 2*this.width*this.height - 1, ctx.UNSIGNED_SHORT, 0);
+    }
+}
 
 (async function run() {
     const canvas = document.getElementById("glCanvas");
@@ -88,91 +176,24 @@ function lineProgram(ctx) {
     gl.enable(gl.DEPTH_TEST);
     gl.depthFunc(gl.LEQUAL);
     gl.disable(gl.CULL_FACE);
-
-    const lineProg = lineProgram(gl);
-    gl.useProgram(lineProg.program);
-
-
-    // Transfer x, y to cpu, prepare fBuffer
-    const xBuffer = gl.createBuffer();
-    const yBuffer = gl.createBuffer();
-    {
-        let loc = gl.getAttribLocation(lineProg.program, "aX");
-        gl.bindBuffer(gl.ARRAY_BUFFER, xBuffer);
-        gl.vertexAttribPointer(loc, 1, gl.FLOAT, false, 0, 0);
-        gl.enableVertexAttribArray(loc);
-        gl.bufferData(gl.ARRAY_BUFFER, x, gl.STATIC_DRAW);
-
-        loc = gl.getAttribLocation(lineProg.program, "aY");
-        gl.bindBuffer(gl.ARRAY_BUFFER, yBuffer);
-        gl.vertexAttribPointer(loc, 1, gl.FLOAT, false, 0, 0);
-        gl.enableVertexAttribArray(loc);
-        gl.bufferData(gl.ARRAY_BUFFER, y, gl.STATIC_DRAW);
-    }
-
-    // Create triangles covering the domain
-    const lineIdxBuffer = new Uint16Array(2*width*height - 1);
-    {
-        let n = 0;
-        for (let j = 0; j < height; j++) {
-            for (let i = 0; i < width; i++) {
-                if (j % 2 == 0) {
-                    lineIdxBuffer[n] = width*j + i;
-                } else {
-                    lineIdxBuffer[n] = width*(j + 1) - i - 1;
-                }
-                n += 1;
-            }
-        }
-        let m = lineIdxBuffer[n-1];
-        let updown = "down";
-        let lr;
-        if (height % 2 === 0) {
-            lr = "left";
-        } else {
-            lr = "right";
-        }
-        for (let i = 0; i < width; i++) {
-            for (let j = 0; j < height-1; j++) {
-                if (updown === "up") {
-                    m += width;
-                } else {
-                    m -= width;
-                }
-                lineIdxBuffer[n] = m;
-                n += 1;
-            }
-            if (n === 2*width*height - 1) {
-                continue;
-            }
-            if (lr === "left") {
-                m += 1;
-            } else {
-                m -= 1;
-            }
-            lineIdxBuffer[n] = m;
-            n += 1;
-
-            if (updown === "down") {
-                updown = "up";
-            } else {
-                updown = "down";
-            }
-        }
-    }
-    const indexBuffer = gl.createBuffer();
-    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, indexBuffer);
-    gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, lineIdxBuffer, gl.STATIC_DRAW);
-
     gl.lineWidth(1.0);
 
-    gl.uniform4f(lineProg.uniforms.uBbox, bbox[0], 1.0/(bbox[1] - bbox[0]), bbox[2], 1.0/(bbox[3] - bbox[2]));
+    const xBuffer = gl.createBuffer();
+    const yBuffer = gl.createBuffer();
+
+    gl.bindBuffer(gl.ARRAY_BUFFER, xBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, x, gl.STATIC_DRAW);
+    gl.bindBuffer(gl.ARRAY_BUFFER, yBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, y, gl.STATIC_DRAW);
+
+    const lineDrawer = new LineDrawer(gl);
+    lineDrawer.set_xy(width, height, xBuffer, yBuffer, bbox);
 
 
     function drawMe() {
         gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
-        gl.drawElements(gl.LINE_STRIP, 2*width*height - 1, gl.UNSIGNED_SHORT, 0);
+        lineDrawer.draw();
 
         window.requestAnimationFrame(drawMe);
     }
