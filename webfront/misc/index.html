@@ -4,7 +4,7 @@
     <head>
         <meta charset="utf-8" />
         <meta name="generator" content="by-hand" />
-        <meta name="viewpost" context="width=device-width, inital-scale=1.0, user-scalable=yes" />
+        <meta name="viewport" context="width=device-width, inital-scale=1.0, user-scalable=yes" />
         <title>ΣBP Solver</title>
         <link rel="stylesheet" type="text/css" href="style.css">
         <script async type="module" src="main.js"></script>
@@ -17,13 +17,19 @@
             <div class="menu-item">
                 <p class="menu-header">Choose an equation set</p>
                 <select id="eq-set" name="eq-set">
-                    <option value="euler"/> Euler</option>
-                    <option value="maxwell"/> Maxwell</option>
-                    <option value="shallow"/> Shallow Water</option>
+                    <option value="euler"> Euler</option>
+                    <option value="maxwell"> Maxwell</option>
+                    <option value="shallow"> Shallow Water</option>
                 </select>
-                <p>
-                    And here will be specific content for the solver in question
-                </p>
+                <div class="eq-set-options" id="euler-options">
+                    The compressible Euler equations
+                </div>
+                <div class="eq-set-options" id="maxwell-options">
+                    The Maxwell equations in 2D
+                </div>
+                <div class="eq-set-options" id="shallow-options">
+                    The Shallow Water Equations describes the surface of a body of water
+                </div>
             </div>
             <div class="grid menu-item">
                 <p class="menu-header">Grid</p>

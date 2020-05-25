@@ -8,3 +8,4 @@ select#eq-set { width: 100%; }
 .controls:hover { opacity: 1.0; }
 .menu-item { flex-shrink: 0; }
 .horizontal-flex { display: flex; flex-direction: row; align-items: center; justify-content: space-between; }
+.eq-set-options { display: none; }

@@ -142,6 +142,9 @@ class LineDrawer {
 }
 
 (async function run() {
+    const eq_sel = document.getElementById("eq-set");
+    display_eqset(eq_sel.value);
+
     const wasm = await init("./sbp_web_bg.wasm");
     setPanicHook();
     const canvas = document.getElementById("glCanvas");
@@ -240,8 +243,6 @@ class LineDrawer {
     resizeCanvas();
     window.addEventListener("resize", resizeCanvas, false);
 
-    // window.requestAnimationFrame(drawMe);
-
     const menu = document.getElementById("menu");
     const menu_toggle = document.getElementById("toggle-menu");
     menu_toggle.addEventListener("click", () => {
@@ -252,10 +253,27 @@ class LineDrawer {
         }
     });
 
-    const eq_sel = document.getElementById("eq-set");
     eq_sel.addEventListener("change", (e) => {
         console.log("equation changed, wants: ", e.target.value);
+        display_eqset(eq_sel.value);
     });
+    function display_eqset(value) {
+        const euler_options = document.getElementById("euler-options");
+        euler_options.style.display = "none";
+        const maxwell_options = document.getElementById("maxwell-options");
+        maxwell_options.style.display = "none";
+        const shallow_options = document.getElementById("shallow-options");
+        shallow_options.style.display = "none";
+        if (value === "euler") {
+            euler_options.style.display = "block";
+        } else if (value === "maxwell") {
+            maxwell_options.style.display = "block";
+        } else if (value === "shallow") {
+            shallow_options.style.display = "block";
+        } else {
+            console.error(`Unknown value ${value}`);
+        }
+    }
 
     let animation = null;
     let is_setup = false;
