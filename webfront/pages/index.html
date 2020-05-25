@@ -1,0 +1,69 @@
+<!doctype html>
+<!--https://developer.mozilla.org/en-US/docs/Web/API/WebGL_API/Tutorial/Adding_2D_content_to_a_WebGL_context-->
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="">
+    <head>
+        <meta charset="utf-8" />
+        <meta name="generator" content="by-hand" />
+        <meta name="viewport" context="width=device-width, inital-scale=1.0, user-scalable=yes" />
+        <title>ΣBP Solver</title>
+        <link rel="stylesheet" type="text/css" href="style.css">
+        <script async type="module" src="main.js"></script>
+    </head>
+    <body>
+        <div class="canvas">
+            <canvas id="glCanvas"></canvas>
+        </div>
+        <div class="vertical-menu" id="menu">
+            <div class="menu-item">
+                <p class="menu-header">Choose an equation set</p>
+                <select id="eq-set" name="eq-set">
+                    <option value="euler"> Euler</option>
+                    <option value="maxwell"> Maxwell</option>
+                    <option value="shallow"> Shallow Water</option>
+                </select>
+                <div class="eq-set-options" id="euler-options">
+                    The compressible Euler equations
+                </div>
+                <div class="eq-set-options" id="maxwell-options">
+                    The Maxwell equations in 2D
+                </div>
+                <div class="eq-set-options" id="shallow-options">
+                    The Shallow Water Equations describes the surface of a body of water
+                </div>
+            </div>
+            <div class="grid menu-item">
+                <p class="menu-header">Grid</p>
+                <div class="horizontal-flex">
+                    x:
+                    <label for="x0">x0:</label><input type="number" name="x0" id="x0" step="any" placeholder="0.0" value="0.0">
+                    <label for="xn">xn:</label><input type="number" name="xn" id="xn" step="any" placeholder="1.0" value="1.0">
+                    <label for="xN">N:</label><input type="number" name="xN" id="xN" placeholder="25" value="25" min="2">
+                </div>
+                <div class="horizontal-flex">
+                    y:
+                    <label for="y0">y0:</label><input type="number" name="y0" id="y0" step="any" placeholder="0.0" value="0.0">
+                    <label for="yn">yn:</label><input type="number" name="yn" id="yn" step="any" placeholder="1.0" value="1.0">
+                    <label for="yN">N:</label><input type="number" name="yN" id="yN" placeholder="25" value="25" min="2">
+                </div>
+                <div>
+                    <label for="diamond">Tilt grid </label><input type="checkbox" name="diamond" id="diamond">
+                </div>
+                <!--
+                Curvilinear? Inputting some random json?
+                -->
+            </div>
+            <div class="gen_set menu-item">
+                <p class="menu-header">Settings</p>
+            </div>
+            <div class="about menu-item">
+                <p class="menu-header">About</p>
+                <p>More information can be found along with the <a href="https://ulimoen.dev/git/mulimoen/SBPonWEB">source code</a>.</p>
+            </div>
+        </div>
+        <div class="controls">
+            <button title="Menu" class="control-item" id="toggle-menu" type="button">☰</button>
+            <button title="Play/pause" class="control-item" id="toggle-playing">▶️/⏸️</button>
+            <button title="Reset" class="control-item" id="reset">🔄️</button>
+        </div>
+    </body>
+</html>
