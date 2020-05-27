@@ -141,6 +141,15 @@ class LineDrawer {
     }
 }
 
+class FieldDrawer {
+    constructor(ctx) {
+        this.ctx = ctx;
+        this.fbuffer = ctx.createBuffer();
+
+        //link_and_bind_program(.., ..);
+    }
+}
+
 (async function run() {
     const eq_sel = document.getElementById("eq-set");
     display_eqset(eq_sel.value);
@@ -173,6 +182,7 @@ class LineDrawer {
     const xBuffer = gl.createBuffer();
     const yBuffer = gl.createBuffer();
     const lineDrawer = new LineDrawer(gl);
+    let universe;
 
     function setup() {
         width = parseInt(document.getElementById("xN").value);
@@ -184,7 +194,6 @@ class LineDrawer {
         const yn = parseFloat(document.getElementById("yn").value);
 
         const diamond = document.getElementById("diamond").checked;
-        console.log(diamond);
 
         x = new Float32Array(width * height);
         y = new Float32Array(width * height);
@@ -204,6 +213,22 @@ class LineDrawer {
                     y[n] = xn + yn;
                 }
             }
+        }
+
+        const eq_set = eq_sel.value;
+        switch (eq_set) {
+            case "maxwell":
+                universe = new MaxwellUniverse(height, width, x, y);
+                break;
+            case "euler":
+                universe = new EulerUniverse();
+                break;
+            case "shallow":
+                universe = new ShallowWaterUniverse();
+                break;
+            default:
+                console.error(`Unknown case ${eq_set}`);
+                return null;
         }
 
         const bbox = [+Number(Infinity), -Number(Infinity), +Number(Infinity), -Number(Infinity)];
@@ -228,20 +253,14 @@ class LineDrawer {
     }
 
     function drawMe() {
+        const w = canvas.clientWidth;
+        const h = canvas.clientHeight;
+        canvas.width = w;
+        canvas.height = h;
+        gl.viewport(0, 0, gl.drawingBufferWidth, gl.drawingBufferHeight);
         draw();
         animation = window.requestAnimationFrame(drawMe);
     }
-
-    function resizeCanvas() {
-        canvas.width = window.innerWidth;
-        canvas.height = window.innerHeight;
-
-        gl.viewport(0, 0, gl.drawingBufferWidth, gl.drawingBufferHeight);
-    }
-
-
-    resizeCanvas();
-    window.addEventListener("resize", resizeCanvas, false);
 
     const menu = document.getElementById("menu");
     const menu_toggle = document.getElementById("toggle-menu");
@@ -254,7 +273,6 @@ class LineDrawer {
     });
 
     eq_sel.addEventListener("change", (e) => {
-        console.log("equation changed, wants: ", e.target.value);
         display_eqset(eq_sel.value);
     });
     function display_eqset(value) {
@@ -279,7 +297,6 @@ class LineDrawer {
     let is_setup = false;
     const play_button = document.getElementById("toggle-playing");
     play_button.addEventListener("click", (_e) => {
-        console.log("play/pause pressed");
         if (!animation) {
             if (!is_setup) {
                 setup();
