@@ -1,10 +1,10 @@
 * { margin: 0; padding: 0; overflow: hidden; }
 html, body { width:100%; height:100%; }
-canvas { display:block; position: fixed; z-index: -1; width: 100vw; height: 100vh; }
+canvas { display:block; position: fixed; width: 100vw; height: 100vh; }
 select#eq-set { width: 100%; }
 .vertical-menu { position: fixed; width: 30%; min-width: 200px; top: 0; bottom: 30px; z-index: 2; background-color: #eee; display: flex; flex-direction: column; justify-content: space-between; padding: 0.5em; overflow-y: auto; }
 .menu-header { font-weight: bold; }
-.controls { position: relative; z-index: 3; top: calc(100% - 30px); height: 30px; display: flex; align-items: center; width: 175px; justify-content: space-around; opacity: 0.5; }
+.controls { position: relative; z-index: 3; top: calc(100% - 30px); height: 30px; display: flex; align-items: center; width: 100%; justify-content: flex-start; opacity: 0.5; }
 .controls:hover { opacity: 1.0; }
 .menu-item { flex-shrink: 0; }
 .horizontal-flex { display: flex; flex-direction: row; align-items: center; justify-content: space-between; }

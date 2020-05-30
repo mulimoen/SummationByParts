@@ -135,24 +135,26 @@ pub struct ShallowWaterUniverse(shallow_water::System);
 impl ShallowWaterUniverse {
     #[wasm_bindgen(constructor)]
     pub fn new(height: usize, width: usize) -> Self {
-        let x = (0.0, 1.0, width);
-        let y = (0.0, 1.0, height);
+        let x = (-0.5, 0.5, width);
+        let y = (-0.5, 0.5, height);
         Self(shallow_water::System::new(x, y))
     }
 
     pub fn init(&mut self, x0: f32, y0: f32) {
         let nx = self.0.nx();
         let ny = self.0.ny();
-        let x = ndarray::Array1::linspace(0.0, 1.0, nx);
-        let y = ndarray::Array1::linspace(0.0, 1.0, ny);
+        let x = ndarray::Array1::linspace(-0.5, 0.5, nx);
+        let y = ndarray::Array1::linspace(-0.5, 0.5, ny);
 
         let (mut eta, mut etau, mut etav) = self.0.components_mut();
 
         let sigma = 0.1;
 
         for j in 0..ny {
+            let y = y[j];
             for i in 0..nx {
-                let r = f32::hypot(x[i] - x0, y[j] - y0);
+                let x = x[i];
+                let r = f32::hypot(x - x0, y - y0);
 
                 let f = 1.0 / (sigma * (2.0 * sbp::consts::PI).sqrt())
                     * f32::exp(-0.5 * (r / sigma).powi(2));
