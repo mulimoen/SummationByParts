@@ -13,6 +13,7 @@ members = [
     "euler",
     "maxwell",
     "shallow_water",
+    "sparse",
 ]
 
 [profile.bench]
@@ -24,3 +25,4 @@ debug = true
 [patch]
 [patch.crates-io]
 hdf5 = { git = "https://github.com/mulimoen/hdf5-rust.git", branch = "master" }
+sprs = { git = "https://github.com/vbarrielle/sprs.git" }

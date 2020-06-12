@@ -11,6 +11,14 @@ pub trait SbpOperator1d: Send + Sync {
     fn is_h2(&self) -> bool {
         false
     }
+    #[cfg(feature = "sparse")]
+    fn diff_matrix(&self, n: usize) -> sprs::CsMat<Float> {
+        unimplemented!()
+    }
+    #[cfg(feature = "sparse")]
+    fn h_matrix(&self, n: usize) -> sprs::CsMat<Float> {
+        unimplemented!()
+    }
 }
 
 pub trait SbpOperator2d: Send + Sync {
@@ -515,6 +523,95 @@ fn diff_op_row(
             }
         }
     }
+}
+
+#[cfg(feature = "sparse")]
+fn sparse_from_block(
+    block: &[&[Float]],
+    diag: &[Float],
+    symmetry: Symmetry,
+    optype: OperatorType,
+    n: usize,
+) -> sprs::CsMat<Float> {
+    assert!(n >= 2 * block.len());
+
+    let nnz = {
+        let block_elems = block.iter().fold(0, |acc, x| {
+            acc + x
+                .iter()
+                .fold(0, |acc, &x| if x != 0.0 { acc + 1 } else { acc })
+        });
+
+        let diag_elems = diag
+            .iter()
+            .fold(0, |acc, &x| if x != 0.0 { acc + 1 } else { acc });
+
+        2 * block_elems + (n - 2 * block.len()) * diag_elems
+    };
+
+    let mut mat = sprs::TriMat::with_capacity((n, n), nnz);
+
+    let dx = if optype == OperatorType::H2 {
+        1.0 / (n - 2) as Float
+    } else {
+        1.0 / (n - 1) as Float
+    };
+    let idx = 1.0 / dx;
+
+    for (j, bl) in block.iter().enumerate() {
+        for (i, &b) in bl.iter().enumerate() {
+            if b == 0.0 {
+                continue;
+            }
+            mat.add_triplet(j, i, b * idx);
+        }
+    }
+
+    for j in block.len()..n - block.len() {
+        let half_diag_len = diag.len() / 2;
+        for (&d, i) in diag.iter().zip(j - half_diag_len..) {
+            if d == 0.0 {
+                continue;
+            }
+            mat.add_triplet(j, i, d * idx);
+        }
+    }
+
+    for (bl, j) in block.iter().zip((0..n).rev()).rev() {
+        for (&b, i) in bl.iter().zip((0..n).rev()).rev() {
+            if b == 0.0 {
+                continue;
+            }
+            if symmetry == Symmetry::AntiSymmetric {
+                mat.add_triplet(j, i, -b * idx);
+            } else {
+                mat.add_triplet(j, i, b * idx);
+            }
+        }
+    }
+
+    mat.to_csr()
+}
+
+#[cfg(feature = "sparse")]
+fn h_matrix(diag: &[Float], n: usize, is_h2: bool) -> sprs::CsMat<Float> {
+    let h = if is_h2 {
+        1.0 / (n - 2) as Float
+    } else {
+        1.0 / (n - 1) as Float
+    };
+    let nmiddle = n - 2 * diag.len();
+    let iter = diag
+        .iter()
+        .chain(std::iter::repeat(&1.0).take(nmiddle))
+        .chain(diag.iter().rev())
+        .map(|&x| h * x);
+
+    let mut mat = sprs::TriMat::with_capacity((n, n), n);
+    for (i, d) in iter.enumerate() {
+        mat.add_triplet(i, i, d);
+    }
+    mat.to_csr()
 }
 
 mod upwind4;
