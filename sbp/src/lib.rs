@@ -1,4 +1,3 @@
-#![feature(str_strip)]
 #![feature(specialization)]
 #![feature(core_intrinsics)]
 
