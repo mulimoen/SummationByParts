@@ -9,13 +9,13 @@ crate-type = ["cdylib"]
 path = "lib.rs"
 
 [dependencies]
-wasm-bindgen = "0.2.60"
+wasm-bindgen = "0.2.63"
 console_error_panic_hook = "0.1.6"
 wee_alloc = "0.4.5"
 sbp = { path = "../sbp", features = ["f32"] }
-ndarray = "0.13.0"
+ndarray = "0.13.1"
 euler = { path = "../euler" }
-maxwell = { path = "../maxwell" }
+maxwell = { path = "../maxwell", features = ["sparse"] }
 shallow-water = { path = "../shallow_water" }
 console_log = "0.2.0"
 log = "0.4.8"
