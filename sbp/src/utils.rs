@@ -1,5 +1,14 @@
 use crate::Float;
 
+#[cfg(feature = "sparse")]
+mod jacobi;
+#[cfg(feature = "sparse")]
+pub use jacobi::*;
+#[cfg(feature = "sparse")]
+mod outer_product;
+#[cfg(feature = "sparse")]
+pub use outer_product::sparse_sparse_outer_product;
+
 pub struct Direction<T> {
     pub north: T,
     pub south: T,

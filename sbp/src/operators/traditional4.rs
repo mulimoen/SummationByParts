@@ -38,6 +38,21 @@ impl SbpOperator1d for SBP4 {
     fn h(&self) -> &'static [Float] {
         Self::HBLOCK
     }
+
+    #[cfg(feature = "sparse")]
+    fn diff_matrix(&self, n: usize) -> sprs::CsMat<Float> {
+        super::sparse_from_block(
+            Self::BLOCK,
+            Self::DIAG,
+            super::Symmetry::AntiSymmetric,
+            super::OperatorType::Normal,
+            n,
+        )
+    }
+    #[cfg(feature = "sparse")]
+    fn h_matrix(&self, n: usize) -> sprs::CsMat<Float> {
+        super::h_matrix(Self::DIAG, n, self.is_h2())
+    }
 }
 
 impl<SBP: SbpOperator1d> SbpOperator2d for (&SBP, &SBP4) {

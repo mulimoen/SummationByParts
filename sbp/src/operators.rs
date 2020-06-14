@@ -12,13 +12,9 @@ pub trait SbpOperator1d: Send + Sync {
         false
     }
     #[cfg(feature = "sparse")]
-    fn diff_matrix(&self, n: usize) -> sprs::CsMat<Float> {
-        unimplemented!()
-    }
+    fn diff_matrix(&self, n: usize) -> sprs::CsMat<Float>;
     #[cfg(feature = "sparse")]
-    fn h_matrix(&self, n: usize) -> sprs::CsMat<Float> {
-        unimplemented!()
-    }
+    fn h_matrix(&self, n: usize) -> sprs::CsMat<Float>;
 }
 
 pub trait SbpOperator2d: Send + Sync {
@@ -30,6 +26,9 @@ pub trait SbpOperator2d: Send + Sync {
 
     fn is_h2xi(&self) -> bool;
     fn is_h2eta(&self) -> bool;
+
+    fn op_xi(&self) -> &dyn SbpOperator1d;
+    fn op_eta(&self) -> &dyn SbpOperator1d;
 }
 
 impl<SBPeta: SbpOperator1d, SBPxi: SbpOperator1d> SbpOperator2d for (&SBPeta, &SBPxi) {
@@ -55,6 +54,13 @@ impl<SBPeta: SbpOperator1d, SBPxi: SbpOperator1d> SbpOperator2d for (&SBPeta, &S
     fn is_h2eta(&self) -> bool {
         self.0.is_h2()
     }
+
+    fn op_xi(&self) -> &dyn SbpOperator1d {
+        self.1
+    }
+    fn op_eta(&self) -> &dyn SbpOperator1d {
+        self.0
+    }
 }
 
 impl<SBP: SbpOperator1d + Copy> SbpOperator2d for SBP {
@@ -75,6 +81,13 @@ impl<SBP: SbpOperator1d + Copy> SbpOperator2d for SBP {
     }
     fn is_h2eta(&self) -> bool {
         <(&SBP, &SBP) as SbpOperator2d>::is_h2eta(&(self, self))
+    }
+
+    fn op_xi(&self) -> &dyn SbpOperator1d {
+        self
+    }
+    fn op_eta(&self) -> &dyn SbpOperator1d {
+        self
     }
 }
 
