@@ -5,6 +5,9 @@ use sbp::integrate;
 use sbp::operators::{SbpOperator2d, UpwindOperator2d};
 use sbp::Float;
 
+#[cfg(feature = "sparse")]
+mod sparse;
+
 #[derive(Clone, Debug)]
 pub struct Field(pub(crate) Array3<Float>);
 
@@ -85,6 +88,10 @@ pub struct System<SBP: SbpOperator2d> {
     grid: Grid,
     metrics: Metrics,
     op: SBP,
+    #[cfg(feature = "sparse")]
+    rhs: sprs::CsMat<Float>,
+    #[cfg(feature = "sparse")]
+    lhs: sprs::CsMat<Float>,
 }
 
 impl<SBP: SbpOperator2d> System<SBP> {
@@ -96,12 +103,22 @@ impl<SBP: SbpOperator2d> System<SBP> {
         let grid = Grid::new(x, y).unwrap();
         let metrics = grid.metrics(&op).unwrap();
 
+        #[cfg(feature = "sparse")]
+        let rhs = sparse::rhs_matrix(&op, ny, nx);
+
+        #[cfg(feature = "sparse")]
+        let lhs = sparse::implicit_matrix(rhs.view(), 0.2 / std::cmp::max(ny, nx) as Float);
+
         Self {
             op,
             sys: (Field::new(ny, nx), Field::new(ny, nx)),
             grid,
             metrics,
             wb: WorkBuffers::new(ny, nx),
+            #[cfg(feature = "sparse")]
+            rhs,
+            #[cfg(feature = "sparse")]
+            lhs,
         }
     }
 
@@ -139,6 +156,44 @@ impl<SBP: SbpOperator2d> System<SBP> {
             &mut self.wb.k,
         );
         std::mem::swap(&mut self.sys.0, &mut self.sys.1);
+    }
+    #[cfg(feature = "sparse")]
+    pub fn advance_sparse(&mut self, dt: Float) {
+        let rhs = self.rhs.view();
+        let rhs_f = |next: &mut Field, now: &Field, _t: Float| {
+            next.fill(0.0);
+            sprs::prod::mul_acc_mat_vec_csr(
+                rhs,
+                now.as_slice().unwrap(),
+                next.as_slice_mut().unwrap(),
+            );
+        };
+        sbp::integrate::integrate::<sbp::integrate::Rk4, _, _>(
+            rhs_f,
+            &self.sys.0,
+            &mut self.sys.1,
+            &mut 0.0,
+            dt,
+            &mut self.wb.k[..],
+        );
+        std::mem::swap(&mut self.sys.0, &mut self.sys.1);
+    }
+    #[cfg(feature = "sparse")]
+    pub fn advance_implicit(&mut self) {
+        let lhs = self.lhs.view();
+
+        let b = self.sys.0.clone();
+
+        let tnow = std::time::Instant::now();
+        sbp::utils::jacobi_method(
+            lhs,
+            b.as_slice().unwrap(),
+            self.sys.0.as_slice_mut().unwrap(),
+            self.sys.1.as_slice_mut().unwrap(),
+            10,
+        );
+        let elapsed = tnow.elapsed();
+        println!("{:?}", elapsed);
     }
 }
 

@@ -13,7 +13,6 @@ members = [
     "euler",
     "maxwell",
     "shallow_water",
-    "sparse",
 ]
 
 [profile.bench]
