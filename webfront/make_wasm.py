@@ -28,7 +28,9 @@ if __name__ == "__main__":
     command = ["cargo", "build", "--target", target_triple]
     env = os.environ.copy()
     if args.release:
-        env["RUSTFLAGS"] = "-C opt-level=3 -C codegen-units=1 -C lto=fat -C embed-bitcode"
+        env[
+            "RUSTFLAGS"
+        ] = "-C opt-level=3 -C codegen-units=1 -C lto=fat -C embed-bitcode"
         command.append("--release")
 
     check_call(command, env=env)
@@ -65,4 +67,4 @@ if __name__ == "__main__":
             print("wasm-opt not found, not optimising further")
             pass
 
-    copytree("pages", publish, dirs_exist_ok=True)
+    copytree("frontend", publish, dirs_exist_ok=True)
