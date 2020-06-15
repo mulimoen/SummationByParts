@@ -94,12 +94,18 @@ impl<SBP: SbpOperator1d + Copy> SbpOperator2d for SBP {
 pub trait UpwindOperator1d: SbpOperator1d + Send + Sync {
     fn diss(&self, prev: ArrayView1<Float>, fut: ArrayViewMut1<Float>);
     fn as_sbp(&self) -> &dyn SbpOperator1d;
+
+    #[cfg(feature = "sparse")]
+    fn diss_matrix(&self, n: usize) -> sprs::CsMat<Float>;
 }
 
 pub trait UpwindOperator2d: SbpOperator2d + Send + Sync {
     fn dissxi(&self, prev: ArrayView2<Float>, fut: ArrayViewMut2<Float>);
     fn disseta(&self, prev: ArrayView2<Float>, fut: ArrayViewMut2<Float>);
     fn as_sbp(&self) -> &dyn SbpOperator2d;
+
+    fn op_xi(&self) -> &dyn UpwindOperator1d;
+    fn op_eta(&self) -> &dyn UpwindOperator1d;
 }
 
 impl<UOeta: UpwindOperator1d, UOxi: UpwindOperator1d> UpwindOperator2d for (&UOeta, &UOxi) {
@@ -116,6 +122,13 @@ impl<UOeta: UpwindOperator1d, UOxi: UpwindOperator1d> UpwindOperator2d for (&UOe
     fn as_sbp(&self) -> &dyn SbpOperator2d {
         self
     }
+
+    fn op_xi(&self) -> &dyn UpwindOperator1d {
+        self.1
+    }
+    fn op_eta(&self) -> &dyn UpwindOperator1d {
+        self.0
+    }
 }
 
 impl<UO: UpwindOperator1d + Copy> UpwindOperator2d for UO {
@@ -126,6 +139,13 @@ impl<UO: UpwindOperator1d + Copy> UpwindOperator2d for UO {
         <(&UO, &UO) as UpwindOperator2d>::disseta(&(self, self), prev, fut)
     }
     fn as_sbp(&self) -> &dyn SbpOperator2d {
+        self
+    }
+
+    fn op_xi(&self) -> &dyn UpwindOperator1d {
+        self
+    }
+    fn op_eta(&self) -> &dyn UpwindOperator1d {
         self
     }
 }

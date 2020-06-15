@@ -146,6 +146,17 @@ impl UpwindOperator1d for Upwind9h2 {
     fn as_sbp(&self) -> &dyn SbpOperator1d {
         self
     }
+
+    #[cfg(feature = "sparse")]
+    fn diss_matrix(&self, n: usize) -> sprs::CsMat<Float> {
+        super::sparse_from_block(
+            Self::DISS_BLOCK,
+            Self::DISS_DIAG,
+            super::Symmetry::Symmetric,
+            super::OperatorType::H2,
+            n,
+        )
+    }
 }
 
 impl<UO: UpwindOperator1d> UpwindOperator2d for (&UO, &Upwind9h2) {
