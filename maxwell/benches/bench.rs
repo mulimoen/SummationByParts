@@ -15,6 +15,13 @@ fn advance_system_upwind<UO: UpwindOperator2d>(universe: &mut System<UO>, n: usi
     }
 }
 
+#[cfg(feature = "sparse")]
+fn advance_system_matrix<SBP: SbpOperator2d>(universe: &mut System<SBP>, n: usize) {
+    for _ in 0..n {
+        universe.advance_sparse(0.01);
+    }
+}
+
 fn performance_benchmark(c: &mut Criterion) {
     let mut group = c.benchmark_group("MaxwellSystem");
     group.sample_size(25);
@@ -40,13 +47,24 @@ fn performance_benchmark(c: &mut Criterion) {
         })
     });
 
-    let mut universe = System::new(x, y, SBP4);
+    let mut universe = System::new(x.clone(), y.clone(), SBP4);
     group.bench_function("advance_trad4", |b| {
         b.iter(|| {
             universe.set_gaussian(0.5, 0.5);
             advance_system(&mut universe, black_box(20))
         })
     });
+
+    #[cfg(feature = "sparse")]
+    {
+        let mut universe = System::new(x.clone(), y.clone(), Upwind4);
+        group.bench_function("advance_upwind4_as_matrix", |b| {
+            b.iter(|| {
+                universe.set_gaussian(0.5, 0.5);
+                advance_system_matrix(&mut universe, black_box(20))
+            })
+        });
+    }
 
     group.finish();
 }
