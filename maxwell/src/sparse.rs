@@ -13,242 +13,195 @@ pub fn implicit_matrix(rhs: sprs::CsMatView<Float>, dt: Float) -> sprs::CsMat<Fl
 
 /// Assumes self boundaries
 pub fn rhs_matrix(op: &dyn SbpOperator2d, ny: usize, nx: usize) -> sprs::CsMat<Float> {
-    let d1_x = op.op_eta().diff_matrix(nx);
-    let d1_y = op.op_xi().diff_matrix(ny);
+    let eye = |n: usize| sprs::CsMat::eye(n);
 
-    let ix = sprs::CsMat::<Float>::eye(nx);
-    let iy = sprs::CsMat::eye(ny);
+    let fluxes = {
+        let d1_x = op.op_eta().diff_matrix(nx);
+        let d1_y = op.op_xi().diff_matrix(ny);
 
-    let dx = sparse_sparse_outer_product(iy.view(), d1_x.view());
-    let dy = sparse_sparse_outer_product(d1_y.view(), ix.view());
+        let dx = sparse_sparse_outer_product(eye(ny).view(), d1_x.view());
+        let dy = sparse_sparse_outer_product(d1_y.view(), eye(nx).view());
 
-    let mut a_flux = sprs::TriMat::new((3, 3));
-    a_flux.add_triplet(1, 2, -1.0);
-    a_flux.add_triplet(2, 1, -1.0);
-    let a_flux = a_flux.to_csr();
+        let mut a_flux = sprs::CsMat::zero((3, 3));
+        a_flux.insert(1, 2, -1.0);
+        a_flux.insert(2, 1, -1.0);
 
-    let mut b_flux = sprs::TriMat::new((3, 3));
-    b_flux.add_triplet(0, 1, 1.0);
-    b_flux.add_triplet(1, 0, 1.0);
-    let b_flux = b_flux.to_csr();
+        let mut b_flux = sprs::CsMat::zero((3, 3));
+        b_flux.insert(0, 1, 1.0);
+        b_flux.insert(1, 0, 1.0);
 
-    let f = &sparse_sparse_outer_product(a_flux.view(), dx.view())
-        + &sparse_sparse_outer_product(b_flux.view(), dy.view());
+        &sparse_sparse_outer_product(a_flux.view(), dx.view())
+            + &sparse_sparse_outer_product(b_flux.view(), dy.view())
+    };
 
-    let mut hx = sparse_sparse_outer_product(iy.view(), op.op_xi().h_matrix(nx).view());
-    hx.map_inplace(|h| 1.0 / h);
-    let ihx = hx;
-    let mut hy = sparse_sparse_outer_product(op.op_eta().h_matrix(ny).view(), ix.view());
-    hy.map_inplace(|h| 1.0 / h);
-    let ihy = hy;
-
-    let _f = {
+    let sat_west = {
         // West boundary
-        let mut aminus = sprs::TriMat::new((3, 3));
-        aminus.add_triplet(1, 1, -0.5);
-        aminus.add_triplet(1, 2, -0.5);
-        aminus.add_triplet(2, 1, -0.5);
-        aminus.add_triplet(2, 2, -0.5);
-        let aminus = aminus.to_csr();
+        let aminus = {
+            let mut aminus = sprs::CsMat::zero((3, 3));
+            aminus.insert(1, 1, -0.5);
+            aminus.insert(1, 2, -0.5);
+            aminus.insert(2, 1, -0.5);
+            aminus.insert(2, 2, -0.5);
+            aminus
+        };
+        let e0 = {
+            let mut e0 = sprs::CsMat::zero((nx, 1));
+            e0.insert(0, 0, 1.0);
+            e0
+        };
+        let en = {
+            let mut en = sprs::CsMat::zero((nx, 1));
+            en.insert(nx - 1, 0, 1.0);
+            en
+        };
 
-        let mut e0x = sprs::TriMat::new((nx, 1));
-        e0x.add_triplet(0, 0, 1.0);
-        let e0x = e0x.to_csr();
-        let e0x_nt = &e0x * &e0x.transpose_view();
-        let e0x_nt = sparse_sparse_outer_product(iy.view(), e0x_nt.view());
+        // Periodic => (e_0 - e_n)q => 0
+        let p = &e0 - &en;
 
-        let sat0 = &ihx * &e0x_nt;
-        let mut sat0 = sparse_sparse_outer_product(aminus.view(), sat0.view());
+        // Forming the matrix of size (nx,nx)
+        let mat = &e0 * &p.transpose_view();
+        // Must be scaled by the h norm
+        let hi = op.op_xi().h_matrix(nx).map(|h| 1.0 / h);
+        let mat = &hi * &mat;
+        // Upscaling to (nx * ny, nx * ny)
+        let mat = sparse_sparse_outer_product(eye(ny).view(), mat.view());
+
+        let mut sat = sparse_sparse_outer_product(aminus.view(), mat.view());
 
         let tau = 1.0;
-        sat0.map_inplace(|x| tau * x);
-
-        &f + &sat0
+        // Scaling by tau
+        sat.map_inplace(|x| tau * x);
+        sat
     };
 
-    let _f = {
+    let sat_east = {
         // East boundary
-        let mut aplus = sprs::TriMat::new((3, 3));
-        aplus.add_triplet(1, 1, 0.5);
-        aplus.add_triplet(1, 2, -0.5);
-        aplus.add_triplet(2, 1, -0.5);
-        aplus.add_triplet(2, 2, 0.5);
-        let aplus = aplus.to_csr();
+        let aminus = {
+            let mut aplus = sprs::CsMat::zero((3, 3));
+            aplus.insert(1, 1, 0.5);
+            aplus.insert(1, 2, -0.5);
+            aplus.insert(2, 1, -0.5);
+            aplus.insert(2, 2, 0.5);
+            aplus
+        };
+        let e0 = {
+            let mut e0 = sprs::CsMat::zero((nx, 1));
+            e0.insert(0, 0, 1.0);
+            e0
+        };
+        let en = {
+            let mut en = sprs::CsMat::zero((nx, 1));
+            en.insert(nx - 1, 0, 1.0);
+            en
+        };
 
-        let mut enx = sprs::TriMat::new((nx, 1));
-        enx.add_triplet(nx - 1, 0, 1.0);
-        let enx = enx.to_csr();
-        let enx_nt = &enx * &enx.transpose_view();
-        let enx_nt = sparse_sparse_outer_product(iy.view(), enx_nt.view());
+        // Periodic => (e_0 - e_n) => 0
+        let p = &en - &e0;
 
-        let satn = &ihx * &enx_nt;
-        let mut satn = sparse_sparse_outer_product(aplus.view(), satn.view());
+        // Forming the matrix of size (nx,nx)
+        let mat = &en * &p.transpose_view();
+        // Must be scaled by the h norm
+        let hi = op.op_xi().h_matrix(nx).map(|h| 1.0 / h);
+        let mat = &hi * &mat;
+        // Upscaling to (nx * ny, nx * ny)
+        let mat = sparse_sparse_outer_product(eye(ny).view(), mat.view());
+
+        let mut sat = sparse_sparse_outer_product(aminus.view(), mat.view());
 
         let tau = -1.0;
-        satn.map_inplace(|x| tau * x);
-
-        &f + &satn
+        // Scaling by tau
+        sat.map_inplace(|x| tau * x);
+        sat
     };
 
-    let _f = {
+    let sat_south = {
         // South boundary
-        let mut bminus = sprs::TriMat::new((3, 3));
-        bminus.add_triplet(0, 0, -0.5);
-        bminus.add_triplet(0, 1, 0.5);
-        bminus.add_triplet(1, 0, 0.5);
-        bminus.add_triplet(1, 1, -0.5);
-        let bminus = bminus.to_csr();
+        let bminus = {
+            let mut bminus = sprs::CsMat::zero((3, 3));
+            bminus.insert(0, 0, -0.5);
+            bminus.insert(0, 1, 0.5);
+            bminus.insert(1, 0, 0.5);
+            bminus.insert(1, 1, -0.5);
+            bminus
+        };
+        let e0 = {
+            let mut e0 = sprs::CsMat::zero((ny, 1));
+            e0.insert(0, 0, 1.0);
+            e0
+        };
+        let en = {
+            let mut en = sprs::CsMat::zero((ny, 1));
+            en.insert(ny - 1, 0, 1.0);
+            en
+        };
 
-        let mut e0y = sprs::TriMat::new((ny, 1));
-        e0y.add_triplet(0, 0, 1.0);
-        let e0y = e0y.to_csr();
-        let e0y_nt = &e0y * &e0y.transpose_view();
-        let e0y_nt = sparse_sparse_outer_product(e0y_nt.view(), ix.view());
+        // Periodic => (e_0 - e_n) => 0
+        let p = &e0 - &en;
 
-        let sat0 = &ihx * &e0y_nt;
-        let mut sat0 = sparse_sparse_outer_product(bminus.view(), sat0.view());
+        // Forming the matrix of size (ny,ny)
+        let mat = &e0 * &p.transpose_view();
+        // Must be scaled by the h norm
+        let hi = op.op_eta().h_matrix(ny).map(|h| 1.0 / h);
+        let mat = &hi * &mat;
+        // Upscaling to (nx * ny, nx * ny)
+        let mat = sparse_sparse_outer_product(mat.view(), eye(nx).view());
+
+        let mut sat = sparse_sparse_outer_product(bminus.view(), mat.view());
 
         let tau = 1.0;
-        sat0.map_inplace(|x| tau * x);
-
-        &f + &sat0
+        // Scaling by tau
+        sat.map_inplace(|x| tau * x);
+        sat
     };
 
-    let _f = {
+    let sat_north = {
         // North boundary
-        let mut bplus = sprs::TriMat::new((3, 3));
-        bplus.add_triplet(0, 0, 0.5);
-        bplus.add_triplet(0, 1, 0.5);
-        bplus.add_triplet(1, 0, 0.5);
-        bplus.add_triplet(1, 1, 0.5);
-        let bplus = bplus.to_csr();
+        let bplus = {
+            let mut bplus = sprs::CsMat::zero((3, 3));
+            bplus.insert(0, 0, 0.5);
+            bplus.insert(0, 1, 0.5);
+            bplus.insert(1, 0, 0.5);
+            bplus.insert(1, 1, 0.5);
+            bplus
+        };
+        let e0 = {
+            let mut e0 = sprs::CsMat::zero((ny, 1));
+            e0.insert(0, 0, 1.0);
+            e0
+        };
+        let en = {
+            let mut en = sprs::CsMat::zero((ny, 1));
+            en.insert(ny - 1, 0, 1.0);
+            en
+        };
 
-        let mut eny = sprs::TriMat::new((ny, 1));
-        eny.add_triplet(ny - 1, 0, 1.0);
-        let eny = eny.to_csr();
-        let eny_nt = &eny * &eny.transpose_view();
-        let eny_nt = sparse_sparse_outer_product(eny_nt.view(), ix.view());
+        // Periodic => (e_0 - e_n) => 0
+        let p = &en - &e0;
 
-        let satn = &ihy * &eny_nt;
-        let mut satn = sparse_sparse_outer_product(bplus.view(), satn.view());
+        // Forming the matrix of size (ny,ny)
+        let mat = &en * &p.transpose_view();
+        // Must be scaled by the h norm
+        let hi = op.op_eta().h_matrix(ny).map(|h| 1.0 / h);
+        let mat = &hi * &mat;
+        // Upscaling to (nx * ny, nx * ny)
+        let mat = sparse_sparse_outer_product(mat.view(), eye(nx).view());
 
-        let tau = -1.0;
-        satn.map_inplace(|x| tau * x);
-
-        &f + &satn
-    };
-    // Setting up the periodic boundaries
-    let _f = {
-        // West
-        let mut aminus = sprs::TriMat::new((3, 3));
-        aminus.add_triplet(1, 1, -0.5);
-        aminus.add_triplet(1, 2, -0.5);
-        aminus.add_triplet(2, 1, -0.5);
-        aminus.add_triplet(2, 2, -0.5);
-        let aminus = aminus.to_csr();
-
-        let mut e0x = sprs::TriMat::new((nx, 1));
-        e0x.add_triplet(0, 0, 1.0);
-        let e0x = e0x.to_csr();
-        let mut enx = sprs::TriMat::new((nx, 1));
-        enx.add_triplet(nx - 1, 0, 1.0);
-        let enx = enx.to_csr();
-
-        let e0nx_nt = &e0x * &enx.transpose_view();
-        let e0nx_nt = sparse_sparse_outer_product(iy.view(), e0nx_nt.view());
-
-        let sat0 = &ihx * &e0nx_nt;
-        let mut sat0 = sparse_sparse_outer_product(aminus.view(), sat0.view());
-
-        let tau = 1.0;
-        // Negative => subtracting this boundary
-        sat0.map_inplace(|x| -tau * x);
-
-        &f + &sat0
-    };
-
-    let _f = {
-        // East boundary
-        let mut aplus = sprs::TriMat::new((3, 3));
-        aplus.add_triplet(1, 1, 0.5);
-        aplus.add_triplet(1, 2, -0.5);
-        aplus.add_triplet(2, 1, -0.5);
-        aplus.add_triplet(2, 2, 0.5);
-        let aplus = aplus.to_csr();
-
-        let mut enx = sprs::TriMat::new((nx, 1));
-        enx.add_triplet(nx - 1, 0, 1.0);
-        let enx = enx.to_csr();
-        let mut e0x = sprs::TriMat::new((nx, 1));
-        e0x.add_triplet(0, 0, 1.0);
-        let e0x = e0x.to_csr();
-
-        let en0x_nt = &enx * &e0x.transpose_view();
-        let en0x_nt = sparse_sparse_outer_product(iy.view(), en0x_nt.view());
-
-        let satn = &ihx * &en0x_nt;
-        let mut satn = sparse_sparse_outer_product(aplus.view(), satn.view());
+        let mut sat = sparse_sparse_outer_product(bplus.view(), mat.view());
 
         let tau = -1.0;
-        satn.map_inplace(|x| -tau * x);
-
-        &f + &satn
+        // Scaling by tau
+        sat.map_inplace(|x| tau * x);
+        sat
     };
 
-    let _f = {
-        // South boundary
-        let mut bminus = sprs::TriMat::new((3, 3));
-        bminus.add_triplet(0, 0, -0.5);
-        bminus.add_triplet(0, 1, 0.5);
-        bminus.add_triplet(1, 0, 0.5);
-        bminus.add_triplet(1, 1, -0.5);
-        let bminus = bminus.to_csr();
+    &fluxes + &(&(&sat_west + &sat_east) + &(&sat_north + &sat_south))
+}
 
-        let mut e0y = sprs::TriMat::new((ny, 1));
-        e0y.add_triplet(0, 0, 1.0);
-        let e0y = e0y.to_csr();
-        let mut eny = sprs::TriMat::new((ny, 1));
-        eny.add_triplet(ny - 1, 0, 1.0);
-        let eny = eny.to_csr();
+#[test]
+fn dummy() {
+    let ny = 16;
+    let nx = 17;
 
-        let e0ny_nt = &e0y * &eny.transpose_view();
-        let e0ny_nt = sparse_sparse_outer_product(e0ny_nt.view(), ix.view());
-
-        let sat0 = &ihx * &e0ny_nt;
-        let mut sat0 = sparse_sparse_outer_product(bminus.view(), sat0.view());
-
-        let tau = 1.0;
-        sat0.map_inplace(|x| -tau * x);
-
-        &f + &sat0
-    };
-
-    let _f = {
-        // North boundary
-        let mut bplus = sprs::TriMat::new((3, 3));
-        bplus.add_triplet(0, 0, 0.5);
-        bplus.add_triplet(0, 1, 0.5);
-        bplus.add_triplet(1, 0, 0.5);
-        bplus.add_triplet(1, 1, 0.5);
-        let bplus = bplus.to_csr();
-
-        let mut eny = sprs::TriMat::new((ny, 1));
-        eny.add_triplet(ny - 1, 0, 1.0);
-        let eny = eny.to_csr();
-        let mut e0y = sprs::TriMat::new((ny, 1));
-        e0y.add_triplet(0, 0, 1.0);
-        let e0y = e0y.to_csr();
-
-        let en0y_nt = &eny * &e0y.transpose_view();
-        let en0y_nt = sparse_sparse_outer_product(en0y_nt.view(), ix.view());
-
-        let satn = &ihy * &en0y_nt;
-        let mut satn = sparse_sparse_outer_product(bplus.view(), satn.view());
-
-        let tau = -1.0;
-        satn.map_inplace(|x| -tau * x);
-
-        &f + &satn
-    };
-    f
+    let rhs = rhs_matrix(&sbp::operators::Upwind4, ny, nx);
+    let _lhs = implicit_matrix(rhs.view(), 1e-2);
 }
