@@ -1,20 +1,21 @@
 use super::Float;
-use sbp::operators::SbpOperator2d;
+use sbp::operators::{SbpOperator2d, UpwindOperator2d};
 use sbp::utils::sparse_sparse_outer_product;
+
+fn eye(n: usize) -> sprs::CsMat<Float> {
+    sprs::CsMat::eye(n)
+}
 
 /// Implicit version of the system
 /// C u_{t+1} = u_t
 pub fn implicit_matrix(rhs: sprs::CsMatView<Float>, dt: Float) -> sprs::CsMat<Float> {
     let n = rhs.rows();
-    let i_kyx = sprs::CsMat::eye(n);
     let f = rhs.map(|x| x * dt);
-    &i_kyx - &f
+    &eye(n) - &f
 }
 
 /// Assumes self boundaries
 pub fn rhs_matrix(op: &dyn SbpOperator2d, ny: usize, nx: usize) -> sprs::CsMat<Float> {
-    let eye = |n: usize| sprs::CsMat::eye(n);
-
     let fluxes = {
         let d1_x = op.op_eta().diff_matrix(nx);
         let d1_y = op.op_xi().diff_matrix(ny);
@@ -195,6 +196,41 @@ pub fn rhs_matrix(op: &dyn SbpOperator2d, ny: usize, nx: usize) -> sprs::CsMat<F
     };
 
     &fluxes + &(&(&sat_west + &sat_east) + &(&sat_north + &sat_south))
+}
+
+/// RHS with some additional dissipation from the upwind operator
+pub fn rhs_matrix_with_upwind_dissipation(
+    op: &dyn UpwindOperator2d,
+    ny: usize,
+    nx: usize,
+) -> sprs::CsMat<Float> {
+    let rhs = rhs_matrix(op.as_sbp(), ny, nx);
+
+    let diss_x = {
+        let diss_x = UpwindOperator2d::op_xi(op).diss_matrix(nx);
+        let diss_x = sparse_sparse_outer_product(eye(ny).view(), diss_x.view());
+        let sa = {
+            let mut sa = sprs::CsMat::zero((3, 3));
+            sa.insert(1, 1, 1.0);
+            sa.insert(2, 2, 1.0);
+            sa
+        };
+        sparse_sparse_outer_product(sa.view(), diss_x.view())
+    };
+
+    let diss_y = {
+        let diss_y = UpwindOperator2d::op_eta(op).diss_matrix(ny);
+        let diss_y = sparse_sparse_outer_product(diss_y.view(), eye(nx).view());
+        let sa = {
+            let mut sa = sprs::CsMat::zero((3, 3));
+            sa.insert(0, 0, 1.0);
+            sa.insert(1, 1, 1.0);
+            sa
+        };
+        sparse_sparse_outer_product(sa.view(), diss_y.view())
+    };
+
+    &rhs + &(&diss_x + &diss_y)
 }
 
 #[test]

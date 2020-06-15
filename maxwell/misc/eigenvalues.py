@@ -38,3 +38,10 @@ print("B+")
 print(Bplus)
 print("B-")
 print(Bminus)
+
+print()
+print("SA = Aplus - Aminus")
+print(Aplus - Aminus)
+
+print("SB = Bplus - Bminus")
+print(Bplus - Bminus)
