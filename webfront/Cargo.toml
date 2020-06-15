@@ -14,7 +14,7 @@ wee_alloc = "0.4.5"
 sbp = { path = "../sbp", features = ["f32"] }
 ndarray = "0.13.1"
 euler = { path = "../euler" }
-maxwell = { path = "../maxwell", features = ["sparse"] }
+maxwell = { path = "../maxwell" }
 shallow-water = { path = "../shallow_water" }
 console_log = "0.2.0"
 log = "0.4.8"

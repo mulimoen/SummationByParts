@@ -25,6 +25,11 @@ impl MaxwellUniverse {
         self.0.advance_upwind(dt)
     }
 
+    #[cfg(feature = "sparse")]
+    pub fn advance_with_matrix(&mut self, dt: f32) {
+        self.0.advance_sparse(dt)
+    }
+
     pub fn get_ex_ptr(&self) -> *const u8 {
         self.0.field().ex().as_ptr() as *const u8
     }

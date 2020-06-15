@@ -438,8 +438,8 @@ class FieldDrawer {
         draw();
         switch (eq_set) {
             case "maxwell":
-                // universe.advance(0.2*Math.min(1/width, 1/height));
-                universe.advance_with_matrix(0.2*Math.min(1/width, 1/height));
+                universe.advance(0.2*Math.min(1/width, 1/height));
+                // universe.advance_with_matrix(0.2*Math.min(1/width, 1/height));
                 break;
             case "euler":
                 universe.advance_upwind(0.2*Math.min(1/width, 1/height));
