@@ -69,7 +69,7 @@ impl SbpOperator1d for Upwind4h2 {
     }
     #[cfg(feature = "sparse")]
     fn h_matrix(&self, n: usize) -> sprs::CsMat<Float> {
-        super::h_matrix(Self::DIAG, n, self.is_h2())
+        super::h_matrix(Self::HBLOCK, n, self.is_h2())
     }
 }
 
