@@ -10,7 +10,7 @@ sparse = ["sbp/sparse", "sprs"]
 [dependencies]
 ndarray = "0.13.1"
 sbp = { path = "../sbp" }
-sprs = { version = "0.7.1", optional = true }
+sprs = { version = "0.8.0", optional = true }
 
 [dev-dependencies]
 criterion = "0.3.2"

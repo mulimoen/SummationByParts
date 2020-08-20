@@ -1,4 +1,3 @@
-#![feature(str_strip)]
 use either::*;
 use structopt::StructOpt;
 

@@ -1,10 +1,3 @@
-[package]
-name = "diffsolver"
-version = "0.1.1"
-authors = ["Magnus Ulimoen <flymagnus@gmail.com>"]
-edition = "2018"
-
-
 [workspace]
 members = [
     "sbp",
@@ -15,6 +8,8 @@ members = [
     "shallow_water",
 ]
 
+default-members = ["sbp", "euler", "maxwell", "shallow_water"]
+
 [profile.bench]
 debug = true
 
@@ -23,5 +18,5 @@ debug = true
 
 [patch]
 [patch.crates-io]
-hdf5 = { git = "https://github.com/mulimoen/hdf5-rust.git", branch = "master" }
-sprs = { git = "https://github.com/vbarrielle/sprs.git" }
+hdf5 = { git = "https://github.com/mulimoen/hdf5-rust.git", branch = "feature/resizable_idx" }
+hdf5-sys = { git = "https://github.com/mulimoen/hdf5-rust.git", branch = "feature/resizable_idx" }
