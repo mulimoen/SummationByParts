@@ -6,7 +6,7 @@ use sbp::operators::{SbpOperator2d, UpwindOperator2d};
 use sbp::Float;
 
 #[cfg(feature = "sparse")]
-mod sparse;
+pub mod sparse;
 
 #[derive(Clone, Debug)]
 pub struct Field(pub(crate) Array3<Float>);

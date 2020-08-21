@@ -69,5 +69,48 @@ fn performance_benchmark(c: &mut Criterion) {
     group.finish();
 }
 
+#[cfg(feature = "sparse")]
+fn sparse_creation(c: &mut Criterion) {
+    let mut group = c.benchmark_group("MaxwellSystem");
+    group.sample_size(25);
+    let w = 40;
+    let h = 26;
+    group.bench_function("create_rhs_trad4", |b| {
+        b.iter(|| {
+            let _matrix = maxwell::sparse::rhs_matrix(&SBP4, w, h);
+        })
+    });
+    group.bench_function("create_rhs_upwind4", |b| {
+        b.iter(|| {
+            let _matrix = maxwell::sparse::rhs_matrix(&sbp::operators::Upwind4, w, h);
+        })
+    });
+    group.bench_function("create_rhs_upwind9", |b| {
+        b.iter(|| {
+            let _matrix = maxwell::sparse::rhs_matrix(&sbp::operators::Upwind9, w, h);
+        })
+    });
+
+    group.bench_function("create_rhs_upwind_upwind4", |b| {
+        b.iter(|| {
+            let _matrix =
+                maxwell::sparse::rhs_matrix_with_upwind_dissipation(&sbp::operators::Upwind4, w, h);
+        })
+    });
+
+    group.bench_function("create_rhs_upwind_upwind9", |b| {
+        b.iter(|| {
+            let _matrix =
+                maxwell::sparse::rhs_matrix_with_upwind_dissipation(&sbp::operators::Upwind9, w, h);
+        })
+    });
+}
+
+#[cfg(feature = "sparse")]
+criterion_group!(sparse_create, sparse_creation);
 criterion_group!(benches, performance_benchmark);
+
+#[cfg(feature = "sparse")]
+criterion_main!(benches, sparse_create);
+#[cfg(not(feature = "sparse"))]
 criterion_main!(benches);
