@@ -1,6 +1,6 @@
 use super::Float;
 use sbp::operators::{SbpOperator2d, UpwindOperator2d};
-use sbp::utils::sparse_sparse_outer_product;
+use sbp::utils::kronecker_product;
 
 fn eye(n: usize) -> sprs::CsMat<Float> {
     sprs::CsMat::eye(n)
@@ -20,8 +20,8 @@ pub fn rhs_matrix(op: &dyn SbpOperator2d, ny: usize, nx: usize) -> sprs::CsMat<F
         let d1_x = op.op_eta().diff_matrix(nx);
         let d1_y = op.op_xi().diff_matrix(ny);
 
-        let dx = sparse_sparse_outer_product(eye(ny).view(), d1_x.view());
-        let dy = sparse_sparse_outer_product(d1_y.view(), eye(nx).view());
+        let dx = kronecker_product(eye(ny).view(), d1_x.view());
+        let dy = kronecker_product(d1_y.view(), eye(nx).view());
 
         let mut a_flux = sprs::CsMat::zero((3, 3));
         a_flux.insert(1, 2, -1.0);
@@ -31,8 +31,7 @@ pub fn rhs_matrix(op: &dyn SbpOperator2d, ny: usize, nx: usize) -> sprs::CsMat<F
         b_flux.insert(0, 1, 1.0);
         b_flux.insert(1, 0, 1.0);
 
-        &sparse_sparse_outer_product(a_flux.view(), dx.view())
-            + &sparse_sparse_outer_product(b_flux.view(), dy.view())
+        &kronecker_product(a_flux.view(), dx.view()) + &kronecker_product(b_flux.view(), dy.view())
     };
 
     let sat_west = {
@@ -65,9 +64,9 @@ pub fn rhs_matrix(op: &dyn SbpOperator2d, ny: usize, nx: usize) -> sprs::CsMat<F
         let hi = op.op_xi().h_matrix(nx).map(|h| 1.0 / h);
         let mat = &hi * &mat;
         // Upscaling to (nx * ny, nx * ny)
-        let mat = sparse_sparse_outer_product(eye(ny).view(), mat.view());
+        let mat = kronecker_product(eye(ny).view(), mat.view());
 
-        let mut sat = sparse_sparse_outer_product(aminus.view(), mat.view());
+        let mut sat = kronecker_product(aminus.view(), mat.view());
 
         let tau = 1.0;
         // Scaling by tau
@@ -105,9 +104,9 @@ pub fn rhs_matrix(op: &dyn SbpOperator2d, ny: usize, nx: usize) -> sprs::CsMat<F
         let hi = op.op_xi().h_matrix(nx).map(|h| 1.0 / h);
         let mat = &hi * &mat;
         // Upscaling to (nx * ny, nx * ny)
-        let mat = sparse_sparse_outer_product(eye(ny).view(), mat.view());
+        let mat = kronecker_product(eye(ny).view(), mat.view());
 
-        let mut sat = sparse_sparse_outer_product(aminus.view(), mat.view());
+        let mut sat = kronecker_product(aminus.view(), mat.view());
 
         let tau = -1.0;
         // Scaling by tau
@@ -145,9 +144,9 @@ pub fn rhs_matrix(op: &dyn SbpOperator2d, ny: usize, nx: usize) -> sprs::CsMat<F
         let hi = op.op_eta().h_matrix(ny).map(|h| 1.0 / h);
         let mat = &hi * &mat;
         // Upscaling to (nx * ny, nx * ny)
-        let mat = sparse_sparse_outer_product(mat.view(), eye(nx).view());
+        let mat = kronecker_product(mat.view(), eye(nx).view());
 
-        let mut sat = sparse_sparse_outer_product(bminus.view(), mat.view());
+        let mut sat = kronecker_product(bminus.view(), mat.view());
 
         let tau = 1.0;
         // Scaling by tau
@@ -185,9 +184,9 @@ pub fn rhs_matrix(op: &dyn SbpOperator2d, ny: usize, nx: usize) -> sprs::CsMat<F
         let hi = op.op_eta().h_matrix(ny).map(|h| 1.0 / h);
         let mat = &hi * &mat;
         // Upscaling to (nx * ny, nx * ny)
-        let mat = sparse_sparse_outer_product(mat.view(), eye(nx).view());
+        let mat = kronecker_product(mat.view(), eye(nx).view());
 
-        let mut sat = sparse_sparse_outer_product(bplus.view(), mat.view());
+        let mut sat = kronecker_product(bplus.view(), mat.view());
 
         let tau = -1.0;
         // Scaling by tau
@@ -208,26 +207,26 @@ pub fn rhs_matrix_with_upwind_dissipation(
 
     let diss_x = {
         let diss_x = UpwindOperator2d::op_xi(op).diss_matrix(nx);
-        let diss_x = sparse_sparse_outer_product(eye(ny).view(), diss_x.view());
+        let diss_x = kronecker_product(eye(ny).view(), diss_x.view());
         let sa = {
             let mut sa = sprs::CsMat::zero((3, 3));
             sa.insert(1, 1, 1.0);
             sa.insert(2, 2, 1.0);
             sa
         };
-        sparse_sparse_outer_product(sa.view(), diss_x.view())
+        kronecker_product(sa.view(), diss_x.view())
     };
 
     let diss_y = {
         let diss_y = UpwindOperator2d::op_eta(op).diss_matrix(ny);
-        let diss_y = sparse_sparse_outer_product(diss_y.view(), eye(nx).view());
+        let diss_y = kronecker_product(diss_y.view(), eye(nx).view());
         let sa = {
             let mut sa = sprs::CsMat::zero((3, 3));
             sa.insert(0, 0, 1.0);
             sa.insert(1, 1, 1.0);
             sa
         };
-        sparse_sparse_outer_product(sa.view(), diss_y.view())
+        kronecker_product(sa.view(), diss_y.view())
     };
 
     &rhs + &(&diss_x + &diss_y)

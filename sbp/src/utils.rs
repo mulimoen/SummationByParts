@@ -5,9 +5,9 @@ mod jacobi;
 #[cfg(feature = "sparse")]
 pub use jacobi::*;
 #[cfg(feature = "sparse")]
-mod outer_product;
+mod kronecker_product;
 #[cfg(feature = "sparse")]
-pub use outer_product::sparse_sparse_outer_product;
+pub use kronecker_product::kronecker_product;
 
 pub struct Direction<T> {
     pub north: T,

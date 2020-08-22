@@ -2,7 +2,7 @@
 /// M = A \kron B
 #[allow(non_snake_case)]
 #[must_use]
-pub fn sparse_sparse_outer_product<
+pub fn kronecker_product<
     N: num_traits::Num + Copy + Default,
     I: sprs::SpIndex,
     Iptr: sprs::SpIndex,
@@ -114,7 +114,7 @@ pub fn sparse_sparse_outer_product<
 }
 
 #[test]
-fn test_outer_product() {
+fn test_kronecker_product() {
     let mut a = sprs::TriMat::new((2, 3));
     a.add_triplet(0, 1, 2);
     a.add_triplet(0, 2, 3);
@@ -153,15 +153,15 @@ fn test_outer_product() {
         }
     };
 
-    let c = sparse_sparse_outer_product(a.view(), b.view());
+    let c = kronecker_product(a.view(), b.view());
     check(c.view());
     let b = b.to_csc();
-    let c = sparse_sparse_outer_product(a.view(), b.view());
+    let c = kronecker_product(a.view(), b.view());
     check(c.view());
     let a = a.to_csc();
-    let c = sparse_sparse_outer_product(a.view(), b.view());
+    let c = kronecker_product(a.view(), b.view());
     check(c.view());
     let b = b.to_csr();
-    let c = sparse_sparse_outer_product(a.view(), b.view());
+    let c = kronecker_product(a.view(), b.view());
     check(c.view());
 }
