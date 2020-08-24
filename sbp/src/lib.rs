@@ -1,4 +1,4 @@
-#![feature(specialization)]
+#![feature(min_specialization)]
 #![feature(core_intrinsics)]
 
 #[cfg(feature = "f32")]
