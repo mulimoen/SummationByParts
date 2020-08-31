@@ -184,7 +184,6 @@ impl<SBP: SbpOperator2d> System<SBP> {
 
         let b = self.sys.0.clone();
 
-        let tnow = std::time::Instant::now();
         sbp::utils::jacobi_method(
             lhs,
             b.as_slice().unwrap(),
@@ -192,8 +191,6 @@ impl<SBP: SbpOperator2d> System<SBP> {
             self.sys.1.as_slice_mut().unwrap(),
             10,
         );
-        let elapsed = tnow.elapsed();
-        println!("{:?}", elapsed);
     }
 }
 
