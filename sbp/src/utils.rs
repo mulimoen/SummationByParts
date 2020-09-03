@@ -21,6 +21,22 @@ pub struct Direction<T> {
 }
 
 impl<T> Direction<T> {
+    pub fn as_ref(&self) -> Direction<&T> {
+        Direction {
+            north: &self.north,
+            south: &self.south,
+            west: &self.west,
+            east: &self.east,
+        }
+    }
+    pub fn as_mut(&mut self) -> Direction<&mut T> {
+        Direction {
+            north: &mut self.north,
+            south: &mut self.south,
+            west: &mut self.west,
+            east: &mut self.east,
+        }
+    }
     pub fn map<U>(self, f: impl Fn(T) -> U) -> Direction<U> {
         Direction {
             north: f(self.north),
