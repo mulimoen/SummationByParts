@@ -4,9 +4,8 @@ use structopt::StructOpt;
 use sbp::operators::{SbpOperator2d, UpwindOperator2d};
 use sbp::*;
 
-mod parsing;
-use parsing::{json_to_grids, json_to_vortex};
 mod file;
+mod parsing;
 use file::*;
 
 pub(crate) type DiffOp = Either<Box<dyn SbpOperator2d>, Box<dyn UpwindOperator2d>>;
@@ -212,12 +211,16 @@ fn main() {
     let opt = Options::from_args();
     let filecontents = std::fs::read_to_string(&opt.json).unwrap();
 
-    let json = json::parse(&filecontents).unwrap();
+    let config: parsing::Configuration = json5::from_str(&filecontents).unwrap();
 
-    let vortexparams = json_to_vortex(json["vortex"].clone());
-    let (names, grids, bt, operators) = json_to_grids(json["grids"].clone(), vortexparams.clone());
-
-    let integration_time: Float = json["integration_time"].as_number().unwrap().into();
+    let parsing::RuntimeConfiguration {
+        names,
+        grids,
+        bc: bt,
+        op: operators,
+        integration_time,
+        vortex: vortexparams,
+    } = config.to_runtime();
 
     let mut sys = System::new(grids, bt, operators);
     sys.vortex(0.0, &vortexparams);

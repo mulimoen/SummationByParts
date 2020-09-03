@@ -13,7 +13,6 @@ rayon = "1.3.0"
 indicatif = "0.14.0"
 structopt = "0.3.14"
 ndarray = { version = "0.13.1", features = ["serde"] }
-json = "0.12.4"
 either = "1.5.3"
 serde = { version = "1.0.115", features = ["derive"] }
 json5 = "0.2.8"
