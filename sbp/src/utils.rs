@@ -12,12 +12,23 @@ pub use kronecker_product::kronecker_product;
 use serde::{Deserialize, Serialize};
 
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[derive(Clone, Debug)]
+#[derive(Copy, Clone, Debug, Default)]
 pub struct Direction<T> {
     pub north: T,
     pub south: T,
     pub west: T,
     pub east: T,
+}
+
+impl<T> Direction<T> {
+    pub fn map<U>(self, f: impl Fn(T) -> U) -> Direction<U> {
+        Direction {
+            north: f(self.north),
+            south: f(self.south),
+            west: f(self.west),
+            east: f(self.east),
+        }
+    }
 }
 
 impl<T> Direction<T> {

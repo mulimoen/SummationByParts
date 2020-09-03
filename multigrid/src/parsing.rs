@@ -17,10 +17,10 @@ pub enum Operator {
     Sbp8,
 }
 
-#[derive(Copy, Clone, Debug, Serialize, Deserialize)]
+#[derive(Copy, Clone, Debug, Default, Serialize, Deserialize)]
 pub struct Operators {
-    pub xi: Operator,
-    pub eta: Operator,
+    pub xi: Option<Operator>,
+    pub eta: Option<Operator>,
 }
 
 #[derive(Copy, Clone, Debug, Serialize, Deserialize)]
@@ -37,6 +37,19 @@ pub struct Linspace {
 pub enum GridLike {
     Linspace(Linspace),
     Array(ArrayForm),
+}
+
+impl From<GridLike> for ArrayForm {
+    fn from(t: GridLike) -> Self {
+        match t {
+            GridLike::Linspace(lin) => Self::Array1(if lin.h2 {
+                h2linspace(lin.start, lin.end, lin.steps)
+            } else {
+                ndarray::Array::linspace(lin.start, lin.end, lin.steps)
+            }),
+            GridLike::Array(arr) => arr,
+        }
+    }
 }
 
 impl From<Linspace> for GridLike {
@@ -63,7 +76,7 @@ impl From<ndarray::Array2<Float>> for GridLike {
     }
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Copy, Clone, Debug, Serialize, Deserialize)]
 pub enum InterpolationOperator {
     #[serde(rename = "4")]
     Four,
@@ -75,9 +88,22 @@ pub enum InterpolationOperator {
     NineH2,
 }
 
+impl Into<Box<dyn sbp::operators::InterpolationOperator>> for InterpolationOperator {
+    fn into(self) -> Box<dyn sbp::operators::InterpolationOperator> {
+        use sbp::operators::{Interpolation4, Interpolation8, Interpolation9, Interpolation9h2};
+        match self {
+            InterpolationOperator::Four => Box::new(Interpolation4),
+            InterpolationOperator::Eight => Box::new(Interpolation8),
+            InterpolationOperator::Nine => Box::new(Interpolation9),
+            InterpolationOperator::NineH2 => Box::new(Interpolation9h2),
+        }
+    }
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Interpolate {
     operator: Option<InterpolationOperator>,
+    #[serde(alias = "neighbor")]
     neighbour: String,
 }
 
@@ -86,13 +112,14 @@ pub struct Interpolate {
 pub enum BoundaryType {
     This,
     Interpolate(Interpolate),
+    #[serde(alias = "neighbor")]
     Neighbour(String),
     Vortex,
 }
 
 pub type BoundaryDescriptors = sbp::utils::Direction<Option<BoundaryType>>;
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize, Default)]
 pub struct GridConfig {
     pub operators: Option<Operators>,
     pub x: Option<GridLike>,
@@ -110,15 +137,145 @@ pub struct Configuration {
 }
 
 pub struct RuntimeConfiguration {
-    names: Vec<String>,
-    grids: Vec<sbp::grid::Grid>,
-    bc: Vec<euler::BoundaryCharacteristics>,
-    op: Vec<DiffOp>,
+    pub names: Vec<String>,
+    pub grids: Vec<sbp::grid::Grid>,
+    pub bc: Vec<euler::BoundaryCharacteristics>,
+    pub op: Vec<DiffOp>,
+    pub integration_time: Float,
+    pub vortex: euler::VortexParameters,
 }
 
 impl Configuration {
-    fn to_runtime(self) -> RuntimeConfiguration {
-        todo!()
+    pub fn to_runtime(mut self) -> RuntimeConfiguration {
+        let default = self.grids.shift_remove("default").unwrap_or_default();
+        let names = self.grids.keys().cloned().collect();
+        let grids = self
+            .grids
+            .iter()
+            .map(|(_name, g)| {
+                let x: ArrayForm =
+                    g.x.clone()
+                        .unwrap_or_else(|| default.x.as_ref().unwrap().clone())
+                        .into();
+                let y: ArrayForm =
+                    g.y.clone()
+                        .unwrap_or_else(|| default.y.as_ref().unwrap().clone())
+                        .into();
+                let (x, y) = match (x, y) {
+                    (ArrayForm::Array1(x), ArrayForm::Array1(y)) => {
+                        let xlen = x.len();
+                        let ylen = y.len();
+                        let x = x.broadcast((ylen, xlen)).unwrap().to_owned();
+                        let y = y
+                            .broadcast((xlen, ylen))
+                            .unwrap()
+                            .reversed_axes()
+                            .to_owned();
+
+                        (x, y)
+                    }
+                    (ArrayForm::Array1(x), ArrayForm::Array2(y)) => {
+                        assert_eq!(x.len(), y.shape()[1]);
+                        let x = x.broadcast((y.shape()[1], x.len())).unwrap().to_owned();
+                        (x, y)
+                    }
+                    (ArrayForm::Array2(x), ArrayForm::Array1(y)) => {
+                        assert_eq!(x.shape()[0], y.len());
+                        let y = y
+                            .broadcast((x.shape()[1], y.len()))
+                            .unwrap()
+                            .reversed_axes()
+                            .to_owned();
+                        (x, y)
+                    }
+                    (ArrayForm::Array2(x), ArrayForm::Array2(y)) => {
+                        assert_eq!(x.shape(), y.shape());
+                        (x, y)
+                    }
+                };
+                sbp::grid::Grid::new(x, y).unwrap()
+            })
+            .collect();
+        let op = self
+            .grids
+            .iter()
+            .map(|(name, g)| {
+                let default_operators = default.operators.unwrap_or_default();
+                let operators = g.operators.unwrap_or_default();
+                let xi = operators.xi.unwrap_or(
+                    default_operators
+                        .xi
+                        .unwrap_or_else(|| panic!("No xi operator found for grid: {}", name)),
+                );
+                let eta = operators.eta.unwrap_or(
+                    default_operators
+                        .eta
+                        .unwrap_or_else(|| panic!("No eta operator found for grid: {}", name)),
+                );
+
+                use sbp::operators::*;
+                use Operator as op;
+                match (eta, xi) {
+                    (op::Upwind4, op::Upwind4) => {
+                        Right(Box::new(Upwind4) as Box<dyn UpwindOperator2d>)
+                    }
+                    (op::Upwind4h2, op::Upwind4h2) => {
+                        Right(Box::new(Upwind4h2) as Box<dyn UpwindOperator2d>)
+                    }
+                    (op::Upwind9, op::Upwind9) => {
+                        Right(Box::new(Upwind9) as Box<dyn UpwindOperator2d>)
+                    }
+                    (op::Upwind9h2, op::Upwind9h2) => {
+                        Right(Box::new(Upwind9h2) as Box<dyn UpwindOperator2d>)
+                    }
+                    (op::Upwind4, op::Upwind4h2) => {
+                        Right(Box::new((&Upwind4, &Upwind4h2)) as Box<dyn UpwindOperator2d>)
+                    }
+                    (op::Upwind9, op::Upwind9h2) => {
+                        Right(Box::new((&Upwind9, &Upwind9h2)) as Box<dyn UpwindOperator2d>)
+                    }
+                    (op::Sbp4, op::Sbp4) => Left(Box::new(SBP4) as Box<dyn SbpOperator2d>),
+                    (op::Sbp8, op::Sbp8) => Left(Box::new(SBP8) as Box<dyn SbpOperator2d>),
+                    _ => todo!(),
+                }
+            })
+            .collect();
+        let bc = self
+            .grids
+            .iter()
+            .enumerate()
+            .map(|(i, (_name, g))| {
+                g.boundary_conditions
+                    .clone()
+                    .unwrap_or_else(|| default.boundary_conditions.clone().unwrap_or_default())
+                    .map(|bc| match bc {
+                        None | Some(BoundaryType::Vortex) => {
+                            euler::BoundaryCharacteristic::Vortex(self.vortex.clone())
+                        }
+                        Some(BoundaryType::This) => euler::BoundaryCharacteristic::Grid(i),
+                        Some(BoundaryType::Neighbour(name)) => {
+                            let j = self.grids.get_index_of(&name).unwrap();
+                            euler::BoundaryCharacteristic::Grid(j)
+                        }
+                        Some(BoundaryType::Interpolate(inp)) => {
+                            let j = self.grids.get_index_of(&inp.neighbour).unwrap();
+                            euler::BoundaryCharacteristic::Interpolate(
+                                j,
+                                inp.operator.unwrap().into(),
+                            )
+                        }
+                    })
+            })
+            .collect();
+        RuntimeConfiguration {
+            names,
+            grids,
+            bc,
+            op,
+            integration_time: self.integration_time,
+            vortex: self.vortex,
+        };
+        todo!();
     }
 }
 
@@ -541,8 +698,8 @@ fn output_configuration() {
             x: None,
             y: None,
             operators: Some(Operators {
-                xi: Operator::Upwind4,
-                eta: Operator::Upwind9,
+                xi: Some(Operator::Upwind4),
+                eta: Some(Operator::Upwind9),
             }),
         },
     );
@@ -553,8 +710,8 @@ fn output_configuration() {
             x: None,
             y: None,
             operators: Some(Operators {
-                xi: Operator::Upwind4h2,
-                eta: Operator::Upwind9h2,
+                xi: Some(Operator::Upwind4h2),
+                eta: Some(Operator::Upwind9h2),
             }),
         },
     );
@@ -565,8 +722,8 @@ fn output_configuration() {
             x: None,
             y: None,
             operators: Some(Operators {
-                xi: Operator::Sbp4,
-                eta: Operator::Sbp8,
+                xi: Some(Operator::Sbp4),
+                eta: Some(Operator::Sbp8),
             }),
         },
     );
