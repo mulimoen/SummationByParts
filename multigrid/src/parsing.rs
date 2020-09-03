@@ -273,8 +273,7 @@ impl Configuration {
             op,
             integration_time: self.integration_time,
             vortex: self.vortex,
-        };
-        todo!();
+        }
     }
 }
 
