@@ -8,11 +8,13 @@ edition = "2018"
 # Internal feature flag to gate the expensive tests
 # which should be run only in release builds
 expensive_tests = []
+serde1 = ["serde", "arrayvec/serde"]
 
 [dependencies]
 ndarray = "0.13.1"
 sbp = { path = "../sbp" }
 arrayvec = "0.5.1"
+serde = { version = "1.0.115", default-features = false, optional = true, features = ["derive"] }
 
 [dev-dependencies]
 criterion = "0.3.2"

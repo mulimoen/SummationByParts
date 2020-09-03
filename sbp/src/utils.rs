@@ -8,7 +8,11 @@ pub use jacobi::*;
 mod kronecker_product;
 #[cfg(feature = "sparse")]
 pub use kronecker_product::kronecker_product;
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
 
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[derive(Clone, Debug)]
 pub struct Direction<T> {
     pub north: T,
     pub south: T,

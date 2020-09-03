@@ -402,6 +402,7 @@ fn h2_diff() {
 }
 
 #[derive(Copy, Clone, Debug)]
+#[cfg_attr(feature = "serde1", derive(Serialize, Deserialize))]
 pub struct Vortice {
     pub x0: Float,
     pub y0: Float,
@@ -409,7 +410,11 @@ pub struct Vortice {
     pub eps: Float,
 }
 
+#[cfg(feature = "serde1")]
+use serde::{Deserialize, Serialize};
+
 #[derive(Clone, Debug)]
+#[cfg_attr(feature = "serde1", derive(Serialize, Deserialize))]
 pub struct VortexParameters {
     pub vortices: ArrayVec<[Vortice; 5]>,
     pub mach: Float,
