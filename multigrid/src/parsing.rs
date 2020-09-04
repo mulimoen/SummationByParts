@@ -107,6 +107,14 @@ pub struct Interpolate {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct Multi {
+    #[serde(alias = "neighbor")]
+    neighbour: String,
+    start: usize,
+    end: usize,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum BoundaryType {
     This,
@@ -114,6 +122,7 @@ pub enum BoundaryType {
     #[serde(alias = "neighbor")]
     Neighbour(String),
     Vortex,
+    Multi(Vec<Multi>),
 }
 
 pub type BoundaryDescriptors = sbp::utils::Direction<Option<BoundaryType>>;
@@ -267,6 +276,18 @@ impl Configuration {
                             euler::BoundaryCharacteristic::Interpolate(
                                 j,
                                 inp.operator.unwrap().into(),
+                            )
+                        }
+                        Some(BoundaryType::Multi(multi)) => {
+                            euler::BoundaryCharacteristic::MultiGrid(
+                                multi
+                                    .iter()
+                                    .map(|m| {
+                                        let ineighbour =
+                                            self.grids.get_index_of(&m.neighbour).unwrap();
+                                        (ineighbour, m.start, m.end)
+                                    })
+                                    .collect(),
                             )
                         }
                     })
@@ -430,6 +451,35 @@ fn output_configuration() {
                     neighbour: "name_of_grid".to_string(),
                     operator: Some(InterpolationOperator::NineH2),
                 })),
+            }),
+            x: None,
+            y: None,
+            operators: None,
+        },
+    );
+    grids.insert(
+        "boundary_conditions_multigrid".to_string(),
+        GridConfig {
+            boundary_conditions: Some(BoundaryDescriptors {
+                north: Some(BoundaryType::Multi(vec![Multi {
+                    neighbour: "name_of_grid".to_string(),
+                    start: 4,
+                    end: 7,
+                }])),
+                south: Some(BoundaryType::Multi(vec![
+                    Multi {
+                        neighbour: "name_of_grid".to_string(),
+                        start: 4,
+                        end: 7,
+                    },
+                    Multi {
+                        neighbour: "name_of_grid".to_string(),
+                        start: 41,
+                        end: 912,
+                    },
+                ])),
+                east: None,
+                west: None,
             }),
             x: None,
             y: None,

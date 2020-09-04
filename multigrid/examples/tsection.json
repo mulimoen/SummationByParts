@@ -4,45 +4,46 @@
             "operators": {
                 "xi": "upwind9",
                 "eta": "upwind9"
-            }
-        },
-        "grid0": {
-            "x": "linspace:-5:5:101",
-            "y": "linspace:0:5:50",
+            },
             "boundary_conditions": {
-                "south": "multi:grid1(0,61):grid2(0,41)",
+                "south": "vortex",
                 "north": "vortex",
                 "east": "vortex",
                 "west": "vortex"
             }
         },
-        "grid1": {
-            "x": "linspace:-5:1:61",
-            "y": "linspace:-5:0:50",
+        "grid0": {
+            "x": { "linspace": { "start": -5, "end": 5, "steps": 101 } },
+            "y": { "linspace": { "start": 0, "end": 5, "steps": 50 } },
             "boundary_conditions": {
-                "south": "vortex",
-                "north": "multi:grid0(0,61)",
-                "east": "grid2",
-                "west": "vortex"
+                "south": { "multi": [{"neighbour": "grid1", "start": 0, "end": 61}, {"neighbour": "grid2", "start": 0, "end": 41}] }
+            }
+        },
+        "grid1": {
+            "x": { "linspace": { "start": -5, "end": 1, "steps": 61 } },
+            "y": { "linspace": { "start": -5, "end": 0, "steps": 50 } },
+            "boundary_conditions": {
+                "north": { "multi": [{"neighbour": "grid0", "start": 0, "end": 61}] },
+                "east": { "neighbour": "grid2" }
             }
         },
         "grid2": {
-            "x": "linspace:1:5:41",
-            "y": "linspace:-5:0:50",
+            "x": { "linspace": { "start": 1, "end": 5, "steps": 41 } },
+            "y": { "linspace": { "start": -5, "end": 0, "steps": 50 } },
             "boundary_conditions": {
-                "south": "vortex",
-                "north": "multi:grid0(60,101)",
-                "east": "vortex",
-                "west": "grid1"
+                "north": { "multi": [{"neighbour": "grid0", "start": 60, "end": 101}] },
+                "west": { "neighbour": "grid1" }
             }
         }
     },
     "integration_time": 2.0,
     "vortex": {
-        "x0": 0.0,
-        "y0": 0.0,
-        "mach": 0.5,
-        "rstar": 0.5,
-        "eps": 1.0
+        "vortices": [{
+            "x0": 0.0,
+            "y0": 0.0,
+            "rstar": 0.5,
+            "eps": 1.0
+        }],
+        "mach": 0.5
     }
 }
