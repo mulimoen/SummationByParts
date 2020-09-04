@@ -45,6 +45,25 @@ impl<T> Direction<T> {
             east: f(self.east),
         }
     }
+    pub fn zip<U>(self, other: Direction<U>) -> Direction<(T, U)> {
+        Direction {
+            north: (self.north, other.north),
+            south: (self.south, other.south),
+            west: (self.west, other.west),
+            east: (self.east, other.east),
+        }
+    }
+}
+
+impl<T> Direction<Option<T>> {
+    pub fn unwrap_or(self, other: Direction<T>) -> Direction<T> {
+        Direction {
+            north: self.north.unwrap_or(other.north),
+            south: self.south.unwrap_or(other.south),
+            west: self.west.unwrap_or(other.west),
+            east: self.east.unwrap_or(other.east),
+        }
+    }
 }
 
 impl<T> Direction<T> {

@@ -233,9 +233,12 @@ impl Configuration {
                     (op::Upwind9, op::Upwind9h2) => {
                         Right(Box::new((&Upwind9, &Upwind9h2)) as Box<dyn UpwindOperator2d>)
                     }
+                    (op::Upwind9h2, op::Upwind9) => {
+                        Right(Box::new((&Upwind9h2, &Upwind9)) as Box<dyn UpwindOperator2d>)
+                    }
                     (op::Sbp4, op::Sbp4) => Left(Box::new(SBP4) as Box<dyn SbpOperator2d>),
                     (op::Sbp8, op::Sbp8) => Left(Box::new(SBP8) as Box<dyn SbpOperator2d>),
-                    _ => todo!(),
+                    _ => todo!("Combination {:?}, {:?} not implemented", eta, xi),
                 }
             })
             .collect();
@@ -244,9 +247,12 @@ impl Configuration {
             .iter()
             .enumerate()
             .map(|(i, (_name, g))| {
+                let default_bc = default.boundary_conditions.clone().unwrap_or_default();
                 g.boundary_conditions
                     .clone()
-                    .unwrap_or_else(|| default.boundary_conditions.clone().unwrap_or_default())
+                    .unwrap_or_default()
+                    .zip(default_bc)
+                    .map(|(bc, fallback)| bc.or(fallback))
                     .map(|bc| match bc {
                         None | Some(BoundaryType::Vortex) => {
                             euler::BoundaryCharacteristic::Vortex(self.vortex.clone())
