@@ -4,26 +4,26 @@
             "operators": {
                 "xi": "upwind9",
                 "eta": "upwind9"
+            },
+            "boundary_conditions": {
+                "south": "vortex",
+                "north": "vortex",
+                "east": "vortex",
+                "west": "vortex"
             }
         },
         "grid0": {
             "x": { "linspace": { "start": -5, "end": 5, "steps": 50 } },
             "y": { "linspace": { "start": 0, "end": 5, "steps": 25 } },
             "boundary_conditions": {
-                "south": {"interpolate": { "neighbour": "grid1", "operator": "9"}},
-                "north": "vortex",
-                "east": "vortex",
-                "west": "vortex"
+                "south": {"interpolate": { "neighbour": "grid1", "operator": "9"}}
             }
         },
         "grid1": {
             "x": { "linspace": { "start": -5, "end": 5, "steps": 99 } },
             "y": { "linspace": { "start": -5, "end": 0, "steps": 50 } },
             "boundary_conditions": {
-                "south": "vortex",
-                "north": {"interpolate": { "neighbour": "grid0", "operator": "9"}},
-                "east": "vortex",
-                "west": "vortex"
+                "north": {"interpolate": { "neighbour": "grid0", "operator": "9"}}
             }
         }
     },

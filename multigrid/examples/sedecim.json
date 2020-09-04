@@ -1,172 +1,180 @@
 {
     "grids": {
+        "default": {
+            "operators": {
+                "xi": "upwind9",
+                "eta": "upwind9"
+            }
+        },
         "grid00": {
-            "x": "linspace:-5:-2.5:128",
-            "y": "linspace:2.5:5:128",
+            "x": { "linspace": { "start": -5, "end": -2.5, "steps": 128 } },
+            "y": { "linspace": { "start": 2.5, "end": 5, "steps": 128 } },
             "boundary_conditions": {
-                "south": "grid01",
-                "north": "grid11",
-                "east": "grid03",
-                "west": "grid33"
+                "south": {"neighbour": "grid01"},
+                "north": {"neighbour": "grid11"},
+                "east": {"neighbour": "grid03"},
+                "west": {"neighbour": "grid33"}
             }
         },
         "grid01": {
-            "x": "linspace:-5:-2.5:128",
-            "y": "linspace:0:2.5:128",
+            "x": { "linspace": { "start": -5, "end": -2.5, "steps": 128 } },
+            "y": { "linspace": { "start": 0, "end": 2.5, "steps": 128 } },
             "boundary_conditions": {
-                "south": "grid10",
-                "north": "grid00",
-                "east": "grid02",
-                "west": "grid32"
+                "south": {"neighbour": "grid10"},
+                "north": {"neighbour": "grid00"},
+                "east": {"neighbour": "grid02"},
+                "west": {"neighbour": "grid32"}
             }
         },
         "grid02": {
-            "x": "linspace:-2.5:0:128",
-            "y": "linspace:0:2.5:128",
+            "x": { "linspace": { "start": -2.5, "end": 0, "steps": 128 } },
+            "y": { "linspace": { "start": 0, "end": 2.5, "steps": 128 } },
             "boundary_conditions": {
-                "south": "grid13",
-                "north": "grid03",
-                "east": "grid31",
-                "west": "grid01"
+                "south": {"neighbour": "grid13"},
+                "north": {"neighbour": "grid03"},
+                "east": {"neighbour": "grid31"},
+                "west": {"neighbour": "grid01"}
             }
         },
         "grid03": {
-            "x": "linspace:-2.5:0:128",
-            "y": "linspace:2.5:5:128",
+            "x": { "linspace": { "start": -2.5, "end": 0, "steps": 128 } },
+            "y": { "linspace": { "start": 2.5, "end": 5, "steps": 128 } },
             "boundary_conditions": {
-                "south": "grid02",
-                "north": "grid12",
-                "east": "grid30",
-                "west": "grid00"
+                "south": {"neighbour": "grid02"},
+                "north": {"neighbour": "grid12"},
+                "east": {"neighbour": "grid30"},
+                "west": {"neighbour": "grid00"}
             }
         },
         "grid10": {
-            "x": "linspace:-5:-2.5:128",
-            "y": "linspace:-2.5:0:128",
+            "x": { "linspace": { "start": -5, "end": -2.5, "steps": 128 } },
+            "y": { "linspace": { "start": -2.5, "end": 0, "steps": 128 } },
             "boundary_conditions": {
-                "south": "grid11",
-                "north": "grid01",
-                "east": "grid13",
-                "west": "grid23"
+                "south": {"neighbour": "grid11"},
+                "north": {"neighbour": "grid01"},
+                "east": {"neighbour": "grid13"},
+                "west": {"neighbour": "grid23"}
             }
         },
         "grid11": {
-            "x": "linspace:-5:-2.5:128",
-            "y": "linspace:-5:-2.5:128",
+            "x": { "linspace": { "start": -5, "end": -2.5, "steps": 128 } },
+            "y": { "linspace": { "start": -5, "end": -2.5, "steps": 128 } },
             "boundary_conditions": {
-                "south": "grid00",
-                "north": "grid10",
-                "east": "grid12",
-                "west": "grid22"
+                "south": {"neighbour": "grid00"},
+                "north": {"neighbour": "grid10"},
+                "east": {"neighbour": "grid12"},
+                "west": {"neighbour": "grid22"}
             }
         },
         "grid12": {
-            "x": "linspace:-2.5:0:128",
-            "y": "linspace:-5:-2.5:128",
+            "x": { "linspace": { "start": -2.5, "end": 0, "steps": 128 } },
+            "y": { "linspace": { "start": -5, "end": -2.5, "steps": 128 } },
             "boundary_conditions": {
-                "south": "grid03",
-                "north": "grid13",
-                "east": "grid21",
-                "west": "grid11"
+                "south": {"neighbour": "grid03"},
+                "north": {"neighbour": "grid13"},
+                "east": {"neighbour": "grid21"},
+                "west": {"neighbour": "grid11"}
             }
         },
         "grid13": {
-            "x": "linspace:-2.5:0:128",
-            "y": "linspace:-2.5:0:128",
+            "x": { "linspace": { "start": -2.5, "end": 0, "steps": 128 } },
+            "y": { "linspace": { "start": -2.5, "end": 0, "steps": 128 } },
             "boundary_conditions": {
-                "south": "grid12",
-                "north": "grid02",
-                "east": "grid20",
-                "west": "grid10"
+                "south": {"neighbour": "grid12"},
+                "north": {"neighbour": "grid02"},
+                "east": {"neighbour": "grid20"},
+                "west": {"neighbour": "grid10"}
             }
         },
         "grid20": {
-            "x": "linspace:0:2.5:128",
-            "y": "linspace:-2.5:0:128",
+            "x": { "linspace": { "start": 0, "end": 2.5, "steps": 128 } },
+            "y": { "linspace": { "start": -2.5, "end": 0, "steps": 128 } },
             "boundary_conditions": {
-                "south": "grid21",
-                "north": "grid31",
-                "east": "grid23",
-                "west": "grid13"
+                "south": {"neighbour": "grid21"},
+                "north": {"neighbour": "grid31"},
+                "east": {"neighbour": "grid23"},
+                "west": {"neighbour": "grid13"}
             }
         },
         "grid21": {
-            "x": "linspace:0:2.5:128",
-            "y": "linspace:-5:-2.5:128",
+            "x": { "linspace": { "start": 0, "end": 2.5, "steps": 128 } },
+            "y": { "linspace": { "start": -5, "end": -2.5, "steps": 128 } },
             "boundary_conditions": {
-                "south": "grid30",
-                "north": "grid20",
-                "east": "grid22",
-                "west": "grid12"
+                "south": {"neighbour": "grid30"},
+                "north": {"neighbour": "grid20"},
+                "east": {"neighbour": "grid22"},
+                "west": {"neighbour": "grid12"}
             }
         },
         "grid22": {
-            "x": "linspace:2.5:5:128",
-            "y": "linspace:-5:-2.5:128",
+            "x": { "linspace": { "start": 2.5, "end": 5, "steps": 128 } },
+            "y": { "linspace": { "start": -5, "end": -2.5, "steps": 128 } },
             "boundary_conditions": {
-                "south": "grid33",
-                "north": "grid23",
-                "east": "grid11",
-                "west": "grid21"
+                "south": {"neighbour": "grid33"},
+                "north": {"neighbour": "grid23"},
+                "east": {"neighbour": "grid11"},
+                "west": {"neighbour": "grid21"}
             }
         },
         "grid23": {
-            "x": "linspace:2.5:5:128",
-            "y": "linspace:-2.5:0:128",
+            "x": { "linspace": { "start": 2.5, "end": 5, "steps": 128 } },
+            "y": { "linspace": { "start": -2.5, "end": 0, "steps": 128 } },
             "boundary_conditions": {
-                "south": "grid22",
-                "north": "grid32",
-                "east": "grid10",
-                "west": "grid20"
+                "south": {"neighbour": "grid22"},
+                "north": {"neighbour": "grid32"},
+                "east": {"neighbour": "grid10"},
+                "west": {"neighbour": "grid20"}
             }
         },
         "grid30": {
-            "x": "linspace:0:2.5:128",
-            "y": "linspace:2.5:5:128",
+            "x": { "linspace": { "start": 0, "end": 2.5, "steps": 128 } },
+            "y": { "linspace": { "start": 2.5, "end": 5, "steps": 128 } },
             "boundary_conditions": {
-                "south": "grid31",
-                "north": "grid21",
-                "east": "grid33",
-                "west": "grid03"
+                "south": {"neighbour": "grid31"},
+                "north": {"neighbour": "grid21"},
+                "east": {"neighbour": "grid33"},
+                "west": {"neighbour": "grid03"}
             }
         },
         "grid31": {
-            "x": "linspace:0:2.5:128",
-            "y": "linspace:0:2.5:128",
+            "x": { "linspace": { "start": 0, "end": 2.5, "steps": 128 } },
+            "y": { "linspace": { "start": 0, "end": 2.5, "steps": 128 } },
             "boundary_conditions": {
-                "south": "grid20",
-                "north": "grid30",
-                "east": "grid32",
-                "west": "grid02"
+                "south": {"neighbour": "grid20"},
+                "north": {"neighbour": "grid30"},
+                "east": {"neighbour": "grid32"},
+                "west": {"neighbour": "grid02"}
             }
         },
         "grid32": {
-            "x": "linspace:2.5:5:128",
-            "y": "linspace:0:2.5:128",
+            "x": { "linspace": { "start": 2.5, "end": 5, "steps": 128 } },
+            "y": { "linspace": { "start": 0, "end": 2.5, "steps": 128 } },
             "boundary_conditions": {
-                "south": "grid23",
-                "north": "grid33",
-                "east": "grid01",
-                "west": "grid31"
+                "south": {"neighbour": "grid23"},
+                "north": {"neighbour": "grid33"},
+                "east": {"neighbour": "grid01"},
+                "west": {"neighbour": "grid31"}
             }
         },
         "grid33": {
-            "x": "linspace:2.5:5:128",
-            "y": "linspace:2.5:5:128",
+            "x": { "linspace": { "start": 2.5, "end": 5, "steps": 128 } },
+            "y": { "linspace": { "start": 2.5, "end": 5, "steps": 128 } },
             "boundary_conditions": {
-                "south": "grid32",
-                "north": "grid22",
-                "east": "grid00",
-                "west": "grid30"
+                "south": {"neighbour": "grid32"},
+                "north": {"neighbour": "grid22"},
+                "east": {"neighbour": "grid00"},
+                "west": {"neighbour": "grid30"}
             }
         }
     },
     "integration_time": 2.0,
     "vortex": {
-        "x0": -1.0,
-        "y0": 0.0,
-        "mach": 0.5,
-        "rstar": 0.5,
-        "eps": 1.0
+        "vortices": [{
+            "x0": -1.0,
+            "y0": 0.0,
+            "rstar": 0.5,
+            "eps": 1.0
+        }],
+        "mach": 0.5
     }
 }

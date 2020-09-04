@@ -4,65 +4,65 @@
             "operators": {
                 "xi": "upwind9",
                 "eta": "upwind9"
+            },
+            "boundary_conditions": {
+                "south": "vortex",
+                "north": "vortex",
+                "east": "vortex",
+                "west": "vortex"
             }
         },
         "grid0": {
-            "x": "linspace:h2:-5:0:50",
-            "y": "linspace:h2:0:5:50",
+            "x": { "linspace": { "start": -5, "end": 0, "steps": 50, "h2": true } },
+            "y": { "linspace": { "start": 0, "end": 5, "steps": 50, "h2": true } },
             "operators": {
                 "xi": "upwind9h2",
                 "eta": "upwind9h2"
             },
             "boundary_conditions": {
-                "south": "interpolate:9h2:grid1",
-                "north": "vortex",
-                "east": "grid3",
-                "west": "vortex"
+                "south": { "interpolate": { "neighbour": "grid1", "operator": "9h2" } },
+                "east": { "neighbour": "grid3" }
             }
         },
         "grid1": {
-            "x": "linspace:h2:-5:0:98",
-            "y": "linspace:-5:0:100",
+            "x": { "linspace": { "start": -5, "end": 0, "steps": 98, "h2": true } },
+            "y": { "linspace": { "start": -5, "end": 0, "steps": 100 } },
             "operators": {
                 "xi": "upwind9h2"
             },
             "boundary_conditions": {
-                "south": "vortex",
-                "north": "interpolate:9h2:grid0",
-                "east": "grid2",
-                "west": "vortex"
+                "north": { "interpolate": { "neighbour": "grid0", "operator": "9h2" } },
+                "east": { "neighbour": "grid2" }
             }
         },
         "grid2": {
-            "x": "linspace:0:5:99",
-            "y": "linspace:-5:0:100",
+            "x": { "linspace": { "start": 0, "end": 5, "steps": 99 } },
+            "y": { "linspace": { "start": -5, "end": 0, "steps": 100 } },
             "boundary_conditions": {
-                "south": "vortex",
-                "north": "interpolate:9:grid3",
-                "east": "vortex",
-                "west": "grid1"
+                "north": { "interpolate": { "neighbour": "grid3", "operator": "9" } },
+                "west": { "neighbour": "grid1" }
             }
         },
         "grid3": {
-            "x": "linspace:0:5:50",
-            "y": "linspace:h2:0:5:50",
+            "x": { "linspace": { "start": 0, "end": 5, "steps": 50 } },
+            "y": { "linspace": { "start": 0, "end": 5, "steps": 50, "h2": true } },
             "operators": {
                 "eta": "upwind9h2"
             },
             "boundary_conditions": {
-                "south": "interpolate:9:grid2",
-                "north": "vortex",
-                "east": "vortex",
-                "west": "grid0"
+                "south": { "interpolate": { "neighbour": "grid2", "operator": "9" } },
+                "west": { "neighbour": "grid0" }
             }
         }
     },
     "integration_time": 2.0,
     "vortex": {
-        "x0": -1.0,
-        "y0": 0.0,
-        "mach": 0.5,
-        "rstar": 0.5,
-        "eps": 1.0
+        "vortices": [{
+            "x0": -1.0,
+            "y0": 0.0,
+            "rstar": 0.5,
+            "eps": 1.0
+        }],
+        "mach": 0.5
     }
 }
