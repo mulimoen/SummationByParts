@@ -370,7 +370,7 @@ fn diff_op_col_simd(
                     for (iprev, &bl) in bl.iter().enumerate() {
                         f = index_to_simd(iprev).mul_adde(SimdT::splat(bl), f);
                     }
-                    f = f * idx;
+                    f *= idx;
 
                     unsafe {
                         f.write_to_slice_unaligned(std::slice::from_raw_parts_mut(
@@ -408,7 +408,7 @@ fn diff_op_col_simd(
                         let offset = ifut - half_diag_width + id;
                         f = index_to_simd(offset).mul_adde(SimdT::splat(d), f);
                     }
-                    f = f * idx;
+                    f *= idx;
                     unsafe {
                         // puts simd along stride 1, j never goes past end of slice
                         f.write_to_slice_unaligned(std::slice::from_raw_parts_mut(

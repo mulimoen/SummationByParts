@@ -421,6 +421,7 @@ pub struct VortexParameters {
 }
 
 #[allow(clippy::too_many_arguments)]
+#[allow(clippy::many_single_char_names)]
 pub fn vortex(
     rho: ArrayViewMut1<Float>,
     rhou: ArrayViewMut1<Float>,

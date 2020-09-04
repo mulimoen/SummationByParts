@@ -154,7 +154,7 @@ pub struct RuntimeConfiguration {
 }
 
 impl Configuration {
-    pub fn to_runtime(mut self) -> RuntimeConfiguration {
+    pub fn into_runtime(mut self) -> RuntimeConfiguration {
         let default = self.grids.shift_remove("default").unwrap_or_default();
         let names = self.grids.keys().cloned().collect();
         let grids = self
