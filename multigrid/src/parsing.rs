@@ -210,16 +210,16 @@ impl Configuration {
             .map(|(name, g)| {
                 let default_operators = default.operators.unwrap_or_default();
                 let operators = g.operators.unwrap_or_default();
-                let xi = operators.xi.unwrap_or(
+                let xi = operators.xi.unwrap_or_else(|| {
                     default_operators
                         .xi
-                        .unwrap_or_else(|| panic!("No xi operator found for grid: {}", name)),
-                );
-                let eta = operators.eta.unwrap_or(
+                        .unwrap_or_else(|| panic!("No xi operator found for grid: {}", name))
+                });
+                let eta = operators.eta.unwrap_or_else(|| {
                     default_operators
                         .eta
-                        .unwrap_or_else(|| panic!("No eta operator found for grid: {}", name)),
-                );
+                        .unwrap_or_else(|| panic!("No eta operator found for grid: {}", name))
+                });
 
                 use sbp::operators::*;
                 use Operator as op;
