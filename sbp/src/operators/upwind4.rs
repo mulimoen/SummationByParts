@@ -388,7 +388,7 @@ impl<UO: UpwindOperator1d> UpwindOperator2d for (&UO, &Upwind4) {
             ([1, _], [1, _]) if prev.len_of(Axis(0)) % SimdT::lanes() == 0 => {
                 diss_simd_col(prev, fut);
             }
-            ([1, _], [1, _]) => diff_op_row(
+            ([1, _], [1, _]) => diff_op_col(
                 Upwind4::DISS_BLOCK,
                 Upwind4::DISS_DIAG,
                 super::Symmetry::Symmetric,
