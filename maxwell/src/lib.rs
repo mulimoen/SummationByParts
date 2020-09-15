@@ -104,7 +104,7 @@ impl<SBP: SbpOperator2d> System<SBP> {
         let metrics = grid.metrics(&op).unwrap();
 
         #[cfg(feature = "sparse")]
-        let rhs = sparse::rhs_matrix(&op, ny, nx);
+        let rhs = sparse::rhs_matrix(&op, &grid).rhs;
 
         #[cfg(feature = "sparse")]
         let lhs = sparse::implicit_matrix(rhs.view(), 0.2 / std::cmp::max(ny, nx) as Float);
@@ -160,6 +160,7 @@ impl<SBP: SbpOperator2d> System<SBP> {
     #[cfg(feature = "sparse")]
     pub fn advance_sparse(&mut self, dt: Float) {
         let rhs = self.rhs.view();
+        //let lhs = self.explicit.view();
         let rhs_f = |next: &mut Field, now: &Field, _t: Float| {
             next.fill(0.0);
             sprs::prod::mul_acc_mat_vec_csr(
@@ -167,6 +168,7 @@ impl<SBP: SbpOperator2d> System<SBP> {
                 now.as_slice().unwrap(),
                 next.as_slice_mut().unwrap(),
             );
+            // sprs::lingalg::dsolve(..)
         };
         sbp::integrate::integrate::<sbp::integrate::Rk4, _, _>(
             rhs_f,

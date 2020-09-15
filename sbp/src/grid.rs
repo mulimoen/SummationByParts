@@ -114,6 +114,12 @@ impl Metrics {
             detj_deta_dy,
         })
     }
+    pub fn nx(&self) -> usize {
+        self.detj.shape()[1]
+    }
+    pub fn ny(&self) -> usize {
+        self.detj.shape()[0]
+    }
 }
 
 impl Metrics {
