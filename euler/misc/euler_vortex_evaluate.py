@@ -1,3 +1,4 @@
+#! /usr/bin/env python3
 import numpy as np
 
 rstar = 0.5  # Fixed radius
