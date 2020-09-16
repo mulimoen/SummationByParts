@@ -1,8 +1,11 @@
 use super::operators::SbpOperator2d;
 use crate::Float;
-use ndarray::{Array2, ArrayView2};
+use ndarray::{Array2, ArrayView2, ArrayViewMut2};
+#[cfg(feature = "serde1")]
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde1", derive(Serialize, Deserialize))]
 pub struct Grid {
     pub(crate) x: Array2<Float>,
     pub(crate) y: Array2<Float>,
@@ -30,11 +33,20 @@ impl Grid {
         self.x.shape()[0]
     }
 
-    pub fn x(&self) -> ndarray::ArrayView2<Float> {
+    pub fn x(&self) -> ArrayView2<Float> {
         self.x.view()
     }
-    pub fn y(&self) -> ndarray::ArrayView2<Float> {
+    pub fn x_mut(&mut self) -> ArrayViewMut2<Float> {
+        self.x.view_mut()
+    }
+    pub fn y(&self) -> ArrayView2<Float> {
         self.y.view()
+    }
+    pub fn y_mut(&mut self) -> ArrayViewMut2<Float> {
+        self.y.view_mut()
+    }
+    pub fn components(&mut self) -> (ArrayViewMut2<Float>, ArrayViewMut2<Float>) {
+        (self.x.view_mut(), self.y.view_mut())
     }
 
     pub fn metrics(&self, op: &dyn SbpOperator2d) -> Result<Metrics, ndarray::ShapeError> {
