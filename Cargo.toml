@@ -6,6 +6,7 @@ members = [
     "euler",
     "maxwell",
     "shallow_water",
+    "gridgeneration",
 ]
 
 default-members = ["sbp", "euler", "maxwell", "shallow_water"]
