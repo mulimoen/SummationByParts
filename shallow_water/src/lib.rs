@@ -298,7 +298,7 @@ impl System {
             }
             log::trace!("Iteration complete");
         };
-        integrate::integrate::<integrate::Rk4, _, _>(
+        integrate::integrate::<integrate::Rk4, _, _, _>(
             rhs,
             &self.fnow,
             &mut self.fnext,

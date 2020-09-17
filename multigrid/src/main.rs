@@ -115,7 +115,7 @@ impl System {
             .iter_mut()
             .map(|k| k.as_mut_slice())
             .collect::<Vec<_>>();
-        sbp::integrate::integrate_multigrid::<sbp::integrate::Rk4, _, _>(
+        sbp::integrate::integrate_multigrid::<sbp::integrate::Rk4, _, _, _>(
             rhs,
             &self.fnow,
             &mut self.fnext,

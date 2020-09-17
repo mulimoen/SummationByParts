@@ -1,5 +1,5 @@
 use super::Float;
-use ndarray::{ArrayView3, ArrayViewMut3};
+use ndarray::{ArrayView, ArrayViewMut};
 
 pub trait ButcherTableau {
     const S: usize = Self::B.len();
@@ -137,7 +137,7 @@ impl EmbeddedButcherTableau for BogackiShampine {
 }
 
 #[allow(clippy::too_many_arguments)]
-pub fn integrate<BTableau: ButcherTableau, F, RHS>(
+pub fn integrate<BTableau: ButcherTableau, F, RHS, D>(
     mut rhs: RHS,
     prev: &F,
     fut: &mut F,
@@ -145,8 +145,9 @@ pub fn integrate<BTableau: ButcherTableau, F, RHS>(
     dt: Float,
     k: &mut [F],
 ) where
-    for<'r> &'r F: std::convert::Into<ArrayView3<'r, Float>>,
-    for<'r> &'r mut F: std::convert::Into<ArrayViewMut3<'r, Float>>,
+    for<'r> &'r F: std::convert::Into<ArrayView<'r, Float, D>>,
+    for<'r> &'r mut F: std::convert::Into<ArrayViewMut<'r, Float, D>>,
+    D: ndarray::Dimension,
     RHS: FnMut(&mut F, &F, Float),
 {
     assert_eq!(prev.into().shape(), fut.into().shape());
@@ -190,7 +191,7 @@ pub fn integrate<BTableau: ButcherTableau, F, RHS>(
 }
 
 #[allow(clippy::too_many_arguments)]
-pub fn integrate_embedded_rk<BTableau: EmbeddedButcherTableau, F, RHS>(
+pub fn integrate_embedded_rk<BTableau: EmbeddedButcherTableau, F, RHS, D>(
     rhs: RHS,
     prev: &F,
     fut: &mut F,
@@ -199,11 +200,12 @@ pub fn integrate_embedded_rk<BTableau: EmbeddedButcherTableau, F, RHS>(
     dt: Float,
     k: &mut [F],
 ) where
-    for<'r> &'r F: std::convert::Into<ArrayView3<'r, Float>>,
-    for<'r> &'r mut F: std::convert::Into<ArrayViewMut3<'r, Float>>,
+    for<'r> &'r F: std::convert::Into<ArrayView<'r, Float, D>>,
+    for<'r> &'r mut F: std::convert::Into<ArrayViewMut<'r, Float, D>>,
     RHS: FnMut(&mut F, &F, Float),
+    D: ndarray::Dimension,
 {
-    integrate::<BTableau, F, RHS>(rhs, prev, fut, time, dt, k);
+    integrate::<BTableau, F, RHS, D>(rhs, prev, fut, time, dt, k);
     fut2.into().assign(&prev.into());
     for (&b, k) in BTableau::BSTAR.iter().zip(k.iter()) {
         if b == 0.0 {
@@ -215,7 +217,7 @@ pub fn integrate_embedded_rk<BTableau: EmbeddedButcherTableau, F, RHS>(
 
 #[cfg(feature = "rayon")]
 #[allow(clippy::too_many_arguments)]
-pub fn integrate_multigrid<BTableau: ButcherTableau, F, RHS>(
+pub fn integrate_multigrid<BTableau: ButcherTableau, F, RHS, D>(
     mut rhs: RHS,
     prev: &[F],
     fut: &mut [F],
@@ -225,10 +227,11 @@ pub fn integrate_multigrid<BTableau: ButcherTableau, F, RHS>(
 
     pool: &rayon::ThreadPool,
 ) where
-    for<'r> &'r F: std::convert::Into<ArrayView3<'r, Float>>,
-    for<'r> &'r mut F: std::convert::Into<ArrayViewMut3<'r, Float>>,
+    for<'r> &'r F: std::convert::Into<ArrayView<'r, Float, D>>,
+    for<'r> &'r mut F: std::convert::Into<ArrayViewMut<'r, Float, D>>,
     RHS: FnMut(&mut [F], &[F], Float),
     F: Send + Sync,
+    D: ndarray::Dimension,
 {
     for i in 0.. {
         let simtime;

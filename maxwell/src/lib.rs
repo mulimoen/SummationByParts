@@ -147,7 +147,7 @@ impl<SBP: SbpOperator2d> System<SBP> {
             RHS(op, fut, prev, grid, metrics, wb);
         };
         let mut _time = 0.0;
-        integrate::integrate::<integrate::Rk4, _, _>(
+        integrate::integrate::<integrate::Rk4, _, _, _>(
             rhs_adaptor,
             &self.sys.0,
             &mut self.sys.1,
@@ -170,7 +170,7 @@ impl<SBP: SbpOperator2d> System<SBP> {
             );
             // sprs::lingalg::dsolve(..)
         };
-        sbp::integrate::integrate::<sbp::integrate::Rk4, _, _>(
+        sbp::integrate::integrate::<sbp::integrate::Rk4, _, _, _>(
             rhs_f,
             &self.sys.0,
             &mut self.sys.1,
@@ -207,7 +207,7 @@ impl<UO: UpwindOperator2d> System<UO> {
             RHS_upwind(op, fut, prev, grid, metrics, wb);
         };
         let mut _time = 0.0;
-        integrate::integrate::<integrate::Rk4, _, _>(
+        integrate::integrate::<integrate::Rk4, _, _, _>(
             rhs_adaptor,
             &self.sys.0,
             &mut self.sys.1,

@@ -57,7 +57,7 @@ impl<SBP: SbpOperator2d> System<SBP> {
             let boundaries = boundary_extractor(y, grid, &bc);
             RHS_trad(op, k, y, metrics, &boundaries, wb)
         };
-        integrate::integrate::<integrate::Rk4, _, _>(
+        integrate::integrate::<integrate::Rk4, _, _, _>(
             rhs_trad,
             &self.sys.0,
             &mut self.sys.1,
@@ -131,7 +131,7 @@ impl<UO: UpwindOperator2d> System<UO> {
             let boundaries = boundary_extractor(y, grid, &bc);
             RHS_upwind(op, k, y, metrics, &boundaries, wb)
         };
-        integrate::integrate::<integrate::Rk4, _, _>(
+        integrate::integrate::<integrate::Rk4, _, _, _>(
             rhs_upwind,
             &self.sys.0,
             &mut self.sys.1,
@@ -159,7 +159,7 @@ impl<UO: UpwindOperator2d> System<UO> {
         let mut time = 0.0;
         let mut sys2 = self.sys.0.clone();
         while time < dt {
-            integrate::integrate_embedded_rk::<integrate::BogackiShampine, _, _>(
+            integrate::integrate_embedded_rk::<integrate::BogackiShampine, _, _, _>(
                 &mut rhs_upwind,
                 &self.sys.0,
                 &mut self.sys.1,
