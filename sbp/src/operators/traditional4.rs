@@ -16,10 +16,22 @@ impl SBP4 {
     ];
     #[rustfmt::skip]
     const BLOCK: &'static [&'static [Float]] = &[
-        &[-1.41176470588235e+00, 1.73529411764706e+00, -2.35294117647059e-01, -8.82352941176471e-02],
-        &[-5.00000000000000e-01, 0.00000000000000e+00, 5.00000000000000e-01],
-        &[9.30232558139535e-02, -6.86046511627907e-01, 0.00000000000000e+00, 6.86046511627907e-01, -9.30232558139535e-02],
-        &[3.06122448979592e-02, 0.00000000000000e+00, -6.02040816326531e-01, 0.00000000000000e+00, 6.53061224489796e-01, -8.16326530612245e-02],
+        &[-24.0/17.0, 59.0/34.0, -4.0/17.0, -3.0/34.0],
+        &[-1.0/2.0, 0.0, 1.0/2.0],
+        &[4.0/43.0, -59.0/86.0, 0.0, 59.0/86.0, -4.0/43.0],
+        &[3.0/98.0, 0.0, -59.0/98.0, 0.0, 32.0/49.0, -4.0/49.0]
+    ];
+
+    #[rustfmt::skip]
+    const D2DIAG: &'static [Float] = &[
+        -1.0 / 12.0, 4.0 / 3.0, -5.0 / 2.0, 4.0 / 3.0, -1.0 / 12.0
+    ];
+    #[rustfmt::skip]
+    const D2BLOCK: &'static [&'static [Float]] = &[
+        &[2.0, -5.0, 4.0, -1.0],
+        &[1.0, -2.0, 1.0],
+        &[-4.0/43.0, 59.0/43.0, -110.0/43.0, 59.0/43.0, -4.0/43.0],
+        &[-1.0/49.0, 0.0, 59.0/49.0, -118.0/49.0, 64.0/49.0, -4.0/49.0]
     ];
 }
 
@@ -78,6 +90,24 @@ impl<SBP: SbpOperator1d> SbpOperator2d for (&SBP, &SBP4) {
             }
             _ => unreachable!("Should only be two elements in the strides vectors"),
         }
+    }
+}
+
+impl super::SbpOperator1d2 for SBP4 {
+    fn diff2(&self, prev: ArrayView1<Float>, mut fut: ArrayViewMut1<Float>) {
+        super::diff_op_1d(
+            Self::D2BLOCK,
+            Self::D2DIAG,
+            super::Symmetry::Symmetric,
+            super::OperatorType::Normal,
+            prev,
+            fut.view_mut(),
+        );
+        let hi = (prev.len() - 1) as Float;
+        fut.map_inplace(|x| *x *= hi)
+    }
+    fn d1(&self) -> &[Float] {
+        &[-88.0 / 17.0, 144.0 / 17.0, -72.0 / 17.0, 16.0 / 17.0]
     }
 }
 

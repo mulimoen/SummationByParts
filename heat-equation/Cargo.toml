@@ -1,0 +1,11 @@
+[package]
+name = "heat-equation"
+version = "0.1.0"
+authors = ["Magnus Ulimoen <magnus@ulimoen.dev>"]
+edition = "2018"
+
+
+[dependencies]
+sbp = { path = "../sbp" }
+ndarray = "0.13.1"
+plotters = { version = "0.3.0", default-features = false, features = ["bitmap_gif", "bitmap_backend", "line_series"] }

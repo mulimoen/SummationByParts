@@ -17,6 +17,12 @@ pub trait SbpOperator1d: Send + Sync {
     fn h_matrix(&self, n: usize) -> sprs::CsMat<Float>;
 }
 
+pub trait SbpOperator1d2: SbpOperator1d {
+    fn diff2(&self, prev: ArrayView1<Float>, fut: ArrayViewMut1<Float>);
+    /// Lacks a scaling of 1/h^2
+    fn d1(&self) -> &[Float];
+}
+
 pub trait SbpOperator2d: Send + Sync {
     fn diffxi(&self, prev: ArrayView2<Float>, fut: ArrayViewMut2<Float>);
     fn diffeta(&self, prev: ArrayView2<Float>, fut: ArrayViewMut2<Float>);

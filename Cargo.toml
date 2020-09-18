@@ -7,6 +7,7 @@ members = [
     "maxwell",
     "shallow_water",
     "gridgeneration",
+    "heat-equation",
 ]
 
 default-members = ["sbp", "euler", "maxwell", "shallow_water"]
