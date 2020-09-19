@@ -109,6 +109,41 @@ impl super::SbpOperator1d2 for SBP4 {
     fn d1(&self) -> &[Float] {
         &[-88.0 / 17.0, 144.0 / 17.0, -72.0 / 17.0, 16.0 / 17.0]
     }
+    #[cfg(feature = "sparse")]
+    fn diff2_matrix(&self, n: usize) -> sprs::CsMat<Float> {
+        let mut m = super::sparse_from_block(
+            Self::D2BLOCK,
+            Self::D2DIAG,
+            super::Symmetry::Symmetric,
+            super::OperatorType::Normal,
+            n,
+        );
+        let hi = (n - 1) as Float;
+        m.map_inplace(|v| v * hi);
+        m
+    }
+    #[cfg(feature = "sparse")]
+    fn d1_vec(&self, n: usize, front: bool) -> sprs::CsMat<Float> {
+        let d1 = &[-11.0 / 6.0, 3.0, -3.0 / 2.0, 1.0 / 3.0];
+        assert!(n >= d1.len());
+        let mut d1 = d1.to_vec();
+        let hi = (n - 1) as Float;
+        d1.iter_mut().for_each(|v| *v *= hi);
+
+        if front {
+            sprs::CsMat::new((1, n), vec![0, d1.len()], (0..d1.len()).collect(), d1)
+        } else {
+            // d_x => -d_x when reversed
+            d1.iter_mut().for_each(|v| *v *= -1.0);
+            // Indices are now in reverse order
+            sprs::CsMat::new(
+                (1, n),
+                vec![0, d1.len()],
+                (0..n).rev().take(d1.len()).collect(),
+                d1,
+            )
+        }
+    }
 }
 
 #[test]

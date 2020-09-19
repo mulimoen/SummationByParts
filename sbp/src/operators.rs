@@ -19,8 +19,13 @@ pub trait SbpOperator1d: Send + Sync {
 
 pub trait SbpOperator1d2: SbpOperator1d {
     fn diff2(&self, prev: ArrayView1<Float>, fut: ArrayViewMut1<Float>);
-    /// Lacks a scaling of 1/h^2
+    /// Result of H^-1 * d1, without the 1/h scaling
     fn d1(&self) -> &[Float];
+
+    #[cfg(feature = "sparse")]
+    fn diff2_matrix(&self, n: usize) -> sprs::CsMat<Float>;
+    #[cfg(feature = "sparse")]
+    fn d1_vec(&self, n: usize, front: bool) -> sprs::CsMat<Float>;
 }
 
 pub trait SbpOperator2d: Send + Sync {
