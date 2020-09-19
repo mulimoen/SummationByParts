@@ -81,7 +81,7 @@ pub fn rhs_matrix(op: &dyn SbpOperator2d, grid: &super::Grid) -> Implicit {
         let a00 = if positive {
             &ky * &ky / (2.0 * &r)
         } else {
-            -&ky * &ky / (2.0 * &r)
+            -&ky * ky / (2.0 * &r)
         };
         let a00 = diagonal(a00.as_slice().unwrap());
         let a01 = &ky / 2.0;
@@ -98,7 +98,7 @@ pub fn rhs_matrix(op: &dyn SbpOperator2d, grid: &super::Grid) -> Implicit {
         let a22 = if positive {
             &kx * &kx / (2.0 * &r)
         } else {
-            -&kx * &kx / (2.0 * &r)
+            -&kx * kx / (2.0 * &r)
         };
         let a22 = diagonal(a22.as_slice().unwrap());
 
@@ -248,7 +248,7 @@ pub fn rhs_matrix_with_upwind_dissipation(
         let r = &kx * &kx + &ky * &ky;
         let s00 = &ky * &ky / &r;
         let s00 = diagonal(s00.as_slice().unwrap());
-        let s02 = -&kx * &ky / &r;
+        let s02 = -&kx * ky / &r;
         let s02 = diagonal(s02.as_slice().unwrap());
         let s11 = diagonal(r.as_slice().unwrap());
         let s20 = &s02;

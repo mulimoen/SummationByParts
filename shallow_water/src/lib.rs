@@ -286,6 +286,7 @@ impl System {
 
                     let mut res = [0.0; 3];
                     for j in 0..3 {
+                        #[allow(clippy::needless_range_loop)]
                         for i in 0..3 {
                             res[j] += mat[j][i] * q[i];
                         }
