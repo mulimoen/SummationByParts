@@ -13,6 +13,7 @@ use serde::{Deserialize, Serialize};
 
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Copy, Clone, Debug, Default)]
+/// struct to hold output for four directions
 pub struct Direction<T> {
     pub north: T,
     pub south: T,
@@ -45,6 +46,7 @@ impl<T> Direction<T> {
             east: f(self.east),
         }
     }
+    /// Combines two [`Direction`] into one
     pub fn zip<U>(self, other: Direction<U>) -> Direction<(T, U)> {
         Direction {
             north: (self.north, other.north),
@@ -56,6 +58,8 @@ impl<T> Direction<T> {
 }
 
 impl<T> Direction<Option<T>> {
+    /// Partially unwrap individual components in `self` or replace with
+    /// `other`
     pub fn unwrap_or(self, other: Direction<T>) -> Direction<T> {
         Direction {
             north: self.north.unwrap_or(other.north),
@@ -66,6 +70,7 @@ impl<T> Direction<Option<T>> {
     }
 }
 
+/// Methods for borrowing
 impl<T> Direction<T> {
     pub fn north(&self) -> &T {
         &self.north
@@ -93,6 +98,8 @@ impl<T> Direction<T> {
     }
 }
 
+/// Linearly spaced parameters, apart from the boundaries which
+/// only have a distance of `h/2` from the boundary
 pub fn h2linspace(start: Float, end: Float, n: usize) -> ndarray::Array1<Float> {
     let h = (end - start) / (n - 2) as Float;
     ndarray::Array1::from_shape_fn(n, |i| match i {

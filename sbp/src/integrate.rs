@@ -1,8 +1,22 @@
+//! Integration of explicit PDEs using different Butcher Tableaus
+//!
+//! Integration can be performed on all systems that can be represented
+//! as using a transform into an [`ndarray::ArrayView`] for both the state
+//! and the state difference.
+//!
+//! The integration functions are memory efficient, and relies
+//! on the `k` parameter to hold the system state differences.
+//! This parameter is tied to the Butcher Tableau
+
 use super::Float;
 use ndarray::{ArrayView, ArrayViewMut};
 
+/// The Butcher Tableau, with the state transitions described as
+/// [on wikipedia](https://en.wikipedia.org/wiki/Runge%E2%80%93Kutta_methods#Explicit_Runge%E2%80%93Kutta_methods).
 pub trait ButcherTableau {
+    /// This bound should not be overridden
     const S: usize = Self::B.len();
+    /// Only the lower triangle will be used (explicit integration)
     const A: &'static [&'static [Float]];
     const B: &'static [Float];
     const C: &'static [Float];
@@ -137,6 +151,16 @@ impl EmbeddedButcherTableau for BogackiShampine {
 }
 
 #[allow(clippy::too_many_arguments)]
+/// Integrates using the [`ButcherTableau`] specified. `rhs` should be the result
+/// of the right hand side of $u_t = rhs$
+///
+/// rhs takes the old state and the current time, and outputs the state difference
+/// in the first parameter
+///
+/// Should be called as
+/// ```rust,ignore
+/// integrate::<Rk4, _, _, _, _>(...)
+/// ```
 pub fn integrate<BTableau: ButcherTableau, F, RHS, D>(
     mut rhs: RHS,
     prev: &F,
@@ -191,6 +215,10 @@ pub fn integrate<BTableau: ButcherTableau, F, RHS, D>(
 }
 
 #[allow(clippy::too_many_arguments)]
+/// Integrate using an [`EmbeddedButcherTableau`], else similar to [`integrate`]
+///
+/// This produces two results, the most accurate result in `fut`, and the less accurate
+/// result in `fut2`. This can be used for convergence testing and adaptive timesteps.
 pub fn integrate_embedded_rk<BTableau: EmbeddedButcherTableau, F, RHS, D>(
     rhs: RHS,
     prev: &F,
@@ -217,6 +245,16 @@ pub fn integrate_embedded_rk<BTableau: EmbeddedButcherTableau, F, RHS, D>(
 
 #[cfg(feature = "rayon")]
 #[allow(clippy::too_many_arguments)]
+/// Integrates a multigrid problem, much the same as [`integrate`],
+/// using a `rayon` threadpool for parallelisation.
+///
+/// note that `rhs` accepts the full system state, and is responsible
+/// for computing the full state difference.
+/// `rhs` can be a mutable closure, so buffers can be used
+/// and mutated inside the closure.
+///
+/// This function requires the `rayon` feature, and is not callable in
+/// a `wasm` context.
 pub fn integrate_multigrid<BTableau: ButcherTableau, F, RHS, D>(
     mut rhs: RHS,
     prev: &[F],

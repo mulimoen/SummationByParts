@@ -4,10 +4,14 @@
 use crate::Float;
 use ndarray::{ArrayView1, ArrayView2, ArrayViewMut1, ArrayViewMut2};
 
+/// One-dimensional Summation By Parts operator
 pub trait SbpOperator1d: Send + Sync {
+    /// Differentiate on unit grid
     fn diff(&self, prev: ArrayView1<Float>, fut: ArrayViewMut1<Float>);
 
+    /// block component of `H`, with diagonal component 1
     fn h(&self) -> &'static [Float];
+    /// Whether the operator acts on a `h2` spaced computational grid
     fn is_h2(&self) -> bool {
         false
     }
@@ -18,6 +22,7 @@ pub trait SbpOperator1d: Send + Sync {
 }
 
 pub trait SbpOperator1d2: SbpOperator1d {
+    /// Double differentiation on unit grid
     fn diff2(&self, prev: ArrayView1<Float>, fut: ArrayViewMut1<Float>);
     /// Result of H^-1 * d1, without the 1/h scaling
     fn d1(&self) -> &[Float];
@@ -103,6 +108,7 @@ impl<SBP: SbpOperator1d + Copy> SbpOperator2d for SBP {
 }
 
 pub trait UpwindOperator1d: SbpOperator1d + Send + Sync {
+    /// Dissipation operator
     fn diss(&self, prev: ArrayView1<Float>, fut: ArrayViewMut1<Float>);
     fn as_sbp(&self) -> &dyn SbpOperator1d;
 
@@ -162,7 +168,9 @@ impl<UO: UpwindOperator1d + Copy> UpwindOperator2d for UO {
 }
 
 pub trait InterpolationOperator: Send + Sync {
+    /// Interpolation from a grid with twice resolution
     fn fine2coarse(&self, fine: ArrayView1<Float>, coarse: ArrayViewMut1<Float>);
+    /// Interpolation from a grid with half resolution
     fn coarse2fine(&self, coarse: ArrayView1<Float>, fine: ArrayViewMut1<Float>);
 }
 
