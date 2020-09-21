@@ -97,32 +97,41 @@ fn sparse_creation(c: &mut Criterion) {
     let w = 40;
     let h = 26;
     group.bench_function("create_rhs_trad4", |b| {
+        let grid = sbp::grid::Grid::new_linspace(0.0..1.0, w, 0.0..1.0, h);
         b.iter(|| {
-            let _matrix = maxwell::sparse::rhs_matrix(&SBP4, w, h);
+            let _matrix = maxwell::sparse::rhs_matrix(&SBP4, &grid);
         })
     });
     group.bench_function("create_rhs_upwind4", |b| {
+        let grid = sbp::grid::Grid::new_linspace(0.0..1.0, w, 0.0..1.0, h);
         b.iter(|| {
-            let _matrix = maxwell::sparse::rhs_matrix(&sbp::operators::Upwind4, w, h);
+            let _matrix = maxwell::sparse::rhs_matrix(&sbp::operators::Upwind4, &grid);
         })
     });
     group.bench_function("create_rhs_upwind9", |b| {
+        let grid = sbp::grid::Grid::new_linspace(0.0..1.0, w, 0.0..1.0, h);
         b.iter(|| {
-            let _matrix = maxwell::sparse::rhs_matrix(&sbp::operators::Upwind9, w, h);
+            let _matrix = maxwell::sparse::rhs_matrix(&sbp::operators::Upwind9, &grid);
         })
     });
 
     group.bench_function("create_rhs_upwind_upwind4", |b| {
+        let grid = sbp::grid::Grid::new_linspace(0.0..1.0, w, 0.0..1.0, h);
         b.iter(|| {
-            let _matrix =
-                maxwell::sparse::rhs_matrix_with_upwind_dissipation(&sbp::operators::Upwind4, w, h);
+            let _matrix = maxwell::sparse::rhs_matrix_with_upwind_dissipation(
+                &sbp::operators::Upwind4,
+                &grid,
+            );
         })
     });
 
     group.bench_function("create_rhs_upwind_upwind9", |b| {
+        let grid = sbp::grid::Grid::new_linspace(0.0..1.0, w, 0.0..1.0, h);
         b.iter(|| {
-            let _matrix =
-                maxwell::sparse::rhs_matrix_with_upwind_dissipation(&sbp::operators::Upwind9, w, h);
+            let _matrix = maxwell::sparse::rhs_matrix_with_upwind_dissipation(
+                &sbp::operators::Upwind9,
+                &grid,
+            );
         })
     });
 }

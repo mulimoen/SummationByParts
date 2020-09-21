@@ -21,6 +21,18 @@ pub struct Metrics {
 }
 
 impl Grid {
+    pub fn new_linspace(
+        x: std::ops::Range<Float>,
+        nx: usize,
+        y: std::ops::Range<Float>,
+        ny: usize,
+    ) -> Self {
+        let dx = (x.end - x.start) / (nx - 1) as Float;
+        let dy = (y.end - y.start) / (ny - 1) as Float;
+        let x = Array2::from_shape_fn((ny, nx), |(_j, i)| i as Float * dx + x.start);
+        let y = Array2::from_shape_fn((ny, nx), |(j, _i)| j as Float * dy + y.start);
+        Self { x, y }
+    }
     pub fn new(x: Array2<Float>, y: Array2<Float>) -> Result<Self, ndarray::ShapeError> {
         assert_eq!(x.shape(), y.shape());
 
