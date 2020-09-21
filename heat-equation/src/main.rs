@@ -47,7 +47,12 @@ fn dual_dirichlet(v: ArrayView1<Float>, v0: Float, vn: Float) {
         for (d, fut) in d1.iter().zip(fut.iter_mut()) {
             *fut += tau.0 / (h * h) * d * (prev[0] - v0);
         }
-        for (d, fut) in d1.iter().zip(fut.iter_mut().rev().take(d1.len()).rev()) {
+        for (d, fut) in d1
+            .iter()
+            .rev()
+            .map(|d| -d)
+            .zip(fut.iter_mut().rev().take(d1.len()).rev())
+        {
             *fut += tau.1 / (h * h) * d * (prev[nx - 1] - vn);
         }
     };
@@ -109,7 +114,12 @@ fn neumann_dirichlet(v: ArrayView1<Float>, v0: Float, vn: Float) {
                 .map(|(x, y)| x * y)
                 .sum::<Float>()
                 - v0);
-        for (d, fut) in d1.iter().zip(fut.iter_mut().rev().take(d1.len()).rev()) {
+        for (d, fut) in d1
+            .iter()
+            .rev()
+            .map(|d| -d)
+            .zip(fut.iter_mut().rev().take(d1.len()).rev())
+        {
             *fut += tau.1 / (h * h) * d * (prev[nx - 1] - vn);
         }
     };
