@@ -22,3 +22,4 @@ debug = true
 [patch.crates-io]
 hdf5 = { git = "https://github.com/mulimoen/hdf5-rust.git", branch = "feature/resizable_idx" }
 hdf5-sys = { git = "https://github.com/mulimoen/hdf5-rust.git", branch = "feature/resizable_idx" }
+packed_simd = { git = "https://github.com/rust-lang/packed_simd.git" }
