@@ -4,12 +4,10 @@ use crate::Float;
 mod jacobi;
 #[cfg(feature = "sparse")]
 pub use jacobi::*;
-#[cfg(feature = "sparse")]
-mod kronecker_product;
-#[cfg(feature = "sparse")]
-pub use kronecker_product::kronecker_product;
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
+#[cfg(feature = "sparse")]
+pub use sprs::kronecker_product;
 
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Copy, Clone, Debug, Default)]
