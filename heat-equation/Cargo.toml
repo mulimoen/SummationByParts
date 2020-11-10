@@ -10,3 +10,6 @@ sbp = { path = "../sbp", features = ["sparse"] }
 ndarray = "0.13.1"
 plotters = { version = "0.3.0", default-features = false, features = ["bitmap_gif", "bitmap_backend", "line_series"] }
 sprs = { version = "0.9.0", default-features = false }
+
+[dev-dependencies]
+arpack = { git = "https://github.com/mulimoen/arpack-rs", branch = "main" }

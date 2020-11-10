@@ -234,3 +234,50 @@ fn dual_dirichlet_sparse(v: ArrayView1<Float>, v0: Float, vn: Float) {
         std::mem::swap(&mut v1, &mut v2);
     }
 }
+
+#[test]
+fn eigenvalues_diri_neumann() {
+    let op = SBP4;
+    let nx = 50;
+
+    let v0 = 0.0;
+    let vn = 0.0;
+
+    // Test eigenvalue
+    let lhs = |p: &[f64], f: &mut [f64]| {
+        let mut fut = ndarray::ArrayViewMut::from_shape(nx, f).unwrap();
+        let prev = ndarray::ArrayView::from_shape(nx, p).unwrap();
+
+        fut.fill(0.0);
+        op.diff2(prev.view(), fut.view_mut());
+
+        let h = 1.0 / (nx - 1) as Float;
+        let tau = (1.0, -1.0);
+
+        let d1 = op.d1();
+
+        for (d, fut) in d1.iter().zip(fut.iter_mut()) {
+            *fut += tau.0 / (h * h) * d * (prev[0] - v0);
+        }
+        for (d, fut) in d1
+            .iter()
+            .rev()
+            .map(|d| -d)
+            .zip(fut.iter_mut().rev().take(d1.len()).rev())
+        {
+            *fut += tau.1 / (h * h) * d * (prev[nx - 1] - vn);
+        }
+    };
+    let (lambda, _) = arpack::dnaupd(
+        lhs,
+        arpack::InputParameters {
+            which: arpack::Which::LargestRealpart,
+            n: nx,
+            nev: 3,
+            ncv: 40,
+            mxiter: 500,
+            ..Default::default()
+        },
+    );
+    assert!(lambda.0.iter().all(|&x| x <= 0.0));
+}
