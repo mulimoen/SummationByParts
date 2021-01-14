@@ -19,6 +19,13 @@ pub trait SbpOperator1d: Send + Sync {
     fn diff_matrix(&self, n: usize) -> sprs::CsMat<Float>;
     #[cfg(feature = "sparse")]
     fn h_matrix(&self, n: usize) -> sprs::CsMat<Float>;
+
+    fn upwind(&self) -> Option<&dyn UpwindOperator1d> {
+        None
+    }
+    fn d2(&self) -> Option<&dyn SbpOperator1d2> {
+        None
+    }
 }
 
 pub trait SbpOperator1d2: SbpOperator1d {

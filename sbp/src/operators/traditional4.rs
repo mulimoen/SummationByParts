@@ -65,6 +65,10 @@ impl SbpOperator1d for SBP4 {
     fn h_matrix(&self, n: usize) -> sprs::CsMat<Float> {
         super::h_matrix(Self::HBLOCK, n, self.is_h2())
     }
+
+    fn d2(&self) -> Option<&dyn super::SbpOperator1d2> {
+        Some(&Self)
+    }
 }
 
 impl<SBP: SbpOperator1d> SbpOperator2d for (&SBP, &SBP4) {

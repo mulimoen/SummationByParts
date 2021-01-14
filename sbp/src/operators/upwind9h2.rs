@@ -79,6 +79,10 @@ impl SbpOperator1d for Upwind9h2 {
     fn h_matrix(&self, n: usize) -> sprs::CsMat<Float> {
         super::h_matrix(Self::HBLOCK, n, self.is_h2())
     }
+
+    fn upwind(&self) -> Option<&dyn UpwindOperator1d> {
+        Some(&Self)
+    }
 }
 
 impl<SBP: SbpOperator1d> SbpOperator2d for (&SBP, &Upwind9h2) {
