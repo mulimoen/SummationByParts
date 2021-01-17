@@ -128,6 +128,12 @@ impl SbpOperator2d for (Box<dyn SbpOperator2d>, Box<dyn SbpOperator2d>) {
 }
 
 impl UpwindOperator2d for (Box<dyn UpwindOperator2d>, Box<dyn UpwindOperator2d>) {
+    fn dissxi(&self, prev: ArrayView2<Float>, fut: ArrayViewMut2<Float>) {
+        self.1.dissxi(prev, fut)
+    }
+    fn disseta(&self, prev: ArrayView2<Float>, fut: ArrayViewMut2<Float>) {
+        self.0.disseta(prev, fut)
+    }
     fn op_xi(&self) -> &dyn UpwindOperator1d {
         self.1.op_xi()
     }

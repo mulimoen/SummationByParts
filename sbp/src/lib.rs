@@ -1,4 +1,3 @@
-#![feature(min_specialization)]
 #![feature(core_intrinsics)]
 
 /// Type used for floats, configure with the `f32` feature
