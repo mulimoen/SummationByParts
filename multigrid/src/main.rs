@@ -1,14 +1,11 @@
-use either::*;
 use structopt::StructOpt;
 
-use sbp::operators::{SbpOperator2d, UpwindOperator2d};
+use sbp::operators::SbpOperator2d;
 use sbp::*;
 
 mod file;
 mod parsing;
 use file::*;
-
-pub(crate) type DiffOp = Either<Box<dyn SbpOperator2d>, Box<dyn UpwindOperator2d>>;
 
 struct System {
     fnow: Vec<euler::Field>,
@@ -20,14 +17,14 @@ struct System {
     bt: Vec<euler::BoundaryCharacteristics>,
     eb: Vec<euler::BoundaryStorage>,
     time: Float,
-    operators: Vec<DiffOp>,
+    operators: Vec<Box<dyn SbpOperator2d>>,
 }
 
 impl System {
     fn new(
         grids: Vec<grid::Grid>,
         bt: Vec<euler::BoundaryCharacteristics>,
-        operators: Vec<DiffOp>,
+        operators: Vec<Box<dyn SbpOperator2d>>,
     ) -> Self {
         let fnow = grids
             .iter()
@@ -42,10 +39,7 @@ impl System {
         let metrics = grids
             .iter()
             .zip(&operators)
-            .map(|(g, op)| {
-                let sbpop: &dyn SbpOperator2d = op.as_ref().either(|op| &**op, |uo| uo.as_sbp());
-                g.metrics(sbpop).unwrap()
-            })
+            .map(|(g, op)| g.metrics(&**op).unwrap())
             .collect::<Vec<_>>();
 
         let eb = bt
@@ -97,13 +91,10 @@ impl System {
                 {
                     s.spawn(move |_| {
                         let bc = euler::boundary_extracts(prev_all, bt, prev, grid, eb, time);
-                        match op.as_ref() {
-                            Left(sbp) => {
-                                euler::RHS_trad(&**sbp, fut, prev, metrics, &bc, &mut wb.0);
-                            }
-                            Right(uo) => {
-                                euler::RHS_upwind(&**uo, fut, prev, metrics, &bc, &mut wb.0);
-                            }
+                        if op.upwind().is_some() {
+                            euler::RHS_upwind(&**op, fut, prev, metrics, &bc, &mut wb.0);
+                        } else {
+                            euler::RHS_trad(&**op, fut, prev, metrics, &bc, &mut wb.0);
                         }
                     })
                 }
@@ -130,12 +121,10 @@ impl System {
 
     /// Suggested maximum dt for this problem
     fn max_dt(&self) -> Float {
-        let is_h2 = self.operators.iter().any(|op| {
-            op.as_ref().either(
-                |op| op.is_h2xi() || op.is_h2eta(),
-                |op| op.is_h2xi() || op.is_h2eta(),
-            )
-        });
+        let is_h2 = self
+            .operators
+            .iter()
+            .any(|op| op.is_h2xi() || op.is_h2eta());
         let c_max = if is_h2 { 0.5 } else { 1.0 };
         let mut max_dt: Float = Float::INFINITY;
 
@@ -283,8 +272,7 @@ fn main() {
         for ((fmod, grid), op) in sys.fnow.iter().zip(&sys.grids).zip(&sys.operators) {
             let mut fvort = fmod.clone();
             fvort.vortex(grid.x(), grid.y(), time, &vortexparams);
-            let sbpop: &dyn SbpOperator2d = op.as_ref().either(|op| &**op, |uo| uo.as_sbp());
-            e += fmod.h2_err(&fvort, sbpop);
+            e += fmod.h2_err(&fvort, &**op);
         }
         println!("Total error: {:e}", e);
     }

@@ -59,7 +59,7 @@ impl SbpOperator1d for SBP8 {
     }
 }
 
-impl<SBP: SbpOperator1d> SbpOperator2d for (&SBP, &SBP8) {
+impl SbpOperator2d for SBP8 {
     fn diffxi(&self, prev: ArrayView2<Float>, mut fut: ArrayViewMut2<Float>) {
         assert_eq!(prev.shape(), fut.shape());
         assert!(prev.shape()[1] >= 2 * SBP8::BLOCK.len());
@@ -82,6 +82,12 @@ impl<SBP: SbpOperator1d> SbpOperator2d for (&SBP, &SBP8) {
             }
             _ => unreachable!("Should only be two elements in the strides vectors"),
         }
+    }
+    fn op_xi(&self) -> &dyn SbpOperator1d {
+        &Self
+    }
+    fn op_eta(&self) -> &dyn SbpOperator1d {
+        &Self
     }
 }
 

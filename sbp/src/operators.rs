@@ -40,80 +40,6 @@ pub trait SbpOperator1d2: SbpOperator1d {
     fn d1_vec(&self, n: usize, front: bool) -> sprs::CsMat<Float>;
 }
 
-pub trait SbpOperator2d: Send + Sync {
-    fn diffxi(&self, prev: ArrayView2<Float>, fut: ArrayViewMut2<Float>);
-    fn diffeta(&self, prev: ArrayView2<Float>, fut: ArrayViewMut2<Float>);
-
-    fn hxi(&self) -> &'static [Float];
-    fn heta(&self) -> &'static [Float];
-
-    fn is_h2xi(&self) -> bool;
-    fn is_h2eta(&self) -> bool;
-
-    fn op_xi(&self) -> &dyn SbpOperator1d;
-    fn op_eta(&self) -> &dyn SbpOperator1d;
-}
-
-impl<SBPeta: SbpOperator1d, SBPxi: SbpOperator1d> SbpOperator2d for (&SBPeta, &SBPxi) {
-    default fn diffxi(&self, prev: ArrayView2<Float>, mut fut: ArrayViewMut2<Float>) {
-        assert_eq!(prev.shape(), fut.shape());
-        for (r0, r1) in prev.outer_iter().zip(fut.outer_iter_mut()) {
-            self.1.diff(r0, r1)
-        }
-    }
-    fn diffeta(&self, prev: ArrayView2<Float>, fut: ArrayViewMut2<Float>) {
-        let ba = (self.1, self.0);
-        ba.diffxi(prev.reversed_axes(), fut.reversed_axes())
-    }
-    fn hxi(&self) -> &'static [Float] {
-        self.1.h()
-    }
-    fn heta(&self) -> &'static [Float] {
-        self.0.h()
-    }
-    fn is_h2xi(&self) -> bool {
-        self.1.is_h2()
-    }
-    fn is_h2eta(&self) -> bool {
-        self.0.is_h2()
-    }
-
-    fn op_xi(&self) -> &dyn SbpOperator1d {
-        self.1
-    }
-    fn op_eta(&self) -> &dyn SbpOperator1d {
-        self.0
-    }
-}
-
-impl<SBP: SbpOperator1d + Copy> SbpOperator2d for SBP {
-    fn diffxi(&self, prev: ArrayView2<Float>, fut: ArrayViewMut2<Float>) {
-        <(&SBP, &SBP) as SbpOperator2d>::diffxi(&(self, self), prev, fut)
-    }
-    fn diffeta(&self, prev: ArrayView2<Float>, fut: ArrayViewMut2<Float>) {
-        <(&SBP, &SBP) as SbpOperator2d>::diffeta(&(self, self), prev, fut)
-    }
-    fn hxi(&self) -> &'static [Float] {
-        <(&SBP, &SBP) as SbpOperator2d>::hxi(&(self, self))
-    }
-    fn heta(&self) -> &'static [Float] {
-        <(&SBP, &SBP) as SbpOperator2d>::heta(&(self, self))
-    }
-    fn is_h2xi(&self) -> bool {
-        <(&SBP, &SBP) as SbpOperator2d>::is_h2xi(&(self, self))
-    }
-    fn is_h2eta(&self) -> bool {
-        <(&SBP, &SBP) as SbpOperator2d>::is_h2eta(&(self, self))
-    }
-
-    fn op_xi(&self) -> &dyn SbpOperator1d {
-        self
-    }
-    fn op_eta(&self) -> &dyn SbpOperator1d {
-        self
-    }
-}
-
 pub trait UpwindOperator1d: SbpOperator1d + Send + Sync {
     /// Dissipation operator
     fn diss(&self, prev: ArrayView1<Float>, fut: ArrayViewMut1<Float>);
@@ -123,55 +49,53 @@ pub trait UpwindOperator1d: SbpOperator1d + Send + Sync {
     fn diss_matrix(&self, n: usize) -> sprs::CsMat<Float>;
 }
 
-pub trait UpwindOperator2d: SbpOperator2d + Send + Sync {
-    fn dissxi(&self, prev: ArrayView2<Float>, fut: ArrayViewMut2<Float>);
-    fn disseta(&self, prev: ArrayView2<Float>, fut: ArrayViewMut2<Float>);
-    fn as_sbp(&self) -> &dyn SbpOperator2d;
+pub trait SbpOperator2d: Send + Sync {
+    fn diffxi(&self, prev: ArrayView2<Float>, mut fut: ArrayViewMut2<Float>) {
+        assert_eq!(prev.shape(), fut.shape());
+        for (p, f) in prev.outer_iter().zip(fut.outer_iter_mut()) {
+            self.op_xi().diff(p, f)
+        }
+    }
+    fn diffeta(&self, prev: ArrayView2<Float>, fut: ArrayViewMut2<Float>) {
+        self.diffxi(prev.reversed_axes(), fut.reversed_axes())
+    }
+
+    fn hxi(&self) -> &'static [Float] {
+        self.op_xi().h()
+    }
+    fn heta(&self) -> &'static [Float] {
+        self.op_eta().h()
+    }
+
+    fn is_h2xi(&self) -> bool {
+        self.op_xi().is_h2()
+    }
+    fn is_h2eta(&self) -> bool {
+        self.op_eta().is_h2()
+    }
+
+    fn op_xi(&self) -> &dyn SbpOperator1d;
+    fn op_eta(&self) -> &dyn SbpOperator1d;
+
+    fn upwind(&self) -> Option<Box<dyn UpwindOperator2d>> {
+        None
+    }
+}
+
+pub trait UpwindOperator2d: Send + Sync {
+    fn dissxi(&self, prev: ArrayView2<Float>, mut fut: ArrayViewMut2<Float>) {
+        assert_eq!(prev.shape(), fut.shape());
+        for (p, f) in prev.outer_iter().zip(fut.outer_iter_mut()) {
+            UpwindOperator2d::op_xi(self).diss(p, f)
+        }
+    }
+    // Assuming operator is symmetrical x/y
+    fn disseta(&self, prev: ArrayView2<Float>, fut: ArrayViewMut2<Float>) {
+        self.dissxi(prev.reversed_axes(), fut.reversed_axes())
+    }
 
     fn op_xi(&self) -> &dyn UpwindOperator1d;
     fn op_eta(&self) -> &dyn UpwindOperator1d;
-}
-
-impl<UOeta: UpwindOperator1d, UOxi: UpwindOperator1d> UpwindOperator2d for (&UOeta, &UOxi) {
-    default fn dissxi(&self, prev: ArrayView2<Float>, mut fut: ArrayViewMut2<Float>) {
-        assert_eq!(prev.shape(), fut.shape());
-        for (r0, r1) in prev.outer_iter().zip(fut.outer_iter_mut()) {
-            self.1.diss(r0, r1);
-        }
-    }
-    fn disseta(&self, prev: ArrayView2<Float>, fut: ArrayViewMut2<Float>) {
-        let ba = (self.1, self.0);
-        ba.dissxi(prev.reversed_axes(), fut.reversed_axes())
-    }
-    fn as_sbp(&self) -> &dyn SbpOperator2d {
-        self
-    }
-
-    fn op_xi(&self) -> &dyn UpwindOperator1d {
-        self.1
-    }
-    fn op_eta(&self) -> &dyn UpwindOperator1d {
-        self.0
-    }
-}
-
-impl<UO: UpwindOperator1d + Copy> UpwindOperator2d for UO {
-    fn dissxi(&self, prev: ArrayView2<Float>, fut: ArrayViewMut2<Float>) {
-        <(&UO, &UO) as UpwindOperator2d>::dissxi(&(self, self), prev, fut)
-    }
-    fn disseta(&self, prev: ArrayView2<Float>, fut: ArrayViewMut2<Float>) {
-        <(&UO, &UO) as UpwindOperator2d>::disseta(&(self, self), prev, fut)
-    }
-    fn as_sbp(&self) -> &dyn SbpOperator2d {
-        self
-    }
-
-    fn op_xi(&self) -> &dyn UpwindOperator1d {
-        self
-    }
-    fn op_eta(&self) -> &dyn UpwindOperator1d {
-        self
-    }
 }
 
 pub trait InterpolationOperator: Send + Sync {
@@ -179,6 +103,37 @@ pub trait InterpolationOperator: Send + Sync {
     fn fine2coarse(&self, fine: ArrayView1<Float>, coarse: ArrayViewMut1<Float>);
     /// Interpolation from a grid with half resolution
     fn coarse2fine(&self, coarse: ArrayView1<Float>, fine: ArrayViewMut1<Float>);
+}
+
+impl SbpOperator2d for (Box<dyn SbpOperator2d>, Box<dyn SbpOperator2d>) {
+    fn diffxi(&self, prev: ArrayView2<Float>, fut: ArrayViewMut2<Float>) {
+        self.1.diffxi(prev, fut)
+    }
+    fn diffeta(&self, prev: ArrayView2<Float>, fut: ArrayViewMut2<Float>) {
+        self.0.diffeta(prev, fut)
+    }
+
+    fn op_xi(&self) -> &dyn SbpOperator1d {
+        self.1.op_xi()
+    }
+    fn op_eta(&self) -> &dyn SbpOperator1d {
+        self.0.op_eta()
+    }
+    fn upwind(&self) -> Option<Box<dyn UpwindOperator2d>> {
+        match (self.0.upwind(), self.1.upwind()) {
+            (Some(u), Some(v)) => Some(Box::new((u, v))),
+            _ => None,
+        }
+    }
+}
+
+impl UpwindOperator2d for (Box<dyn UpwindOperator2d>, Box<dyn UpwindOperator2d>) {
+    fn op_xi(&self) -> &dyn UpwindOperator1d {
+        self.1.op_xi()
+    }
+    fn op_eta(&self) -> &dyn UpwindOperator1d {
+        self.0.op_eta()
+    }
 }
 
 #[inline(always)]

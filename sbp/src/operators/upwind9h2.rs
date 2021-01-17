@@ -85,7 +85,7 @@ impl SbpOperator1d for Upwind9h2 {
     }
 }
 
-impl<SBP: SbpOperator1d> SbpOperator2d for (&SBP, &Upwind9h2) {
+impl SbpOperator2d for Upwind9h2 {
     fn diffxi(&self, prev: ArrayView2<Float>, mut fut: ArrayViewMut2<Float>) {
         assert_eq!(prev.shape(), fut.shape());
         assert!(prev.shape()[1] >= 2 * Upwind9h2::BLOCK.len());
@@ -108,6 +108,15 @@ impl<SBP: SbpOperator1d> SbpOperator2d for (&SBP, &Upwind9h2) {
             }
             _ => unreachable!("Should only be two elements in the strides vectors"),
         }
+    }
+    fn op_xi(&self) -> &dyn SbpOperator1d {
+        &Self
+    }
+    fn op_eta(&self) -> &dyn SbpOperator1d {
+        &Self
+    }
+    fn upwind(&self) -> Option<Box<dyn UpwindOperator2d>> {
+        Some(Box::new(Self))
     }
 }
 
@@ -163,7 +172,7 @@ impl UpwindOperator1d for Upwind9h2 {
     }
 }
 
-impl<UO: UpwindOperator1d> UpwindOperator2d for (&UO, &Upwind9h2) {
+impl UpwindOperator2d for Upwind9h2 {
     fn dissxi(&self, prev: ArrayView2<Float>, mut fut: ArrayViewMut2<Float>) {
         assert_eq!(prev.shape(), fut.shape());
         assert!(prev.shape()[1] >= 2 * Upwind9h2::BLOCK.len());
@@ -196,5 +205,11 @@ impl<UO: UpwindOperator1d> UpwindOperator2d for (&UO, &Upwind9h2) {
             }
             _ => unreachable!("Should only be two elements in the strides vectors"),
         }
+    }
+    fn op_xi(&self) -> &dyn UpwindOperator1d {
+        &Self
+    }
+    fn op_eta(&self) -> &dyn UpwindOperator1d {
+        &Self
     }
 }

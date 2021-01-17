@@ -1,5 +1,4 @@
-use super::DiffOp;
-use either::*;
+use sbp::operators::SbpOperator2d;
 use sbp::utils::h2linspace;
 use sbp::Float;
 
@@ -148,7 +147,7 @@ pub struct RuntimeConfiguration {
     pub names: Vec<String>,
     pub grids: Vec<sbp::grid::Grid>,
     pub bc: Vec<euler::BoundaryCharacteristics>,
-    pub op: Vec<DiffOp>,
+    pub op: Vec<Box<dyn SbpOperator2d>>,
     pub integration_time: Float,
     pub vortex: euler::VortexParameters,
 }
@@ -223,32 +222,19 @@ impl Configuration {
 
                 use sbp::operators::*;
                 use Operator as op;
-                match (eta, xi) {
-                    (op::Upwind4, op::Upwind4) => {
-                        Right(Box::new(Upwind4) as Box<dyn UpwindOperator2d>)
+
+                let matcher = |op| -> Box<dyn SbpOperator2d> {
+                    match op {
+                        op::Upwind4 => Box::new(Upwind4),
+                        op::Upwind4h2 => Box::new(Upwind4h2),
+                        op::Upwind9 => Box::new(Upwind9),
+                        op::Upwind9h2 => Box::new(Upwind9h2),
+                        op::Sbp4 => Box::new(SBP4),
+                        op::Sbp8 => Box::new(SBP8),
                     }
-                    (op::Upwind4h2, op::Upwind4h2) => {
-                        Right(Box::new(Upwind4h2) as Box<dyn UpwindOperator2d>)
-                    }
-                    (op::Upwind9, op::Upwind9) => {
-                        Right(Box::new(Upwind9) as Box<dyn UpwindOperator2d>)
-                    }
-                    (op::Upwind9h2, op::Upwind9h2) => {
-                        Right(Box::new(Upwind9h2) as Box<dyn UpwindOperator2d>)
-                    }
-                    (op::Upwind4, op::Upwind4h2) => {
-                        Right(Box::new((&Upwind4, &Upwind4h2)) as Box<dyn UpwindOperator2d>)
-                    }
-                    (op::Upwind9, op::Upwind9h2) => {
-                        Right(Box::new((&Upwind9, &Upwind9h2)) as Box<dyn UpwindOperator2d>)
-                    }
-                    (op::Upwind9h2, op::Upwind9) => {
-                        Right(Box::new((&Upwind9h2, &Upwind9)) as Box<dyn UpwindOperator2d>)
-                    }
-                    (op::Sbp4, op::Sbp4) => Left(Box::new(SBP4) as Box<dyn SbpOperator2d>),
-                    (op::Sbp8, op::Sbp8) => Left(Box::new(SBP8) as Box<dyn SbpOperator2d>),
-                    _ => todo!("Combination {:?}, {:?} not implemented", eta, xi),
-                }
+                };
+
+                Box::new((matcher(eta), matcher(xi))) as Box<dyn SbpOperator2d>
             })
             .collect();
         let bc = self

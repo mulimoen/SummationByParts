@@ -196,7 +196,7 @@ impl<SBP: SbpOperator2d> System<SBP> {
     }
 }
 
-impl<UO: UpwindOperator2d> System<UO> {
+impl<UO: SbpOperator2d + UpwindOperator2d> System<UO> {
     /// Using artificial dissipation with the upwind operator
     pub fn advance_upwind(&mut self, dt: Float) {
         let op = &self.op;
@@ -271,7 +271,7 @@ fn RHS<SBP: SbpOperator2d>(
 }
 
 #[allow(non_snake_case)]
-fn RHS_upwind<UO: UpwindOperator2d>(
+fn RHS_upwind<UO: SbpOperator2d + UpwindOperator2d>(
     op: &UO,
     k: &mut Field,
     y: &Field,

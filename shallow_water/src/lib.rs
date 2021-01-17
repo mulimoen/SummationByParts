@@ -62,7 +62,7 @@ pub struct System {
     fnext: Field,
     x: (Float, Float, usize),
     y: (Float, Float, usize),
-    op: Box<dyn operators::UpwindOperator2d>,
+    op: Box<dyn operators::SbpOperator2d>,
     k: [Field; 4],
 }
 
@@ -175,35 +175,37 @@ impl System {
 
             // Upwind dissipation
             if false {
-                let mut temp_dx = temp_dy;
-                azip!((dest in &mut temp, eta in now.eta(), etau in now.etau()) {
-                    *dest = -(eta.powf(3.0/2.0)*G.sqrt() + etau.abs())/eta
-                });
-                op.dissxi(temp.view(), temp_dx.view_mut());
-                azip!((dest in &mut next_eta, eta in now.eta(), diss in &temp_dx) {
-                    *dest -= eta*diss;
-                });
-                azip!((dest in &mut next_etau, etau in now.etau(), diss in &temp_dx) {
-                    *dest -= etau*diss;
-                });
-                azip!((dest in &mut next_etav, etav in now.etav(), diss in &temp_dx) {
-                    *dest -= etav*diss;
-                });
+                if let Some(op) = op.upwind() {
+                    let mut temp_dx = temp_dy;
+                    azip!((dest in &mut temp, eta in now.eta(), etau in now.etau()) {
+                        *dest = -(eta.powf(3.0/2.0)*G.sqrt() + etau.abs())/eta
+                    });
+                    op.dissxi(temp.view(), temp_dx.view_mut());
+                    azip!((dest in &mut next_eta, eta in now.eta(), diss in &temp_dx) {
+                        *dest -= eta*diss;
+                    });
+                    azip!((dest in &mut next_etau, etau in now.etau(), diss in &temp_dx) {
+                        *dest -= etau*diss;
+                    });
+                    azip!((dest in &mut next_etav, etav in now.etav(), diss in &temp_dx) {
+                        *dest -= etav*diss;
+                    });
 
-                let mut temp_dy = temp_dx;
-                azip!((dest in &mut temp, eta in now.eta(), etav in now.etav()) {
-                    *dest = -(eta.powf(3.0/2.0)*G.sqrt() + etav.abs())/eta
-                });
-                op.disseta(temp.view(), temp_dy.view_mut());
-                azip!((dest in &mut next_eta, eta in now.eta(), diss in &temp_dy) {
-                    *dest -= eta*diss;
-                });
-                azip!((dest in &mut next_etau, etau in now.etau(), diss in &temp_dy) {
-                    *dest -= etau*diss;
-                });
-                azip!((dest in &mut next_etav, etav in now.etav(), diss in &temp_dy) {
-                    *dest -= etav*diss;
-                });
+                    let mut temp_dy = temp_dx;
+                    azip!((dest in &mut temp, eta in now.eta(), etav in now.etav()) {
+                        *dest = -(eta.powf(3.0/2.0)*G.sqrt() + etav.abs())/eta
+                    });
+                    op.disseta(temp.view(), temp_dy.view_mut());
+                    azip!((dest in &mut next_eta, eta in now.eta(), diss in &temp_dy) {
+                        *dest -= eta*diss;
+                    });
+                    azip!((dest in &mut next_etau, etau in now.etau(), diss in &temp_dy) {
+                        *dest -= etau*diss;
+                    });
+                    azip!((dest in &mut next_etav, etav in now.etav(), diss in &temp_dy) {
+                        *dest -= etav*diss;
+                    });
+                }
             }
 
             // SAT boundaries

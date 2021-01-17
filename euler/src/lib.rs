@@ -115,7 +115,7 @@ impl<SBP: SbpOperator2d> System<SBP> {
     }
 }
 
-impl<UO: UpwindOperator2d> System<UO> {
+impl<UO: UpwindOperator2d + SbpOperator2d> System<UO> {
     pub fn advance_upwind(&mut self, dt: Float) {
         let bc = BoundaryCharacteristics {
             north: BoundaryCharacteristic::This,
@@ -558,7 +558,7 @@ pub fn RHS_trad(
 
 #[allow(non_snake_case)]
 pub fn RHS_upwind(
-    op: &dyn UpwindOperator2d,
+    op: &dyn SbpOperator2d,
     k: &mut Field,
     y: &Field,
     metrics: &Metrics,
@@ -583,7 +583,14 @@ pub fn RHS_upwind(
 
     let ad_xi = &mut tmp.4;
     let ad_eta = &mut tmp.5;
-    upwind_dissipation(op, (ad_xi, ad_eta), y, metrics, (&mut tmp.0, &mut tmp.1));
+    let diss_op = op.upwind().expect("This is not an upwind operator");
+    upwind_dissipation(
+        &*diss_op,
+        (ad_xi, ad_eta),
+        y,
+        metrics,
+        (&mut tmp.0, &mut tmp.1),
+    );
 
     azip!((out in &mut k.0,
                     eflux in &dE.0,
@@ -594,7 +601,7 @@ pub fn RHS_upwind(
         *out = (-eflux - fflux + ad_xi + ad_eta)/detj
     });
 
-    SAT_characteristics(op.as_sbp(), k, y, metrics, boundaries);
+    SAT_characteristics(op, k, y, metrics, boundaries);
 }
 
 #[allow(clippy::many_single_char_names)]
