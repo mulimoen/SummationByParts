@@ -59,6 +59,30 @@ fn trad8_diffeta() {
     operators::SBP8.diffeta(x.view(), res.view_mut());
 }
 
+#[cfg(feature = "sparse")]
+fn baseline_sparse() {
+    let dx = operators::Upwind4.op_xi().diff_matrix(W);
+    let _dx = sprs::kronecker_product(sprs::CsMat::eye(H).view(), dx.view());
+
+    let _x = Array2::<Float>::from_shape_fn((W, H), |(j, i)| (j * W + i) as Float);
+    let _res = Array2::<Float>::zeros((W, H));
+}
+
+fn upwind4_diffxi_sparse() {
+    let dx = operators::Upwind4.op_xi().diff_matrix(W);
+    let dx = sprs::kronecker_product(sprs::CsMat::eye(H).view(), dx.view());
+
+    let x = Array2::from_shape_fn((W, H), |(j, i)| (j * W + i) as Float);
+    let mut res = Array2::zeros((W, H));
+
+    sprs::prod::mul_acc_mat_vec_csr(
+        dx.view(),
+        x.as_slice().unwrap(),
+        res.as_slice_mut().unwrap(),
+    );
+}
+
+#[cfg(not(feature = "sparse"))]
 iai::main!(
     baseline,
     upwind4_diffxi,
@@ -68,5 +92,20 @@ iai::main!(
     upwind4_diffeta,
     upwind9_diffeta,
     trad4_diffeta,
-    trad8_diffeta
+    trad8_diffeta,
+);
+
+#[cfg(feature = "sparse")]
+iai::main!(
+    baseline,
+    upwind4_diffxi,
+    upwind9_diffxi,
+    trad4_diffxi,
+    trad8_diffxi,
+    upwind4_diffeta,
+    upwind9_diffeta,
+    trad4_diffeta,
+    trad8_diffeta,
+    baseline_sparse,
+    upwind4_diffxi_sparse,
 );
