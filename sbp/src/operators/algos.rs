@@ -404,7 +404,7 @@ pub(crate) fn diff_op_row(
 }
 
 #[cfg(feature = "sparse")]
-fn sparse_from_block(
+pub(crate) fn sparse_from_block(
     block: &[&[Float]],
     diag: &[Float],
     symmetry: Symmetry,
@@ -472,7 +472,7 @@ fn sparse_from_block(
 }
 
 #[cfg(feature = "sparse")]
-fn h_matrix(diag: &[Float], n: usize, is_h2: bool) -> sprs::CsMat<Float> {
+pub(crate) fn h_matrix(diag: &[Float], n: usize, is_h2: bool) -> sprs::CsMat<Float> {
     let h = if is_h2 {
         1.0 / (n - 2) as Float
     } else {
