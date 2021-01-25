@@ -20,7 +20,7 @@ sparse = ["sprs"]
 serde1 = ["serde", "ndarray/serde"]
 
 [dev-dependencies]
-criterion = "0.3.2"
+iai = "0.1.1"
 
 [[bench]]
 name = "sbpoperators"
