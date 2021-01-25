@@ -9,13 +9,19 @@ fn advance_system<SBP: SbpOperator2d>(universe: &mut System<SBP>, n: usize) {
     }
 }
 
-fn advance_system_upwind<UO: UpwindOperator2d>(universe: &mut System<UO>, n: usize) {
+fn advance_system_upwind<UO: SbpOperator2d + UpwindOperator2d>(
+    universe: &mut System<UO>,
+    n: usize,
+) {
     for _ in 0..n {
         universe.advance_upwind(1.0 / 40.0 * 0.2);
     }
 }
 
-fn advance_embedded<UO: UpwindOperator2d>(universe: &mut System<UO>, embedded: bool) {
+fn advance_embedded<UO: SbpOperator2d + UpwindOperator2d>(
+    universe: &mut System<UO>,
+    embedded: bool,
+) {
     let dt = 0.2 / std::cmp::max(universe.nx(), universe.ny()) as Float;
     let t = 1.0;
     if embedded {

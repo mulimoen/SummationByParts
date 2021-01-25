@@ -9,7 +9,10 @@ fn advance_system<SBP: SbpOperator2d>(universe: &mut System<SBP>, n: usize) {
     }
 }
 
-fn advance_system_upwind<UO: UpwindOperator2d>(universe: &mut System<UO>, n: usize) {
+fn advance_system_upwind<UO: SbpOperator2d + UpwindOperator2d>(
+    universe: &mut System<UO>,
+    n: usize,
+) {
     for _ in 0..n {
         universe.advance_upwind(0.01);
     }

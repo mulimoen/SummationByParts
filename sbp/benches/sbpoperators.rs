@@ -68,6 +68,7 @@ fn baseline_sparse() {
     let _res = Array2::<Float>::zeros((W, H));
 }
 
+#[cfg(feature = "sparse")]
 fn upwind4_diffxi_sparse() {
     let dx = operators::Upwind4.op_xi().diff_matrix(W);
     let dx = sprs::kronecker_product(sprs::CsMat::eye(H).view(), dx.view());
