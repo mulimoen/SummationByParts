@@ -319,6 +319,7 @@ mod fastfloat {
         }
     }
 }
+#[cfg(feature = "fast-float")]
 use fastfloat::FastFloat;
 
 #[inline(always)]
@@ -330,12 +331,19 @@ pub(crate) fn diff_op_1d_slice_matrix<const M: usize, const N: usize, const D: u
     prev: &[Float],
     fut: &mut [Float],
 ) {
-    use std::mem::transmute;
-    let block = unsafe { transmute::<_, &Matrix<FastFloat, M, N>>(block) };
-    let endblock = unsafe { transmute::<_, &Matrix<FastFloat, M, N>>(endblock) };
-    let diag = unsafe { transmute::<_, &RowVector<FastFloat, D>>(diag) };
-    let prev = unsafe { transmute::<_, &[FastFloat]>(prev) };
-    let fut = unsafe { transmute::<_, &mut [FastFloat]>(fut) };
+    #[cfg(feature = "fast-float")]
+    let (block, endblock, diag, prev, fut) = {
+        use std::mem::transmute;
+        unsafe {
+            (
+                transmute::<_, &Matrix<FastFloat, M, N>>(block),
+                transmute::<_, &Matrix<FastFloat, M, N>>(endblock),
+                transmute::<_, &RowVector<FastFloat, D>>(diag),
+                transmute::<_, &[FastFloat]>(prev),
+                transmute::<_, &mut [FastFloat]>(fut),
+            )
+        }
+    };
 
     assert_eq!(prev.len(), fut.len());
     let nx = prev.len();
@@ -350,6 +358,7 @@ pub(crate) fn diff_op_1d_slice_matrix<const M: usize, const N: usize, const D: u
         1.0 / (nx - 1) as Float
     };
     let idx = 1.0 / dx;
+    #[cfg(feature = "fast-float")]
     let idx = FastFloat::from(idx);
 
     use std::convert::TryInto;

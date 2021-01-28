@@ -16,6 +16,7 @@ serde = { version = "1.0.115", optional = true, default-features = false, featur
 [features]
 # Use f32 as precision, default is f64
 f32 = []
+fast-float = []
 sparse = ["sprs"]
 serde1 = ["serde", "ndarray/serde"]
 
