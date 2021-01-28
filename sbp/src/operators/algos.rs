@@ -114,7 +114,7 @@ pub(crate) mod constmatrix {
             let mut v = Self::default();
             for i in 0..M {
                 for j in 0..N {
-                    v[(i, j)] = self[(N - 1 - i, M - 1 - j)].clone()
+                    v[(i, j)] = self[(M - 1 - i, N - 1 - j)].clone()
                 }
             }
             v
@@ -276,12 +276,11 @@ pub(crate) fn diff_op_1d_slice_matrix<const M: usize, const N: usize, const D: u
     for (window, f) in prev
         .array_windows::<D>()
         .skip(window_elems_to_skip)
-        .zip(fut.iter_mut().skip(M))
+        .zip(fut.array_chunks_mut::<1>().skip(M))
         .take(nx - 2 * M)
     {
-        let fut = ColVector::<Float, 1>::map_to_col_mut(unsafe {
-            std::mem::transmute::<&mut Float, &mut [Float; 1]>(f)
-        });
+        // impl From here?
+        let fut = ColVector::<Float, 1>::map_to_col_mut(f);
         let prev = ColVector::<_, D>::map_to_col(window);
 
         diag.matmul_into(prev, fut);
@@ -297,7 +296,8 @@ pub(crate) fn diff_op_1d_slice_matrix<const M: usize, const N: usize, const D: u
     };
 
     {
-        let prev = ColVector::<_, N>::map_to_col((&prev[nx - N..]).try_into().unwrap());
+        let prev = prev.array_windows::<N>().last().unwrap();
+        let prev = ColVector::<_, N>::map_to_col(prev);
         let fut = ColVector::<_, M>::map_to_col_mut((&mut fut[nx - M..]).try_into().unwrap());
 
         flipped.matmul_into(prev, fut);

@@ -1,5 +1,6 @@
 #![feature(core_intrinsics)]
 #![feature(array_windows)]
+#![feature(array_chunks)]
 
 /// Type used for floats, configure with the `f32` feature
 #[cfg(feature = "f32")]

@@ -10,10 +10,14 @@ impl SBP4 {
     const HBLOCK: &'static [Float] = &[
         17.0 / 48.0, 59.0 / 48.0, 43.0 / 48.0, 49.0 / 48.0,
     ];
+
     #[rustfmt::skip]
     const DIAG: &'static [Float] = &[
         1.0 / 12.0, -2.0 / 3.0, 0.0, 2.0 / 3.0, -1.0 / 12.0,
     ];
+
+    const DIAG_MATRIX: super::RowVector<Float, 5> =
+        super::RowVector::new([[1.0 / 12.0, -2.0 / 3.0, 0.0, 2.0 / 3.0, -1.0 / 12.0]]);
     #[rustfmt::skip]
     const BLOCK: &'static [&'static [Float]] = &[
         &[-24.0/17.0, 59.0/34.0, -4.0/17.0, -3.0/34.0],
@@ -21,6 +25,13 @@ impl SBP4 {
         &[4.0/43.0, -59.0/86.0, 0.0, 59.0/86.0, -4.0/43.0],
         &[3.0/98.0, 0.0, -59.0/98.0, 0.0, 32.0/49.0, -4.0/49.0]
     ];
+    #[rustfmt::skip]
+    const BLOCK_MATRIX: super::Matrix<Float, 4, 6> = super::Matrix::new([
+        [-24.0/17.0, 59.0/34.0, -4.0/17.0, -3.0/34.0, 0.0, 0.0],
+        [-1.0/2.0, 0.0, 1.0/2.0, 0.0, 0.0, 0.0],
+        [4.0/43.0, -59.0/86.0, 0.0, 59.0/86.0, -4.0/43.0, 0.0],
+        [3.0/98.0, 0.0, -59.0/98.0, 0.0, 32.0/49.0, -4.0/49.0]
+    ]);
 
     #[rustfmt::skip]
     const D2DIAG: &'static [Float] = &[
@@ -71,6 +82,22 @@ impl SbpOperator1d for SBP4 {
     }
 }
 
+fn diff_op_row_local(prev: ndarray::ArrayView2<Float>, mut fut: ndarray::ArrayViewMut2<Float>) {
+    for (p, mut f) in prev
+        .axis_iter(ndarray::Axis(0))
+        .zip(fut.axis_iter_mut(ndarray::Axis(0)))
+    {
+        super::diff_op_1d_slice_matrix(
+            &SBP4::BLOCK_MATRIX,
+            &SBP4::DIAG_MATRIX,
+            super::Symmetry::AntiSymmetric,
+            super::OperatorType::Normal,
+            p.as_slice().unwrap(),
+            f.as_slice_mut().unwrap(),
+        )
+    }
+}
+
 impl SbpOperator2d for SBP4 {
     fn diffxi(&self, prev: ArrayView2<Float>, mut fut: ArrayViewMut2<Float>) {
         assert_eq!(prev.shape(), fut.shape());
@@ -81,7 +108,8 @@ impl SbpOperator2d for SBP4 {
 
         match (prev.strides(), fut.strides()) {
             ([_, 1], [_, 1]) => {
-                diff_op_row(SBP4::BLOCK, SBP4::DIAG, symmetry, optype)(prev, fut);
+                //diff_op_row(SBP4::BLOCK, SBP4::DIAG, symmetry, optype)(prev, fut);
+                diff_op_row_local(prev, fut)
             }
             ([1, _], [1, _]) => {
                 diff_op_col(SBP4::BLOCK, SBP4::DIAG, symmetry, optype)(prev, fut);
