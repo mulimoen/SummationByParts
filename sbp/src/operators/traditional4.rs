@@ -83,14 +83,16 @@ impl SbpOperator1d for SBP4 {
 }
 
 fn diff_op_row_local(prev: ndarray::ArrayView2<Float>, mut fut: ndarray::ArrayViewMut2<Float>) {
+    let mut flipmatrix = SBP4::BLOCK_MATRIX.flip();
+    flipmatrix *= &-1.0;
     for (p, mut f) in prev
         .axis_iter(ndarray::Axis(0))
         .zip(fut.axis_iter_mut(ndarray::Axis(0)))
     {
         super::diff_op_1d_slice_matrix(
             &SBP4::BLOCK_MATRIX,
+            &flipmatrix,
             &SBP4::DIAG_MATRIX,
-            super::Symmetry::AntiSymmetric,
             super::OperatorType::Normal,
             p.as_slice().unwrap(),
             f.as_slice_mut().unwrap(),
