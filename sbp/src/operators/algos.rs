@@ -3,6 +3,7 @@ use super::*;
 pub(crate) mod constmatrix {
     /// A row-major matrix
     #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
+    #[repr(transparent)]
     pub struct Matrix<T, const M: usize, const N: usize> {
         data: [[T; N]; M],
     }
@@ -94,12 +95,8 @@ pub(crate) mod constmatrix {
                 }
             }
         }
-        pub fn iter(&self) -> impl ExactSizeIterator<Item = &T> + DoubleEndedIterator<Item = &T> {
-            (0..N * M).map(move |x| {
-                let i = x / N;
-                let j = x % N;
-                &self[(i, j)]
-            })
+        pub fn iter(&self) -> impl Iterator<Item = &T> {
+            self.data.iter().flatten()
         }
         pub fn iter_mut(&mut self) -> impl Iterator<Item = &mut T> {
             self.data.iter_mut().flatten()
@@ -352,7 +349,8 @@ pub(crate) fn diff_op_1d_slice_matrix<const M: usize, const N: usize, const D: u
     } else {
         1.0 / (nx - 1) as Float
     };
-    let idx = FastFloat::from(1.0 / dx);
+    let idx = 1.0 / dx;
+    let idx = FastFloat::from(idx);
 
     use std::convert::TryInto;
     {
@@ -382,7 +380,7 @@ pub(crate) fn diff_op_1d_slice_matrix<const M: usize, const N: usize, const D: u
     }
 
     {
-        let prev = prev.array_windows::<N>().last().unwrap();
+        let prev = prev.array_windows::<N>().next_back().unwrap();
         let prev = ColVector::<_, N>::map_to_col(prev);
         let fut = ColVector::<_, M>::map_to_col_mut((&mut fut[nx - M..]).try_into().unwrap());
 

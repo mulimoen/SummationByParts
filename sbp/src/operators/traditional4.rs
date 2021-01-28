@@ -92,7 +92,7 @@ impl SbpOperator1d for SBP4 {
 fn diff_op_row_local(prev: ndarray::ArrayView2<Float>, mut fut: ndarray::ArrayViewMut2<Float>) {
     // Magic two lines that prevents or enables optimisation
     // (doubles instructions when not included)
-    let mut flipmatrix = SBP4::BLOCK_MATRIX.flip();
+    let mut flipmatrix = SBP4::BLOCK_MATRIX;
     flipmatrix *= &-1.0;
 
     for (p, mut f) in prev
@@ -227,4 +227,15 @@ fn test_trad4() {
         |x, y| 2.0 * x.powi(2) + 6.0 * x * y + 12.0 * y.powi(2),
         1e-1,
     );
+}
+
+#[test]
+fn block_equality() {
+    let mut flipped_inverted = SBP4::BLOCK_MATRIX.flip();
+    flipped_inverted *= &-1.0;
+
+    assert!(flipped_inverted
+        .iter()
+        .zip(SBP4::BLOCKEND_MATRIX.iter())
+        .all(|(x, y)| (x - y).abs() < 1e-3))
 }
