@@ -32,6 +32,13 @@ impl SBP4 {
         [4.0/43.0, -59.0/86.0, 0.0, 59.0/86.0, -4.0/43.0, 0.0],
         [3.0/98.0, 0.0, -59.0/98.0, 0.0, 32.0/49.0, -4.0/49.0]
     ]);
+    #[rustfmt::skip]
+    const BLOCKEND_MATRIX: super::Matrix<Float, 4, 6> = super::Matrix::new([
+        [4.0/49.0, -32.0/49.0, 0.0, 59.0/98.0, 0.0, -3.0/98.0 ],
+        [0.0,      4.0/43.0, -59.0/86.0, 0.0, 59.0/86.0, -4.0/43.0],
+        [0.0, 0.0, 0.0, -1.0/2.0, 0.0, 1.0/2.0],
+        [0.0, 0.0, 3.0/34.0, 4.0/17.0, -59.0/34.0, 24.0/17.0],
+    ]);
 
     #[rustfmt::skip]
     const D2DIAG: &'static [Float] = &[
@@ -83,15 +90,18 @@ impl SbpOperator1d for SBP4 {
 }
 
 fn diff_op_row_local(prev: ndarray::ArrayView2<Float>, mut fut: ndarray::ArrayViewMut2<Float>) {
+    // Magic two lines that prevents or enables optimisation
+    // (doubles instructions when not included)
     let mut flipmatrix = SBP4::BLOCK_MATRIX.flip();
     flipmatrix *= &-1.0;
+
     for (p, mut f) in prev
         .axis_iter(ndarray::Axis(0))
         .zip(fut.axis_iter_mut(ndarray::Axis(0)))
     {
         super::diff_op_1d_slice_matrix(
             &SBP4::BLOCK_MATRIX,
-            &flipmatrix,
+            &SBP4::BLOCKEND_MATRIX,
             &SBP4::DIAG_MATRIX,
             super::OperatorType::Normal,
             p.as_slice().unwrap(),
