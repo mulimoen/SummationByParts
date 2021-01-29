@@ -55,10 +55,10 @@ impl SBP8 {
 
 impl SbpOperator1d for SBP8 {
     fn diff(&self, prev: ArrayView1<Float>, fut: ArrayViewMut1<Float>) {
-        super::diff_op_1d(
-            Self::BLOCK,
-            Self::DIAG,
-            super::Symmetry::AntiSymmetric,
+        super::diff_op_1d_matrix(
+            &Self::BLOCK_MATRIX,
+            &Self::BLOCKEND_MATRIX,
+            &Self::DIAG_MATRIX,
             super::OperatorType::Normal,
             prev,
             fut,
@@ -107,6 +107,18 @@ fn diff_op_row_local(prev: ndarray::ArrayView2<Float>, mut fut: ndarray::ArrayVi
     }
 }
 
+fn diff_op_col_local(prev: ndarray::ArrayView2<Float>, fut: ndarray::ArrayViewMut2<Float>) {
+    let optype = super::OperatorType::Normal;
+    super::diff_op_col_matrix(
+        &SBP8::BLOCK_MATRIX,
+        &SBP8::BLOCKEND_MATRIX,
+        &SBP8::DIAG_MATRIX,
+        optype,
+        prev,
+        fut,
+    )
+}
+
 impl SbpOperator2d for SBP8 {
     fn diffxi(&self, prev: ArrayView2<Float>, mut fut: ArrayViewMut2<Float>) {
         assert_eq!(prev.shape(), fut.shape());
@@ -114,14 +126,14 @@ impl SbpOperator2d for SBP8 {
 
         let symmetry = super::Symmetry::AntiSymmetric;
         let optype = super::OperatorType::Normal;
-
         match (prev.strides(), fut.strides()) {
             ([_, 1], [_, 1]) => {
                 //diff_op_row(SBP8::BLOCK, SBP8::DIAG, symmetry, optype)(prev, fut);
                 diff_op_row_local(prev, fut);
             }
             ([1, _], [1, _]) => {
-                diff_op_col(SBP8::BLOCK, SBP8::DIAG, symmetry, optype)(prev, fut);
+                //diff_op_col(SBP8::BLOCK, SBP8::DIAG, symmetry, optype)(prev, fut);
+                diff_op_col_local(prev, fut)
             }
             ([_, _], [_, _]) => {
                 // Fallback, work row by row
