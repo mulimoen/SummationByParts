@@ -316,10 +316,14 @@ pub(crate) fn diff_op_1d_slice_matrix<const M: usize, const N: usize, const D: u
     #[cfg(feature = "fast-float")]
     let idx = FastFloat::from(idx);
 
+    // Help aliasing analysis
+    let (futb1, fut) = fut.split_at_mut(M);
+    let (fut, futb2) = fut.split_at_mut(nx - 2 * M);
+
     use std::convert::TryInto;
     {
         let prev = ColVector::<_, N>::map_to_col(prev.array_windows::<N>().next().unwrap());
-        let fut = ColVector::<_, M>::map_to_col_mut((&mut fut[0..M]).try_into().unwrap());
+        let fut = ColVector::<_, M>::map_to_col_mut(futb1.try_into().unwrap());
 
         block.matmul_into(prev, fut);
         *fut *= idx;
@@ -332,8 +336,7 @@ pub(crate) fn diff_op_1d_slice_matrix<const M: usize, const N: usize, const D: u
     for (window, f) in prev
         .array_windows::<D>()
         .skip(window_elems_to_skip)
-        .zip(fut.array_chunks_mut::<1>().skip(M))
-        .take(nx - 2 * M)
+        .zip(fut.array_chunks_mut::<1>())
     {
         let fut = ColVector::<_, 1>::map_to_col_mut(f);
         let prev = ColVector::<_, D>::map_to_col(window);
@@ -345,7 +348,7 @@ pub(crate) fn diff_op_1d_slice_matrix<const M: usize, const N: usize, const D: u
     {
         let prev = prev.array_windows::<N>().next_back().unwrap();
         let prev = ColVector::<_, N>::map_to_col(prev);
-        let fut = ColVector::<_, M>::map_to_col_mut((&mut fut[nx - M..]).try_into().unwrap());
+        let fut = ColVector::<_, M>::map_to_col_mut(futb2.try_into().unwrap());
 
         endblock.matmul_into(prev, fut);
         *fut *= idx;
