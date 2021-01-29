@@ -4,7 +4,7 @@ pub(crate) mod constmatrix {
     #![allow(unused)]
     /// A row-major matrix
     #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-    #[repr(transparent)]
+    #[repr(C)]
     pub struct Matrix<T, const M: usize, const N: usize> {
         data: [[T; N]; M],
     }
@@ -318,7 +318,7 @@ pub(crate) fn diff_op_1d_slice_matrix<const M: usize, const N: usize, const D: u
 
     use std::convert::TryInto;
     {
-        let prev = ColVector::<_, N>::map_to_col(prev.array_windows::<N>().nth(0).unwrap());
+        let prev = ColVector::<_, N>::map_to_col(prev.array_windows::<N>().next().unwrap());
         let fut = ColVector::<_, M>::map_to_col_mut((&mut fut[0..M]).try_into().unwrap());
 
         block.matmul_into(prev, fut);
@@ -335,7 +335,6 @@ pub(crate) fn diff_op_1d_slice_matrix<const M: usize, const N: usize, const D: u
         .zip(fut.array_chunks_mut::<1>().skip(M))
         .take(nx - 2 * M)
     {
-        // impl From here?
         let fut = ColVector::<_, 1>::map_to_col_mut(f);
         let prev = ColVector::<_, D>::map_to_col(window);
 
