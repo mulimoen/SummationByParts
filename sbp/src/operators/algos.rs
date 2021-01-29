@@ -1,6 +1,7 @@
 use super::*;
 
 pub(crate) mod constmatrix {
+    #![allow(unused)]
     /// A row-major matrix
     #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
     #[repr(transparent)]
@@ -70,8 +71,7 @@ pub(crate) mod constmatrix {
         }
         pub fn matmul<const P: usize>(&self, other: &Matrix<T, N, P>) -> Matrix<T, M, P>
         where
-            T: Default + core::ops::AddAssign<T>,
-            for<'f> &'f T: std::ops::Mul<Output = T>,
+            T: Copy + Default + core::ops::Add<Output = T> + core::ops::Mul<Output = T>,
         {
             let mut out = Matrix::default();
             self.matmul_into(other, &mut out);
@@ -82,14 +82,13 @@ pub(crate) mod constmatrix {
             other: &Matrix<T, N, P>,
             out: &mut Matrix<T, M, P>,
         ) where
-            T: Default + core::ops::AddAssign<T>,
-            for<'f> &'f T: std::ops::Mul<Output = T>,
+            T: Copy + Default + core::ops::Add<Output = T> + core::ops::Mul<Output = T>,
         {
             for i in 0..M {
                 for j in 0..P {
                     let mut t = T::default();
                     for k in 0..N {
-                        t += &self[(i, k)] * &other[(k, j)];
+                        t = t + self[(i, k)] * other[(k, j)];
                     }
                     out[(i, j)] = t;
                 }
@@ -144,12 +143,12 @@ pub(crate) mod constmatrix {
         }
     }
 
-    impl<T, const M: usize, const N: usize> core::ops::MulAssign<&T> for Matrix<T, M, N>
+    impl<T, const M: usize, const N: usize> core::ops::MulAssign<T> for Matrix<T, M, N>
     where
-        for<'f> T: core::ops::MulAssign<&'f T>,
+        T: Copy + core::ops::MulAssign<T>,
     {
         #[inline(always)]
-        fn mul_assign(&mut self, other: &T) {
+        fn mul_assign(&mut self, other: T) {
             self.iter_mut().for_each(|x| *x *= other)
         }
     }
@@ -243,83 +242,50 @@ pub(crate) fn diff_op_1d_matrix<const M: usize, const N: usize, const D: usize>(
     }
 }
 
+#[cfg(feature = "fast-float")]
 mod fastfloat {
     use super::*;
     #[repr(transparent)]
-    #[derive(Debug, PartialEq, Default)]
+    #[derive(Copy, Clone, Debug, PartialEq, Default)]
     pub(crate) struct FastFloat(Float);
 
     use core::intrinsics::{fadd_fast, fmul_fast};
 
     impl core::ops::Mul for FastFloat {
         type Output = Self;
+        #[inline(always)]
         fn mul(self, o: Self) -> Self::Output {
             unsafe { Self(fmul_fast(self.0, o.0)) }
         }
     }
 
+    impl core::ops::Add for FastFloat {
+        type Output = Self;
+        #[inline(always)]
+        fn add(self, o: FastFloat) -> Self::Output {
+            unsafe { Self(fadd_fast(self.0, o.0)) }
+        }
+    }
+
     impl core::ops::MulAssign<FastFloat> for FastFloat {
+        #[inline(always)]
         fn mul_assign(&mut self, o: FastFloat) {
             unsafe {
                 self.0 = fmul_fast(self.0, o.0);
-            }
-        }
-    }
-
-    impl core::ops::MulAssign<&FastFloat> for FastFloat {
-        fn mul_assign(&mut self, o: &FastFloat) {
-            unsafe {
-                self.0 = fmul_fast(self.0, o.0);
-            }
-        }
-    }
-
-    impl core::ops::MulAssign<FastFloat> for &mut FastFloat {
-        fn mul_assign(&mut self, o: FastFloat) {
-            unsafe {
-                self.0 = fmul_fast(self.0, o.0);
-            }
-        }
-    }
-    impl core::ops::MulAssign<&FastFloat> for &mut FastFloat {
-        fn mul_assign(&mut self, o: &FastFloat) {
-            unsafe {
-                self.0 = fmul_fast(self.0, o.0);
-            }
-        }
-    }
-
-    impl core::ops::AddAssign for FastFloat {
-        fn add_assign(&mut self, o: Self) {
-            unsafe {
-                self.0 = fadd_fast(self.0, o.0);
             }
         }
     }
 
     impl core::ops::Mul for &FastFloat {
         type Output = FastFloat;
+        #[inline(always)]
         fn mul(self, o: Self) -> Self::Output {
             unsafe { FastFloat(fmul_fast(self.0, o.0)) }
         }
     }
 
-    impl core::ops::MulAssign<&Float> for FastFloat {
-        fn mul_assign(&mut self, o: &Float) {
-            unsafe {
-                self.0 = fmul_fast(self.0, *o);
-            }
-        }
-    }
-    impl core::ops::MulAssign<&Float> for &mut FastFloat {
-        fn mul_assign(&mut self, o: &Float) {
-            unsafe {
-                self.0 = fmul_fast(self.0, *o);
-            }
-        }
-    }
-
     impl From<Float> for FastFloat {
+        #[inline(always)]
         fn from(f: Float) -> Self {
             Self(f)
         }
@@ -373,7 +339,7 @@ pub(crate) fn diff_op_1d_slice_matrix<const M: usize, const N: usize, const D: u
         let fut = ColVector::<_, M>::map_to_col_mut((&mut fut[0..M]).try_into().unwrap());
 
         block.matmul_into(prev, fut);
-        *fut *= &idx;
+        *fut *= idx;
     }
 
     // The window needs to be aligned to the diagonal elements,
@@ -391,7 +357,7 @@ pub(crate) fn diff_op_1d_slice_matrix<const M: usize, const N: usize, const D: u
         let prev = ColVector::<_, D>::map_to_col(window);
 
         diag.matmul_into(prev, fut);
-        *fut *= &idx;
+        *fut *= idx;
     }
 
     {
@@ -400,7 +366,7 @@ pub(crate) fn diff_op_1d_slice_matrix<const M: usize, const N: usize, const D: u
         let fut = ColVector::<_, M>::map_to_col_mut((&mut fut[nx - M..]).try_into().unwrap());
 
         endblock.matmul_into(prev, fut);
-        *fut *= &idx;
+        *fut *= idx;
     }
 }
 

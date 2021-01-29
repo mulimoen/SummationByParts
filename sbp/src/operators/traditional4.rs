@@ -227,7 +227,7 @@ fn test_trad4() {
 #[test]
 fn block_equality() {
     let mut flipped_inverted = SBP4::BLOCK_MATRIX.flip();
-    flipped_inverted *= &-1.0;
+    flipped_inverted *= -1.0;
 
     assert!(flipped_inverted
         .iter()
