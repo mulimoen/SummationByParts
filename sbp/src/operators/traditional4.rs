@@ -90,11 +90,6 @@ impl SbpOperator1d for SBP4 {
 }
 
 fn diff_op_row_local(prev: ndarray::ArrayView2<Float>, mut fut: ndarray::ArrayViewMut2<Float>) {
-    // Magic two lines that prevents or enables optimisation
-    // (doubles instructions when not included)
-    let mut flipmatrix = SBP4::BLOCK_MATRIX;
-    flipmatrix *= &-1.0;
-
     for (p, mut f) in prev
         .axis_iter(ndarray::Axis(0))
         .zip(fut.axis_iter_mut(ndarray::Axis(0)))

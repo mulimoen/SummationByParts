@@ -60,11 +60,11 @@ pub(crate) mod constmatrix {
         pub const fn new(data: [[T; N]; M]) -> Self {
             Self { data }
         }
-        #[inline]
+        #[inline(always)]
         pub const fn nrows(&self) -> usize {
             M
         }
-        #[inline]
+        #[inline(always)]
         pub const fn ncols(&self) -> usize {
             N
         }
@@ -95,12 +95,15 @@ pub(crate) mod constmatrix {
                 }
             }
         }
+        #[inline(always)]
         pub fn iter(&self) -> impl Iterator<Item = &T> {
             self.data.iter().flatten()
         }
+        #[inline(always)]
         pub fn iter_mut(&mut self) -> impl Iterator<Item = &mut T> {
             self.data.iter_mut().flatten()
         }
+        #[inline(always)]
         pub fn iter_rows(
             &self,
         ) -> impl ExactSizeIterator<Item = &[T; N]> + DoubleEndedIterator<Item = &[T; N]> {
@@ -122,9 +125,11 @@ pub(crate) mod constmatrix {
     }
 
     impl<T, const N: usize> ColVector<T, N> {
+        #[inline(always)]
         pub fn map_to_col(slice: &[T; N]) -> &ColVector<T, N> {
             unsafe { std::mem::transmute::<&[T; N], &Self>(slice) }
         }
+        #[inline(always)]
         pub fn map_to_col_mut(slice: &mut [T; N]) -> &mut ColVector<T, N> {
             unsafe { std::mem::transmute::<&mut [T; N], &mut Self>(slice) }
         }
@@ -143,6 +148,7 @@ pub(crate) mod constmatrix {
     where
         for<'f> T: core::ops::MulAssign<&'f T>,
     {
+        #[inline(always)]
         fn mul_assign(&mut self, other: &T) {
             self.iter_mut().for_each(|x| *x *= other)
         }
