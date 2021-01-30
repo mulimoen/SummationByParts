@@ -700,7 +700,7 @@ pub(crate) fn diff_op_col_matrix<const M: usize, const N: usize, const D: usize>
     diag: &RowVector<Float, D>,
     optype: OperatorType,
     prev: ArrayView2<Float>,
-    mut fut: ArrayViewMut2<Float>,
+    fut: ArrayViewMut2<Float>,
 ) {
     assert_eq!(prev.shape(), fut.shape());
     let nx = prev.shape()[1];
@@ -728,12 +728,7 @@ pub(crate) fn diff_op_col_matrix<const M: usize, const N: usize, const D: usize>
     let half_diag_width = (D - 1) / 2;
     assert!(half_diag_width <= M);
 
-    let fut_base_ptr = fut.as_mut_ptr();
     let fut_stride = fut.strides()[1];
-    let fut_ptr = |j, i| {
-        debug_assert!(j < ny && i < nx);
-        unsafe { fut_base_ptr.offset(fut_stride * i as isize + j as isize) }
-    };
 
     let prev_base_ptr = prev.as_ptr();
     let prev_stride = prev.strides()[1];
@@ -745,88 +740,92 @@ pub(crate) fn diff_op_col_matrix<const M: usize, const N: usize, const D: usize>
     // Not algo necessary, but gives performance increase
     assert_eq!(fut_stride, prev_stride);
 
+    use ndarray::Axis;
+    let (mut fut1, fut) = fut.split_at(Axis(1), M);
+    let (mut fut, mut fut2) = fut.split_at(Axis(1), nx - 2 * M);
+
     // First block
     {
-        for (ifut, &bl) in block.iter_rows().enumerate() {
-            for j in (0..simdified).step_by(SimdT::lanes()) {
-                let index_to_simd = |i| unsafe {
-                    // j never moves past end of slice due to step_by and
-                    // rounding down
-                    SimdT::from_slice_unaligned(std::slice::from_raw_parts(
-                        prev_ptr(j, i),
-                        SimdT::lanes(),
-                    ))
-                };
+        let prev = prev.slice(ndarray::s![.., ..N]);
+        let (prevb, prevl) = prev.split_at(Axis(0), simdified);
+        for (mut fut, &bl) in fut1.axis_iter_mut(Axis(1)).zip(block.iter_rows()) {
+            let fut = fut.as_slice_mut().unwrap();
+            let fut = &mut fut[..ny];
+
+            let mut fut = fut.chunks_exact_mut(SimdT::lanes());
+            let mut prev = prevb.axis_chunks_iter(Axis(0), SimdT::lanes());
+
+            for (fut, prev) in fut.by_ref().zip(prev.by_ref()) {
                 let mut f = SimdT::splat(0.0);
-                for (iprev, &bl) in bl.iter().enumerate() {
-                    f = index_to_simd(iprev).mul_adde(SimdT::splat(bl), f);
+                for (&bl, prev) in bl.iter().zip(prev.axis_iter(Axis(1))) {
+                    let prev = prev.to_slice().unwrap();
+                    let prev = SimdT::from_slice_unaligned(prev);
+                    f = prev.mul_adde(SimdT::splat(bl), f);
                 }
                 f *= idx;
-
-                unsafe {
-                    f.write_to_slice_unaligned(std::slice::from_raw_parts_mut(
-                        fut_ptr(j, ifut),
-                        SimdT::lanes(),
-                    ));
-                }
+                f.write_to_slice_unaligned(fut);
             }
-            for j in simdified..ny {
-                unsafe {
-                    let mut f = 0.0;
-                    for (iprev, bl) in bl.iter().enumerate() {
-                        f += bl * *prev_ptr(j, iprev);
-                    }
-                    *fut_ptr(j, ifut) = f * idx;
+            for (fut, prev) in fut
+                .into_remainder()
+                .iter_mut()
+                .zip(prevl.axis_iter(Axis(0)))
+            {
+                let mut f = 0.0;
+                for (bl, prev) in bl.iter().zip(prev.iter()) {
+                    f += bl * prev;
                 }
+                *fut = f * idx;
             }
         }
     }
 
     // Diagonal elements
     {
-        for ifut in M..nx - M {
-            for j in (0..simdified).step_by(SimdT::lanes()) {
-                let index_to_simd = |i| unsafe {
-                    // j never moves past end of slice due to step_by and
-                    // rounding down
-                    SimdT::from_slice_unaligned(std::slice::from_raw_parts(
-                        prev_ptr(j, i),
-                        SimdT::lanes(),
-                    ))
-                };
+        let window_elems_to_skip = M - ((D - 1) / 2);
+        let prev = prev.slice(ndarray::s![.., window_elems_to_skip..]);
+        let prev = prev.windows((ny, D));
+        for (mut fut, prev) in fut.axis_iter_mut(Axis(1)).zip(prev) {
+            let fut = fut.as_slice_mut().unwrap();
+            let fut = &mut fut[..ny];
+
+            let mut fut = fut.chunks_exact_mut(SimdT::lanes());
+
+            let (prevb, prevl) = prev.split_at(Axis(0), simdified);
+            let prev = prevb.axis_chunks_iter(Axis(0), SimdT::lanes());
+
+            for (fut, prev) in fut.by_ref().zip(prev) {
                 let mut f = SimdT::splat(0.0);
-                for (id, &d) in diag.iter().enumerate() {
-                    let offset = ifut - half_diag_width + id;
-                    f = index_to_simd(offset).mul_adde(SimdT::splat(d), f);
+                for (&d, prev) in diag.iter().zip(prev.axis_iter(Axis(1))) {
+                    let prev = prev.to_slice().unwrap();
+                    let prev = SimdT::from_slice_unaligned(prev);
+                    f = prev.mul_adde(SimdT::splat(d), f);
                 }
                 f *= idx;
-                unsafe {
-                    // puts simd along stride 1, j never goes past end of slice
-                    f.write_to_slice_unaligned(std::slice::from_raw_parts_mut(
-                        fut_ptr(j, ifut),
-                        SimdT::lanes(),
-                    ));
-                }
+                f.write_to_slice_unaligned(fut);
             }
-            for j in simdified..ny {
+
+            for (fut, prev) in fut
+                .into_remainder()
+                .into_iter()
+                .zip(prevl.axis_iter(Axis(0)))
+            {
                 let mut f = 0.0;
-                for (id, &d) in diag.iter().enumerate() {
-                    let offset = ifut - half_diag_width + id;
-                    unsafe {
-                        f += d * *prev_ptr(j, offset);
-                    }
+                for (&d, prev) in diag.iter().zip(prev) {
+                    f += d * prev;
                 }
-                unsafe {
-                    *fut_ptr(j, ifut) = idx * f;
-                }
+                *fut = idx * f;
             }
         }
     }
 
     // End block
     {
-        for (ifut, &bl) in (nx - M..nx).zip(block2.iter_rows()) {
-            for j in (0..simdified).step_by(SimdT::lanes()) {
+        for (mut fut, &bl) in fut2.axis_iter_mut(Axis(1)).zip(block2.iter_rows()) {
+            let fut = fut.as_slice_mut().unwrap();
+            let fut = &mut fut[..ny];
+            let mut fut = fut.chunks_exact_mut(SimdT::lanes());
+
+            for (fut, j) in fut.by_ref().zip((0..simdified).step_by(SimdT::lanes())) {
                 let index_to_simd = |i| unsafe {
                     // j never moves past end of slice due to step_by and
                     // rounding down
@@ -840,21 +839,15 @@ pub(crate) fn diff_op_col_matrix<const M: usize, const N: usize, const D: usize>
                     f = index_to_simd(iprev).mul_adde(SimdT::splat(bl), f);
                 }
                 f *= idx;
-
-                unsafe {
-                    f.write_to_slice_unaligned(std::slice::from_raw_parts_mut(
-                        fut_ptr(j, ifut),
-                        SimdT::lanes(),
-                    ));
-                }
+                f.write_to_slice_unaligned(fut);
             }
-            for j in simdified..ny {
+            for (fut, j) in fut.into_remainder().into_iter().zip(simdified..ny) {
                 unsafe {
                     let mut f = 0.0;
                     for (iprev, bl) in (nx - N..nx).zip(bl.iter()) {
                         f += bl * *prev_ptr(j, iprev);
                     }
-                    *fut_ptr(j, ifut) = f * idx;
+                    *fut = f * idx;
                 }
             }
         }
