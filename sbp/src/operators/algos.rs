@@ -178,6 +178,71 @@ pub(crate) mod constmatrix {
             let m3 = m1 * m2;
             assert_eq!(m3, Matrix::new([[74, 80, 86, 92], [173, 188, 203, 218]]));
         }
+        #[test]
+        fn iter() {
+            let m = Matrix::new([[1_u8, 2, 3], [4, 5, 6]]);
+            let mut iter = m.iter();
+            assert_eq!(iter.next(), Some(&1));
+            assert_eq!(iter.next(), Some(&2));
+            assert_eq!(iter.next(), Some(&3));
+            assert_eq!(iter.next(), Some(&4));
+            assert_eq!(iter.next(), Some(&5));
+            assert_eq!(iter.next(), Some(&6));
+            assert_eq!(iter.next(), None);
+        }
+    }
+
+    mod approx {
+        use super::Matrix;
+        use ::approx::{AbsDiffEq, RelativeEq, UlpsEq};
+
+        impl<T, const M: usize, const N: usize> AbsDiffEq for Matrix<T, M, N>
+        where
+            T: AbsDiffEq,
+        {
+            type Epsilon = T::Epsilon;
+            fn default_epsilon() -> Self::Epsilon {
+                T::default_epsilon()
+            }
+            fn abs_diff_eq(&self, other: &Self, epsilon: Self::Epsilon) -> bool {
+                self.iter()
+                    .zip(other.iter())
+                    .all(|(r, l)| r.abs_diff_eq(l, T::default_epsilon()))
+            }
+        }
+        impl<T, const M: usize, const N: usize> RelativeEq for Matrix<T, M, N>
+        where
+            T: RelativeEq,
+            Self::Epsilon: Copy,
+        {
+            fn default_max_relative() -> Self::Epsilon {
+                T::default_max_relative()
+            }
+            fn relative_eq(
+                &self,
+                other: &Self,
+                epsilon: Self::Epsilon,
+                max_relative: Self::Epsilon,
+            ) -> bool {
+                self.iter()
+                    .zip(other.iter())
+                    .all(|(r, l)| r.relative_eq(l, epsilon, max_relative))
+            }
+        }
+        impl<T, const M: usize, const N: usize> UlpsEq for Matrix<T, M, N>
+        where
+            T: UlpsEq,
+            Self::Epsilon: Copy,
+        {
+            fn default_max_ulps() -> u32 {
+                T::default_max_ulps()
+            }
+            fn ulps_eq(&self, other: &Self, epsilon: Self::Epsilon, max_ulps: u32) -> bool {
+                self.iter()
+                    .zip(other.iter())
+                    .all(|(r, l)| r.ulps_eq(l, epsilon, max_ulps))
+            }
+        }
     }
 }
 
@@ -228,6 +293,7 @@ pub(crate) fn diff_op_1d_matrix<const M: usize, const N: usize, const D: usize>(
         *f = diff * idx;
     }
 
+    let prev = prev.slice(ndarray::s![nx - N..]);
     for (bl, f) in blockend.iter_rows().zip(fut.iter_mut().rev().take(M).rev()) {
         let diff = bl
             .iter()

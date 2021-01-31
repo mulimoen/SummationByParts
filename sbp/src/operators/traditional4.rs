@@ -240,8 +240,5 @@ fn block_equality() {
     let mut flipped_inverted = SBP4::BLOCK_MATRIX.flip();
     flipped_inverted *= -1.0;
 
-    assert!(flipped_inverted
-        .iter()
-        .zip(SBP4::BLOCKEND_MATRIX.iter())
-        .all(|(x, y)| (x - y).abs() < 1e-3))
+    approx::assert_ulps_eq!(SBP4::BLOCKEND_MATRIX, flipped_inverted, max_ulps = 1);
 }

@@ -221,8 +221,5 @@ fn block_equality() {
     let mut flipped_inverted = SBP8::BLOCK_MATRIX.flip();
     flipped_inverted *= -1.0;
 
-    assert!(flipped_inverted
-        .iter()
-        .zip(SBP8::BLOCKEND_MATRIX.iter())
-        .all(|(x, y)| (x - y).abs() < 1e-12))
+    approx::assert_ulps_eq!(SBP8::BLOCKEND_MATRIX, flipped_inverted, max_ulps = 1);
 }

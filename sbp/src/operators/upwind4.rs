@@ -1,5 +1,6 @@
 use super::{
-    diff_op_col, diff_op_row, SbpOperator1d, SbpOperator2d, UpwindOperator1d, UpwindOperator2d,
+    diff_op_col, diff_op_row, Matrix, RowVector, SbpOperator1d, SbpOperator2d, UpwindOperator1d,
+    UpwindOperator2d,
 };
 use crate::Float;
 use ndarray::{ArrayView1, ArrayView2, ArrayViewMut1, ArrayViewMut2, Axis};
@@ -174,12 +175,30 @@ impl Upwind4 {
         -1.0 / 24.0, 1.0 / 4.0, -7.0 / 8.0, 0.0, 7.0 / 8.0, -1.0 / 4.0, 1.0 / 24.0
     ];
     #[rustfmt::skip]
+    const DIAG_MATRIX : RowVector<Float, 7> = RowVector::new([
+        [-1.0 / 24.0, 1.0 / 4.0, -7.0 / 8.0, 0.0, 7.0 / 8.0, -1.0 / 4.0, 1.0 / 24.0]
+    ]);
+    #[rustfmt::skip]
     const BLOCK: &'static [&'static [Float]] = &[
         &[  -72.0 / 49.0, 187.0 / 98.0,   -20.0 / 49.0,   -3.0 / 98.0,           0.0,           0.0,         0.0],
         &[-187.0 / 366.0,          0.0,   69.0 / 122.0, -16.0 / 183.0,    2.0 / 61.0,           0.0,         0.0],
         &[  20.0 / 123.0, -69.0 / 82.0,            0.0, 227.0 / 246.0,  -12.0 / 41.0,    2.0 / 41.0,         0.0],
         &[   3.0 / 298.0, 16.0 / 149.0, -227.0 / 298.0,           0.0, 126.0 / 149.0, -36.0 / 149.0, 6.0 / 149.0],
     ];
+    #[rustfmt::skip]
+    const BLOCK_MATRIX: Matrix<Float, 4, 7> = Matrix::new([
+        [  -72.0 / 49.0, 187.0 / 98.0,   -20.0 / 49.0,   -3.0 / 98.0,           0.0,           0.0,         0.0],
+        [-187.0 / 366.0,          0.0,   69.0 / 122.0, -16.0 / 183.0,    2.0 / 61.0,           0.0,         0.0],
+        [  20.0 / 123.0, -69.0 / 82.0,            0.0, 227.0 / 246.0,  -12.0 / 41.0,    2.0 / 41.0,         0.0],
+        [   3.0 / 298.0, 16.0 / 149.0, -227.0 / 298.0,           0.0, 126.0 / 149.0, -36.0 / 149.0, 6.0 / 149.0],
+    ]);
+    #[rustfmt::skip]
+    const BLOCKEND_MATRIX: Matrix<Float, 4, 7> = Matrix::new([
+        [ -6.0 / 149.0, 36.0 / 149.0, -126.0 / 149.0, 0.0, 227.0 / 298.0, -16.0 / 149.0, -3.0 / 298.0],
+        [ 0.0, -2.0/41.0, 12.0/41.0, -227.0/246.0, 0.0, 69.0/82.0,  -20.0/123.0],
+        [ 0.0, 0.0, -2.0/61.0, 16.0/183.0, -69.0/122.0, 0.0, 187.0/366.0],
+        [  0.0, 0.0, 0.0, 3.0 / 98.0, 20.0 / 49.0, -187.0 / 98.0, 72.0/49.0],
+    ]);
 
     #[rustfmt::skip]
     const DISS_BLOCK: &'static [&'static [Float]] = &[
@@ -197,10 +216,10 @@ impl Upwind4 {
 
 impl SbpOperator1d for Upwind4 {
     fn diff(&self, prev: ArrayView1<Float>, fut: ArrayViewMut1<Float>) {
-        super::diff_op_1d(
-            Self::BLOCK,
-            Self::DIAG,
-            super::Symmetry::AntiSymmetric,
+        super::diff_op_1d_matrix(
+            &Self::BLOCK_MATRIX,
+            &Self::BLOCKEND_MATRIX,
+            &Self::DIAG_MATRIX,
             super::OperatorType::Normal,
             prev,
             fut,
@@ -229,18 +248,29 @@ impl SbpOperator1d for Upwind4 {
     }
 }
 
+fn diff_op_row_local(prev: ndarray::ArrayView2<Float>, mut fut: ndarray::ArrayViewMut2<Float>) {
+    for (p, mut f) in prev
+        .axis_iter(ndarray::Axis(0))
+        .zip(fut.axis_iter_mut(ndarray::Axis(0)))
+    {
+        super::diff_op_1d_slice_matrix(
+            &Upwind4::BLOCK_MATRIX,
+            &Upwind4::BLOCKEND_MATRIX,
+            &Upwind4::DIAG_MATRIX,
+            super::OperatorType::Normal,
+            p.as_slice().unwrap(),
+            f.as_slice_mut().unwrap(),
+        )
+    }
+}
+
 impl SbpOperator2d for Upwind4 {
     fn diffxi(&self, prev: ArrayView2<Float>, mut fut: ArrayViewMut2<Float>) {
         assert_eq!(prev.shape(), fut.shape());
         assert!(prev.shape()[1] >= 2 * Upwind4::BLOCK.len());
 
         match (prev.strides(), fut.strides()) {
-            ([_, 1], [_, 1]) => diff_op_row(
-                Upwind4::BLOCK,
-                Upwind4::DIAG,
-                super::Symmetry::AntiSymmetric,
-                super::OperatorType::Normal,
-            )(prev, fut),
+            ([_, 1], [_, 1]) => diff_op_row_local(prev, fut),
             ([1, _], [1, _]) if prev.len_of(Axis(0)) % SimdT::lanes() == 0 => {
                 diff_simd_col(prev, fut)
             }
@@ -464,4 +494,12 @@ fn upwind4_test2() {
         |x, y| 2.0 * x.powi(2) + 6.0 * x * y + 12.0 * y.powi(2),
         1e-1,
     );
+}
+
+#[test]
+fn block_equality() {
+    let mut flipped_inverted = Upwind4::BLOCK_MATRIX.flip();
+    flipped_inverted *= -1.0;
+
+    approx::assert_ulps_eq!(Upwind4::BLOCKEND_MATRIX, flipped_inverted, max_ulps = 1);
 }
