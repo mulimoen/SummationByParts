@@ -573,6 +573,82 @@ pub(crate) fn diff_op_col_naive(
 }
 
 #[inline(always)]
+#[allow(unused)]
+pub(crate) fn diff_op_col_naive_matrix<const M: usize, const N: usize, const D: usize>(
+    block: &Matrix<Float, M, N>,
+    blockend: &Matrix<Float, M, N>,
+    diag: &RowVector<Float, D>,
+    optype: OperatorType,
+    prev: ArrayView2<Float>,
+    mut fut: ArrayViewMut2<Float>,
+) {
+    assert_eq!(prev.shape(), fut.shape());
+    let nx = prev.shape()[1];
+    let ny = prev.shape()[0];
+    assert!(nx >= 2 * M);
+
+    assert_eq!(prev.strides()[0], 1);
+    assert_eq!(fut.strides()[0], 1);
+
+    let dx = if optype == OperatorType::H2 {
+        1.0 / (nx - 2) as Float
+    } else {
+        1.0 / (nx - 1) as Float
+    };
+    let idx = 1.0 / dx;
+
+    fut.fill(0.0);
+
+    let (mut fut0, mut futmid, mut futn) = fut.multi_slice_mut((
+        ndarray::s![.., ..M],
+        ndarray::s![.., M..nx - M],
+        ndarray::s![.., nx - M..],
+    ));
+
+    // First block
+    for (bl, mut fut) in block.iter_rows().zip(fut0.axis_iter_mut(ndarray::Axis(1))) {
+        debug_assert_eq!(fut.len(), prev.shape()[0]);
+        for (&bl, prev) in bl.iter().zip(prev.axis_iter(ndarray::Axis(1))) {
+            if bl == 0.0 {
+                continue;
+            }
+            debug_assert_eq!(prev.len(), fut.len());
+            fut.scaled_add(idx * bl, &prev);
+        }
+    }
+
+    let window_elems_to_skip = M - ((D - 1) / 2);
+
+    // Diagonal entries
+    for (mut fut, id) in futmid
+        .axis_iter_mut(ndarray::Axis(1))
+        .zip(prev.windows((ny, D)).into_iter().skip(window_elems_to_skip))
+    {
+        for (&d, id) in diag.iter().zip(id.axis_iter(ndarray::Axis(1))) {
+            if d == 0.0 {
+                continue;
+            }
+            fut.scaled_add(idx * d, &id)
+        }
+    }
+
+    // End block
+    let prev = prev.slice(ndarray::s!(.., nx - N..));
+    for (bl, mut fut) in blockend
+        .iter_rows()
+        .zip(futn.axis_iter_mut(ndarray::Axis(1)))
+    {
+        fut.fill(0.0);
+        for (&bl, prev) in bl.iter().zip(prev.axis_iter(ndarray::Axis(1))) {
+            if bl == 0.0 {
+                continue;
+            }
+            fut.scaled_add(idx * bl, &prev);
+        }
+    }
+}
+
+#[inline(always)]
 pub(crate) fn diff_op_col(
     block: &'static [&'static [Float]],
     diag: &'static [Float],

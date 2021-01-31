@@ -106,7 +106,7 @@ fn diff_op_row_local(prev: ndarray::ArrayView2<Float>, mut fut: ndarray::ArrayVi
 }
 fn diff_op_col_local(prev: ndarray::ArrayView2<Float>, fut: ndarray::ArrayViewMut2<Float>) {
     let optype = super::OperatorType::Normal;
-    super::diff_op_col_matrix(
+    super::diff_op_col_naive_matrix(
         &SBP4::BLOCK_MATRIX,
         &SBP4::BLOCKEND_MATRIX,
         &SBP4::DIAG_MATRIX,
