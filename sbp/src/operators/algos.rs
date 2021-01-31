@@ -73,7 +73,7 @@ pub(crate) mod constmatrix {
         pub fn iter_rows(
             &self,
         ) -> impl ExactSizeIterator<Item = &[T; N]> + DoubleEndedIterator<Item = &[T; N]> {
-            (0..M).map(move |i| &self[i])
+            self.data.iter()
         }
 
         pub fn flip(&self) -> Self
