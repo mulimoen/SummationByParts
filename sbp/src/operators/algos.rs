@@ -200,8 +200,9 @@ pub(crate) fn diff_op_2d_fallback<const M: usize, const N: usize, const D: usize
     matrix: &BlockMatrix<Float, M, N, D>,
     optype: OperatorType,
     prev: ArrayView2<Float>,
-    fut: ArrayViewMut2<Float>,
+    mut fut: ArrayViewMut2<Float>,
 ) {
+    /* Does not increase the perf...
     #[cfg(feature = "fast-float")]
     let (matrix, prev, mut fut) = unsafe {
         (
@@ -212,6 +213,7 @@ pub(crate) fn diff_op_2d_fallback<const M: usize, const N: usize, const D: usize
     };
     #[cfg(not(feature = "fast-float"))]
     let mut fut = fut;
+    */
 
     assert_eq!(prev.shape(), fut.shape());
     let nx = prev.shape()[1];
