@@ -72,6 +72,10 @@ impl<T, const M: usize, const N: usize> Matrix<T, M, N> {
     ) -> impl ExactSizeIterator<Item = &[T; N]> + DoubleEndedIterator<Item = &[T; N]> {
         self.data.iter()
     }
+    #[inline(always)]
+    pub const fn row(&self, idx: usize) -> &[T; N] {
+        &self.data[idx]
+    }
 }
 
 impl<T, const N: usize> ColVector<T, N> {

@@ -1,4 +1,6 @@
-use super::{SbpOperator1d, SbpOperator2d};
+use super::{
+    BlockMatrix, DiagonalMatrix, Matrix, OperatorType, RowVector, SbpOperator1d, SbpOperator2d,
+};
 use crate::Float;
 use ndarray::{ArrayView1, ArrayView2, ArrayViewMut1, ArrayViewMut2};
 
@@ -7,76 +9,61 @@ pub struct SBP4;
 
 impl SBP4 {
     #[rustfmt::skip]
-    const HBLOCK: &'static [Float] = &[
+    const H: DiagonalMatrix<4> = DiagonalMatrix::new([
         17.0 / 48.0, 59.0 / 48.0, 43.0 / 48.0, 49.0 / 48.0,
-    ];
+    ]);
 
     #[rustfmt::skip]
-    const DIAG: &'static [Float] = &[
-        1.0 / 12.0, -2.0 / 3.0, 0.0, 2.0 / 3.0, -1.0 / 12.0,
-    ];
-
-    const DIAG_MATRIX: super::RowVector<Float, 5> =
-        super::RowVector::new([[1.0 / 12.0, -2.0 / 3.0, 0.0, 2.0 / 3.0, -1.0 / 12.0]]);
+    const DIFF_DIAG: RowVector<Float, 5> = RowVector::new([[
+        1.0 / 12.0, -2.0 / 3.0, 0.0, 2.0 / 3.0, -1.0 / 12.0
+    ]]);
     #[rustfmt::skip]
-    const BLOCK: &'static [&'static [Float]] = &[
-        &[-24.0/17.0, 59.0/34.0, -4.0/17.0, -3.0/34.0],
-        &[-1.0/2.0, 0.0, 1.0/2.0],
-        &[4.0/43.0, -59.0/86.0, 0.0, 59.0/86.0, -4.0/43.0],
-        &[3.0/98.0, 0.0, -59.0/98.0, 0.0, 32.0/49.0, -4.0/49.0]
-    ];
-    #[rustfmt::skip]
-    const BLOCK_MATRIX: super::Matrix<Float, 4, 6> = super::Matrix::new([
+    const DIFF_BLOCK: Matrix<Float, 4, 6> = Matrix::new([
         [-24.0/17.0, 59.0/34.0, -4.0/17.0, -3.0/34.0, 0.0, 0.0],
         [-1.0/2.0, 0.0, 1.0/2.0, 0.0, 0.0, 0.0],
         [4.0/43.0, -59.0/86.0, 0.0, 59.0/86.0, -4.0/43.0, 0.0],
         [3.0/98.0, 0.0, -59.0/98.0, 0.0, 32.0/49.0, -4.0/49.0]
     ]);
-    const BLOCKEND_MATRIX: super::Matrix<Float, 4, 6> =
-        super::flip_sign(super::flip_ud(super::flip_lr(Self::BLOCK_MATRIX)));
+    const DIFF_BLOCKEND: super::Matrix<Float, 4, 6> =
+        super::flip_sign(super::flip_ud(super::flip_lr(Self::DIFF_BLOCK)));
+
+    const DIFF: BlockMatrix<4, 6, 5> =
+        BlockMatrix::new(Self::DIFF_BLOCK, Self::DIFF_DIAG, Self::DIFF_BLOCKEND);
 
     #[rustfmt::skip]
-    const D2DIAG: &'static [Float] = &[
+    const D2DIAG: RowVector<Float, 5> = RowVector::new([[
         -1.0 / 12.0, 4.0 / 3.0, -5.0 / 2.0, 4.0 / 3.0, -1.0 / 12.0
-    ];
+    ]]);
     #[rustfmt::skip]
-    const D2BLOCK: &'static [&'static [Float]] = &[
-        &[2.0, -5.0, 4.0, -1.0],
-        &[1.0, -2.0, 1.0],
-        &[-4.0/43.0, 59.0/43.0, -110.0/43.0, 59.0/43.0, -4.0/43.0],
-        &[-1.0/49.0, 0.0, 59.0/49.0, -118.0/49.0, 64.0/49.0, -4.0/49.0]
-    ];
+    const D2BLOCK: Matrix<Float, 4, 6> = Matrix::new([
+        [2.0, -5.0, 4.0, -1.0, 0.0, 0.0],
+        [1.0, -2.0, 1.0, 0.0, 0.0, 0.0],
+        [-4.0/43.0, 59.0/43.0, -110.0/43.0, 59.0/43.0, -4.0/43.0, 0.0],
+        [-1.0/49.0, 0.0, 59.0/49.0, -118.0/49.0, 64.0/49.0, -4.0/49.0]
+    ]);
+    const D2: BlockMatrix<4, 6, 5> = BlockMatrix::new(
+        Self::D2BLOCK,
+        Self::D2DIAG,
+        super::flip_ud(super::flip_lr(Self::D2BLOCK)),
+    );
 }
 
 impl SbpOperator1d for SBP4 {
     fn diff(&self, prev: ArrayView1<Float>, fut: ArrayViewMut1<Float>) {
-        super::diff_op_1d_matrix(
-            &Self::BLOCK_MATRIX,
-            &Self::BLOCKEND_MATRIX,
-            &Self::DIAG_MATRIX,
-            super::OperatorType::Normal,
-            prev,
-            fut,
-        )
+        super::diff_op_1d(&Self::DIFF, super::OperatorType::Normal, prev, fut)
     }
 
     fn h(&self) -> &'static [Float] {
-        Self::HBLOCK
+        &Self::H.start
     }
 
     #[cfg(feature = "sparse")]
     fn diff_matrix(&self, n: usize) -> sprs::CsMat<Float> {
-        super::sparse_from_block(
-            Self::BLOCK,
-            Self::DIAG,
-            super::Symmetry::AntiSymmetric,
-            super::OperatorType::Normal,
-            n,
-        )
+        super::sparse_from_block(&Self::DIFF, super::OperatorType::Normal, n)
     }
     #[cfg(feature = "sparse")]
     fn h_matrix(&self, n: usize) -> sprs::CsMat<Float> {
-        super::h_matrix(Self::HBLOCK, n, self.is_h2())
+        super::h_matrix(&Self::H, n, self.is_h2())
     }
 
     fn d2(&self) -> Option<&dyn super::SbpOperator1d2> {
@@ -84,76 +71,19 @@ impl SbpOperator1d for SBP4 {
     }
 }
 
-fn diff_op_row_local(prev: ndarray::ArrayView2<Float>, mut fut: ndarray::ArrayViewMut2<Float>) {
-    for (p, mut f) in prev
-        .axis_iter(ndarray::Axis(0))
-        .zip(fut.axis_iter_mut(ndarray::Axis(0)))
-    {
-        super::diff_op_1d_slice_matrix(
-            &SBP4::BLOCK_MATRIX,
-            &SBP4::BLOCKEND_MATRIX,
-            &SBP4::DIAG_MATRIX,
-            super::OperatorType::Normal,
-            p.as_slice().unwrap(),
-            f.as_slice_mut().unwrap(),
-        )
-    }
-}
-fn diff_op_col_local(prev: ndarray::ArrayView2<Float>, fut: ndarray::ArrayViewMut2<Float>) {
-    let optype = super::OperatorType::Normal;
-    super::diff_op_col_naive_matrix(
-        &SBP4::BLOCK_MATRIX,
-        &SBP4::BLOCKEND_MATRIX,
-        &SBP4::DIAG_MATRIX,
-        optype,
-        prev,
-        fut,
-    )
-}
-
 impl SbpOperator2d for SBP4 {
-    fn diffxi(&self, prev: ArrayView2<Float>, mut fut: ArrayViewMut2<Float>) {
+    fn diffxi(&self, prev: ArrayView2<Float>, fut: ArrayViewMut2<Float>) {
         assert_eq!(prev.shape(), fut.shape());
-        assert!(prev.shape()[1] >= 2 * SBP4::BLOCK.len());
-
-        let symmetry = super::Symmetry::AntiSymmetric;
-        let optype = super::OperatorType::Normal;
-        match (prev.strides(), fut.strides()) {
-            ([_, 1], [_, 1]) => {
-                //diff_op_row(SBP4::BLOCK, SBP4::DIAG, symmetry, optype)(prev, fut);
-                diff_op_row_local(prev, fut)
-            }
-            ([1, _], [1, _]) => {
-                //diff_op_col(SBP4::BLOCK, SBP4::DIAG, symmetry, optype)(prev, fut);
-                diff_op_col_local(prev, fut)
-            }
-            ([_, _], [_, _]) => {
-                // Fallback, work row by row
-                for (r0, r1) in prev.outer_iter().zip(fut.outer_iter_mut()) {
-                    SBP4.diff(r0, r1);
-                }
-            }
-            _ => unreachable!("Should only be two elements in the strides vectors"),
-        }
+        super::diff_op_2d(&Self::DIFF, OperatorType::Normal, prev, fut)
     }
     fn op_xi(&self) -> &dyn SbpOperator1d {
-        &Self
-    }
-    fn op_eta(&self) -> &dyn SbpOperator1d {
         &Self
     }
 }
 
 impl super::SbpOperator1d2 for SBP4 {
     fn diff2(&self, prev: ArrayView1<Float>, mut fut: ArrayViewMut1<Float>) {
-        super::diff_op_1d(
-            Self::D2BLOCK,
-            Self::D2DIAG,
-            super::Symmetry::Symmetric,
-            super::OperatorType::Normal,
-            prev,
-            fut.view_mut(),
-        );
+        super::diff_op_1d(&Self::D2, OperatorType::Normal, prev, fut.view_mut());
         let hi = (prev.len() - 1) as Float;
         fut.map_inplace(|x| *x *= hi)
     }
@@ -162,13 +92,7 @@ impl super::SbpOperator1d2 for SBP4 {
     }
     #[cfg(feature = "sparse")]
     fn diff2_matrix(&self, n: usize) -> sprs::CsMat<Float> {
-        let mut m = super::sparse_from_block(
-            Self::D2BLOCK,
-            Self::D2DIAG,
-            super::Symmetry::Symmetric,
-            super::OperatorType::Normal,
-            n,
-        );
+        let mut m = super::sparse_from_block(&Self::D2, OperatorType::Normal, n);
         let hi = (n - 1) as Float;
         m.map_inplace(|v| v * hi);
         m
