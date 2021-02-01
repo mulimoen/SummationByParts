@@ -270,6 +270,7 @@ pub(crate) fn diff_op_2d_fallback<const M: usize, const N: usize, const D: usize
     }
 }
 
+#[inline(always)]
 pub(crate) fn diff_op_2d_sliceable<const M: usize, const N: usize, const D: usize>(
     matrix: &BlockMatrix<Float, M, N, D>,
     optype: OperatorType,
