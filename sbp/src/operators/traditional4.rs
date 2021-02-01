@@ -32,13 +32,8 @@ impl SBP4 {
         [4.0/43.0, -59.0/86.0, 0.0, 59.0/86.0, -4.0/43.0, 0.0],
         [3.0/98.0, 0.0, -59.0/98.0, 0.0, 32.0/49.0, -4.0/49.0]
     ]);
-    #[rustfmt::skip]
-    const BLOCKEND_MATRIX: super::Matrix<Float, 4, 6> = super::Matrix::new([
-        [4.0/49.0, -32.0/49.0, 0.0, 59.0/98.0, 0.0, -3.0/98.0 ],
-        [0.0,      4.0/43.0, -59.0/86.0, 0.0, 59.0/86.0, -4.0/43.0],
-        [0.0, 0.0, 0.0, -1.0/2.0, 0.0, 1.0/2.0],
-        [0.0, 0.0, 3.0/34.0, 4.0/17.0, -59.0/34.0, 24.0/17.0],
-    ]);
+    const BLOCKEND_MATRIX: super::Matrix<Float, 4, 6> =
+        super::flip_sign(super::flip_ud(super::flip_lr(Self::BLOCK_MATRIX)));
 
     #[rustfmt::skip]
     const D2DIAG: &'static [Float] = &[
@@ -233,12 +228,4 @@ fn test_trad4() {
         |x, y| 2.0 * x.powi(2) + 6.0 * x * y + 12.0 * y.powi(2),
         1e-1,
     );
-}
-
-#[test]
-fn block_equality() {
-    let mut flipped_inverted = SBP4::BLOCK_MATRIX.flip();
-    flipped_inverted *= -1.0;
-
-    approx::assert_ulps_eq!(SBP4::BLOCKEND_MATRIX, flipped_inverted, max_ulps = 1);
 }

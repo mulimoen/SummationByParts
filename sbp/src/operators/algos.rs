@@ -6,7 +6,7 @@ pub(crate) mod constmatrix {
     #[derive(Debug, Clone, PartialEq, Eq, Hash)]
     #[repr(C)]
     pub struct Matrix<T, const M: usize, const N: usize> {
-        data: [[T; N]; M],
+        pub data: [[T; N]; M],
     }
     pub type RowVector<T, const N: usize> = Matrix<T, 1, N>;
     pub type ColVector<T, const N: usize> = Matrix<T, N, 1>;
@@ -74,19 +74,6 @@ pub(crate) mod constmatrix {
             &self,
         ) -> impl ExactSizeIterator<Item = &[T; N]> + DoubleEndedIterator<Item = &[T; N]> {
             self.data.iter()
-        }
-
-        pub fn flip(&self) -> Self
-        where
-            T: Default + Copy,
-        {
-            let mut v = Self::default();
-            for i in 0..M {
-                for j in 0..N {
-                    v[(i, j)] = self[(M - 1 - i, N - 1 - j)]
-                }
-            }
-            v
         }
     }
 
@@ -244,9 +231,77 @@ pub(crate) mod constmatrix {
             }
         }
     }
+
+    pub(crate) const fn flip_ud<const M: usize, const N: usize>(
+        mut m: Matrix<super::Float, M, N>,
+    ) -> Matrix<super::Float, M, N> {
+        let mut i = 0;
+        while i < M / 2 {
+            let tmp = m.data[i];
+            m.data[i] = m.data[M - 1 - i];
+            m.data[M - 1 - i] = tmp;
+            i += 1;
+        }
+        m
+    }
+
+    pub(crate) const fn flip_lr<const M: usize, const N: usize>(
+        mut m: Matrix<super::Float, M, N>,
+    ) -> Matrix<super::Float, M, N> {
+        let mut i = 0;
+        while i < M {
+            let mut j = 0;
+            while j < N / 2 {
+                let tmp = m.data[i][j];
+                m.data[i][j] = m.data[i][N - 1 - j];
+                m.data[i][N - 1 - j] = tmp;
+                j += 1;
+            }
+            i += 1;
+        }
+        m
+    }
+
+    /// Flip all sign bits
+    pub(crate) const fn flip_sign<const M: usize, const N: usize>(
+        mut m: Matrix<super::Float, M, N>,
+    ) -> Matrix<super::Float, M, N> {
+        let mut i = 0;
+        while i < M {
+            let mut j = 0;
+            while j < N {
+                m.data[i][j] = -m.data[i][j];
+                j += 1;
+            }
+            i += 1;
+        }
+        m
+    }
+    mod flipping {
+        use super::*;
+
+        #[test]
+        fn flip_lr_test() {
+            let m = Matrix::new([[1.0, 2.0, 3.0, 4.0]]);
+            let flipped = flip_lr(m);
+            assert_eq!(flipped, Matrix::new([[4.0, 3.0, 2.0, 1.0]]));
+            let m = Matrix::new([[1.0, 2.0, 3.0, 4.0, 5.0]]);
+            let flipped = flip_lr(m);
+            assert_eq!(flipped, Matrix::new([[5.0, 4.0, 3.0, 2.0, 1.0]]));
+        }
+        #[test]
+        fn flip_ud_test() {
+            let m = Matrix::new([[1.0], [2.0], [3.0], [4.0]]);
+            let flipped = flip_ud(m);
+            assert_eq!(flipped, Matrix::new([[4.0], [3.0], [2.0], [1.0]]));
+            let m = Matrix::new([[1.0], [2.0], [3.0], [4.0], [5.0]]);
+            let flipped = flip_ud(m);
+            assert_eq!(flipped, Matrix::new([[5.0], [4.0], [3.0], [2.0], [1.0]]));
+        }
+    }
 }
 
-pub(crate) use constmatrix::{ColVector, Matrix, RowVector};
+pub(crate) use constmatrix::{flip_lr, flip_sign, flip_ud, ColVector, Matrix, RowVector};
 
 #[inline(always)]
 pub(crate) fn diff_op_1d_matrix<const M: usize, const N: usize, const D: usize>(

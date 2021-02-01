@@ -192,13 +192,8 @@ impl Upwind4 {
         [  20.0 / 123.0, -69.0 / 82.0,            0.0, 227.0 / 246.0,  -12.0 / 41.0,    2.0 / 41.0,         0.0],
         [   3.0 / 298.0, 16.0 / 149.0, -227.0 / 298.0,           0.0, 126.0 / 149.0, -36.0 / 149.0, 6.0 / 149.0],
     ]);
-    #[rustfmt::skip]
-    const BLOCKEND_MATRIX: Matrix<Float, 4, 7> = Matrix::new([
-        [ -6.0 / 149.0, 36.0 / 149.0, -126.0 / 149.0, 0.0, 227.0 / 298.0, -16.0 / 149.0, -3.0 / 298.0],
-        [ 0.0, -2.0/41.0, 12.0/41.0, -227.0/246.0, 0.0, 69.0/82.0,  -20.0/123.0],
-        [ 0.0, 0.0, -2.0/61.0, 16.0/183.0, -69.0/122.0, 0.0, 187.0/366.0],
-        [  0.0, 0.0, 0.0, 3.0 / 98.0, 20.0 / 49.0, -187.0 / 98.0, 72.0/49.0],
-    ]);
+    const BLOCKEND_MATRIX: Matrix<Float, 4, 7> =
+        super::flip_sign(super::flip_ud(super::flip_lr(Self::BLOCK_MATRIX)));
 
     #[rustfmt::skip]
     const DISS_BLOCK: &'static [&'static [Float]] = &[
@@ -494,12 +489,4 @@ fn upwind4_test2() {
         |x, y| 2.0 * x.powi(2) + 6.0 * x * y + 12.0 * y.powi(2),
         1e-1,
     );
-}
-
-#[test]
-fn block_equality() {
-    let mut flipped_inverted = Upwind4::BLOCK_MATRIX.flip();
-    flipped_inverted *= -1.0;
-
-    approx::assert_ulps_eq!(Upwind4::BLOCKEND_MATRIX, flipped_inverted, max_ulps = 1);
 }

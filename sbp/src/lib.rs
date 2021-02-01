@@ -1,6 +1,7 @@
 #![cfg_attr(feature = "fast-float", feature(core_intrinsics))]
 #![feature(array_windows)]
 #![feature(array_chunks)]
+#![feature(const_fn_floating_point_arithmetic)]
 
 /// Type used for floats, configure with the `f32` feature
 #[cfg(feature = "f32")]
