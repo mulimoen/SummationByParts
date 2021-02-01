@@ -1,4 +1,4 @@
-#![feature(core_intrinsics)]
+#![cfg_attr(feature = "fast-float", feature(core_intrinsics))]
 #![feature(array_windows)]
 #![feature(array_chunks)]
 
