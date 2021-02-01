@@ -1,5 +1,6 @@
 use super::*;
 use ndarray::s;
+use num_traits::Zero;
 
 pub(crate) mod constmatrix;
 pub(crate) use constmatrix::{flip_lr, flip_sign, flip_ud, ColVector, Matrix, RowVector};
@@ -194,14 +195,24 @@ pub(crate) fn diff_op_1d<const M: usize, const N: usize, const D: usize>(
 }
 
 #[inline(always)]
-#[allow(unused)]
 /// 2D diff fallback for when matrices are not slicable
 pub(crate) fn diff_op_2d_fallback<const M: usize, const N: usize, const D: usize>(
     matrix: &BlockMatrix<Float, M, N, D>,
     optype: OperatorType,
     prev: ArrayView2<Float>,
-    mut fut: ArrayViewMut2<Float>,
+    fut: ArrayViewMut2<Float>,
 ) {
+    #[cfg(feature = "fast-float")]
+    let (matrix, prev, mut fut) = unsafe {
+        (
+            std::mem::transmute::<_, &BlockMatrix<FastFloat, M, N, D>>(matrix),
+            std::mem::transmute::<_, ArrayView2<FastFloat>>(prev),
+            std::mem::transmute::<_, ArrayViewMut2<FastFloat>>(fut),
+        )
+    };
+    #[cfg(not(feature = "fast-float"))]
+    let mut fut = fut;
+
     assert_eq!(prev.shape(), fut.shape());
     let nx = prev.shape()[1];
     let ny = prev.shape()[0];
@@ -214,8 +225,7 @@ pub(crate) fn diff_op_2d_fallback<const M: usize, const N: usize, const D: usize
     };
     let idx = 1.0 / dx;
 
-    fut.fill(0.0);
-
+    fut.fill(0.0.into());
     let (mut fut0, mut futmid, mut futn) = fut.multi_slice_mut((
         ndarray::s![.., ..M],
         ndarray::s![.., M..nx - M],
@@ -230,7 +240,7 @@ pub(crate) fn diff_op_2d_fallback<const M: usize, const N: usize, const D: usize
     {
         debug_assert_eq!(fut.len(), prev.shape()[0]);
         for (&bl, prev) in bl.iter().zip(prev.axis_iter(ndarray::Axis(1))) {
-            if bl == 0.0 {
+            if bl.is_zero() {
                 continue;
             }
             debug_assert_eq!(prev.len(), fut.len());
@@ -246,7 +256,7 @@ pub(crate) fn diff_op_2d_fallback<const M: usize, const N: usize, const D: usize
         .zip(prev.windows((ny, D)).into_iter().skip(window_elems_to_skip))
     {
         for (&d, id) in matrix.diag.iter().zip(id.axis_iter(ndarray::Axis(1))) {
-            if d == 0.0 {
+            if d.is_zero() {
                 continue;
             }
             fut.scaled_add(idx * d, &id)
@@ -260,9 +270,8 @@ pub(crate) fn diff_op_2d_fallback<const M: usize, const N: usize, const D: usize
         .iter_rows()
         .zip(futn.axis_iter_mut(ndarray::Axis(1)))
     {
-        fut.fill(0.0);
         for (&bl, prev) in bl.iter().zip(prev.axis_iter(ndarray::Axis(1))) {
-            if bl == 0.0 {
+            if bl.is_zero() {
                 continue;
             }
             fut.scaled_add(idx * bl, &prev);
