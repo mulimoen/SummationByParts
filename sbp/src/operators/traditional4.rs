@@ -27,7 +27,7 @@ impl SBP4 {
     const DIFF_BLOCKEND: super::Matrix<Float, 4, 6> =
         super::flip_sign(super::flip_ud(super::flip_lr(Self::DIFF_BLOCK)));
 
-    const DIFF: BlockMatrix<4, 6, 5> =
+    const DIFF: BlockMatrix<Float, 4, 6, 5> =
         BlockMatrix::new(Self::DIFF_BLOCK, Self::DIFF_DIAG, Self::DIFF_BLOCKEND);
 
     #[rustfmt::skip]
@@ -41,7 +41,7 @@ impl SBP4 {
         [-4.0/43.0, 59.0/43.0, -110.0/43.0, 59.0/43.0, -4.0/43.0, 0.0],
         [-1.0/49.0, 0.0, 59.0/49.0, -118.0/49.0, 64.0/49.0, -4.0/49.0]
     ]);
-    const D2: BlockMatrix<4, 6, 5> = BlockMatrix::new(
+    const D2: BlockMatrix<Float, 4, 6, 5> = BlockMatrix::new(
         Self::D2BLOCK,
         Self::D2DIAG,
         super::flip_ud(super::flip_lr(Self::D2BLOCK)),

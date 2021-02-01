@@ -28,7 +28,7 @@ impl Upwind9 {
         [-6.19425252179959e-03, 3.69595678895333e-02, -7.01892820620398e-02, -3.35233082197107e-03, 2.69304373763091e-01, -8.89857974743355e-01, 0.00000000000000e+00, 8.66656645522330e-01, -2.57919763669076e-01, 6.44799409172690e-02, -1.07466568195448e-02, 8.59732545563586e-04, 0.0],
         [1.44853491014330e-02, -4.59275574977554e-02, 3.08833474560615e-02, 3.57240610228828e-02, -7.07760049349999e-02, 1.88587240076292e-01, -7.92626447113877e-01, 0.00000000000000e+00, 8.25608497215073e-01, -2.35888142061449e-01, 5.89720355153623e-02, -9.82867258589373e-03, 7.86293806871498e-04],
     ]);
-    const DIFF: BlockMatrix<8, 13, 11> = BlockMatrix::new(
+    const DIFF: BlockMatrix<Float, 8, 13, 11> = BlockMatrix::new(
         Self::DIFF_BLOCK,
         Self::DIFF_DIAG,
         super::flip_sign(super::flip_ud(super::flip_lr(Self::DIFF_BLOCK))),
@@ -50,7 +50,7 @@ impl Upwind9 {
     const DISS_DIAG: RowVector<Float, 11> = RowVector::new([[
         1.0/1260.0, -1.0/126.0, 1.0/28.0, -2.0/21.0, 1.0/6.0, -1.0/5.0, 1.0/6.0, -2.0/21.0, 1.0/28.0, -1.0/126.0, 1.0/1260.0,
     ]]);
-    const DISS: BlockMatrix<8, 13, 11> = BlockMatrix::new(
+    const DISS: BlockMatrix<Float, 8, 13, 11> = BlockMatrix::new(
         Self::DISS_BLOCK,
         Self::DISS_DIAG,
         super::flip_ud(super::flip_lr(Self::DISS_BLOCK)),

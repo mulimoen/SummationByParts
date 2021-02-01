@@ -31,18 +31,14 @@ impl<const B: usize> DiagonalMatrix<B> {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub(crate) struct BlockMatrix<const M: usize, const N: usize, const D: usize> {
-    pub start: Matrix<Float, M, N>,
-    pub diag: RowVector<Float, D>,
-    pub end: Matrix<Float, M, N>,
+pub(crate) struct BlockMatrix<T, const M: usize, const N: usize, const D: usize> {
+    pub start: Matrix<T, M, N>,
+    pub diag: RowVector<T, D>,
+    pub end: Matrix<T, M, N>,
 }
 
-impl<const M: usize, const N: usize, const D: usize> BlockMatrix<M, N, D> {
-    pub const fn new(
-        start: Matrix<Float, M, N>,
-        diag: RowVector<Float, D>,
-        end: Matrix<Float, M, N>,
-    ) -> Self {
+impl<T, const M: usize, const N: usize, const D: usize> BlockMatrix<T, M, N, D> {
+    pub const fn new(start: Matrix<T, M, N>, diag: RowVector<T, D>, end: Matrix<T, M, N>) -> Self {
         Self { start, diag, end }
     }
 }
@@ -57,7 +53,7 @@ pub(crate) enum OperatorType {
 #[inline(always)]
 /// Works on all 1d vectors
 pub(crate) fn diff_op_1d_fallback<const M: usize, const N: usize, const D: usize>(
-    matrix: &BlockMatrix<M, N, D>,
+    matrix: &BlockMatrix<Float, M, N, D>,
     optype: OperatorType,
     prev: ArrayView1<Float>,
     mut fut: ArrayViewMut1<Float>,
@@ -106,7 +102,7 @@ pub(crate) fn diff_op_1d_fallback<const M: usize, const N: usize, const D: usize
 #[inline(always)]
 /// diff op in 1d for slices
 pub(crate) fn diff_op_1d_slice<const M: usize, const N: usize, const D: usize>(
-    matrix: &BlockMatrix<M, N, D>,
+    matrix: &BlockMatrix<Float, M, N, D>,
     optype: OperatorType,
     prev: &[Float],
     fut: &mut [Float],
@@ -181,7 +177,7 @@ pub(crate) fn diff_op_1d_slice<const M: usize, const N: usize, const D: usize>(
 #[inline(always)]
 /// Will always work on 1d, delegated based on slicedness
 pub(crate) fn diff_op_1d<const M: usize, const N: usize, const D: usize>(
-    matrix: &BlockMatrix<M, N, D>,
+    matrix: &BlockMatrix<Float, M, N, D>,
     optype: OperatorType,
     prev: ArrayView1<Float>,
     mut fut: ArrayViewMut1<Float>,
@@ -201,7 +197,7 @@ pub(crate) fn diff_op_1d<const M: usize, const N: usize, const D: usize>(
 #[allow(unused)]
 /// 2D diff fallback for when matrices are not slicable
 pub(crate) fn diff_op_2d_fallback<const M: usize, const N: usize, const D: usize>(
-    matrix: &BlockMatrix<M, N, D>,
+    matrix: &BlockMatrix<Float, M, N, D>,
     optype: OperatorType,
     prev: ArrayView2<Float>,
     mut fut: ArrayViewMut2<Float>,
@@ -275,7 +271,7 @@ pub(crate) fn diff_op_2d_fallback<const M: usize, const N: usize, const D: usize
 }
 
 pub(crate) fn diff_op_2d_sliceable<const M: usize, const N: usize, const D: usize>(
-    matrix: &BlockMatrix<M, N, D>,
+    matrix: &BlockMatrix<Float, M, N, D>,
     optype: OperatorType,
     prev: ArrayView2<Float>,
     mut fut: ArrayViewMut2<Float>,
@@ -292,7 +288,7 @@ pub(crate) fn diff_op_2d_sliceable<const M: usize, const N: usize, const D: usiz
 #[inline(always)]
 /// Dispatch based on strides
 pub(crate) fn diff_op_2d<const M: usize, const N: usize, const D: usize>(
-    matrix: &BlockMatrix<M, N, D>,
+    matrix: &BlockMatrix<Float, M, N, D>,
     optype: OperatorType,
     prev: ArrayView2<Float>,
     fut: ArrayViewMut2<Float>,
@@ -494,7 +490,7 @@ fn dotproduct<'a>(
 
 #[cfg(feature = "sparse")]
 pub(crate) fn sparse_from_block<const M: usize, const N: usize, const D: usize>(
-    matrix: &BlockMatrix<M, N, D>,
+    matrix: &BlockMatrix<Float, M, N, D>,
     optype: OperatorType,
     n: usize,
 ) -> sprs::CsMat<Float> {

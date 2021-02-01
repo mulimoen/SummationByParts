@@ -27,7 +27,7 @@ impl Upwind4 {
     const DIFF_BLOCKEND: Matrix<Float, 4, 7> =
         super::flip_sign(super::flip_ud(super::flip_lr(Self::DIFF_BLOCK)));
 
-    const DIFF: BlockMatrix<4, 7, 7> =
+    const DIFF: BlockMatrix<Float, 4, 7, 7> =
         BlockMatrix::new(Self::DIFF_BLOCK, Self::DIFF_DIAG, Self::DIFF_BLOCKEND);
 
     #[rustfmt::skip]
@@ -43,7 +43,7 @@ impl Upwind4 {
     ]]);
     const DISS_BLOCKEND: Matrix<Float, 4, 7> = super::flip_ud(super::flip_lr(Self::DISS_BLOCK));
 
-    const DISS: BlockMatrix<4, 7, 7> =
+    const DISS: BlockMatrix<Float, 4, 7, 7> =
         BlockMatrix::new(Self::DISS_BLOCK, Self::DISS_DIAG, Self::DISS_BLOCKEND);
 }
 
