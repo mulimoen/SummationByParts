@@ -2,7 +2,7 @@ use ndarray::Array2;
 use sbp::operators::{self, SbpOperator2d};
 use sbp::Float;
 
-const W: usize = 64;
+const W: usize = 128;
 const H: usize = 64;
 
 fn baseline() {
