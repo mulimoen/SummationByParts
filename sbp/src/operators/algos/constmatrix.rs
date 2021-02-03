@@ -1,4 +1,7 @@
 #![allow(unused)]
+
+use num_traits::identities::Zero;
+
 /// A row-major matrix
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[repr(C)]
@@ -13,6 +16,17 @@ impl<T: Copy + Default, const M: usize, const N: usize> Default for Matrix<T, M,
         Self {
             data: [[T::default(); N]; M],
         }
+    }
+}
+
+impl<T: Copy + Zero + PartialEq, const M: usize, const N: usize> Zero for Matrix<T, M, N> {
+    fn zero() -> Self {
+        Self {
+            data: [[T::zero(); N]; M],
+        }
+    }
+    fn is_zero(&self) -> bool {
+        self == &Self::zero()
     }
 }
 
@@ -123,9 +137,9 @@ macro_rules! impl_op_mul_mul {
             T: Copy + Default + core::ops::Add<Output = T> + core::ops::Mul<Output = T>,
         {
             type Output = Matrix<T, M, P>;
-            fn mul(self, rhs: $rhs) -> Self::Output {
+            fn mul(self, lhs: $rhs) -> Self::Output {
                 let mut out = Matrix::default();
-                out.matmul_into(&self, &rhs);
+                out.matmul_into(&self, &lhs);
                 out
             }
         }
@@ -144,6 +158,22 @@ where
     #[inline(always)]
     fn mul_assign(&mut self, other: T) {
         self.iter_mut().for_each(|x| *x *= other)
+    }
+}
+
+impl<T, const N: usize, const M: usize> core::ops::Add<Matrix<T, M, N>> for Matrix<T, M, N>
+where
+    T: Copy + Zero + core::ops::Add<Output = T> + PartialEq,
+{
+    type Output = Self;
+    fn add(self, lhs: Self) -> Self::Output {
+        let mut out = Matrix::zero();
+        for i in 0..M {
+            for j in 0..N {
+                out[(i, j)] = self[(i, j)] + lhs[(i, j)];
+            }
+        }
+        out
     }
 }
 
