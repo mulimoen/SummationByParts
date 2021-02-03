@@ -4,7 +4,7 @@ use super::*;
 #[derive(Copy, Clone, Debug, PartialEq, Default)]
 pub(crate) struct FastFloat(Float);
 
-use core::intrinsics::{fadd_fast, fmul_fast};
+use core::intrinsics::{fadd_fast, fdiv_fast, fmul_fast, fsub_fast};
 
 impl core::ops::Mul for FastFloat {
     type Output = Self;
@@ -58,7 +58,7 @@ impl core::ops::Sub for FastFloat {
     type Output = Self;
     #[inline(always)]
     fn sub(self, o: FastFloat) -> Self::Output {
-        unsafe { Self(fadd_fast(self.0, -o.0)) }
+        unsafe { Self(fsub_fast(self.0, o.0)) }
     }
 }
 
@@ -66,7 +66,7 @@ impl core::ops::Div for FastFloat {
     type Output = Self;
     #[inline(always)]
     fn div(self, o: FastFloat) -> Self::Output {
-        Self(self.0 / o.0)
+        unsafe { Self(fdiv_fast(self.0, o.0)) }
     }
 }
 
