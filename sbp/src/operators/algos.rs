@@ -283,6 +283,7 @@ pub(crate) fn diff_op_2d_fallback<const M: usize, const N: usize, const D: usize
 
 #[inline(always)]
 /// 2D diff when first axis is contiguous
+#[allow(unused)]
 pub(crate) fn diff_op_2d_sliceable_y<const M: usize, const N: usize, const D: usize>(
     matrix: &BlockMatrix<Float, M, N, D>,
     optype: OperatorType,
@@ -381,6 +382,174 @@ pub(crate) fn diff_op_2d_sliceable_y<const M: usize, const N: usize, const D: us
 }
 
 #[inline(always)]
+pub(crate) fn diff_op_2d_sliceable_y_simd<const M: usize, const N: usize, const D: usize>(
+    matrix: &BlockMatrix<Float, M, N, D>,
+    optype: OperatorType,
+    prev: ArrayView2<Float>,
+    mut fut: ArrayViewMut2<Float>,
+) {
+    assert_eq!(prev.shape(), fut.shape());
+    let nx = prev.shape()[1];
+    assert!(nx >= 2 * M);
+
+    assert_eq!(prev.strides()[0], 1);
+    assert_eq!(fut.strides()[0], 1);
+
+    let dx = if optype == OperatorType::H2 {
+        1.0 / (nx - 2) as Float
+    } else {
+        1.0 / (nx - 1) as Float
+    };
+    let idx = 1.0 / dx;
+
+    #[cfg(not(feature = "f32"))]
+    type SimdT = packed_simd::f64x8;
+    #[cfg(feature = "f32")]
+    type SimdT = packed_simd::f32x16;
+
+    let ny = prev.shape()[0];
+    // How many elements that can be simdified
+    let simdified = SimdT::lanes() * (ny / SimdT::lanes());
+
+    let half_diag_width = (D - 1) / 2;
+    assert!(half_diag_width <= M);
+
+    let fut_base_ptr = fut.as_mut_ptr();
+    let fut_stride = fut.strides()[1];
+    let fut_ptr = |j, i| {
+        debug_assert!(j < ny && i < nx);
+        unsafe { fut_base_ptr.offset(fut_stride * i as isize + j as isize) }
+    };
+
+    let prev_base_ptr = prev.as_ptr();
+    let prev_stride = prev.strides()[1];
+    let prev_ptr = |j, i| {
+        debug_assert!(j < ny && i < nx);
+        unsafe { prev_base_ptr.offset(prev_stride * i as isize + j as isize) }
+    };
+
+    // Not algo necessary, but gives performance increase
+    assert_eq!(fut_stride, prev_stride);
+
+    // First block
+    {
+        for (ifut, &bl) in matrix.start.iter_rows().enumerate() {
+            for j in (0..simdified).step_by(SimdT::lanes()) {
+                let index_to_simd = |i| unsafe {
+                    // j never moves past end of slice due to step_by and
+                    // rounding down
+                    SimdT::from_slice_unaligned(std::slice::from_raw_parts(
+                        prev_ptr(j, i),
+                        SimdT::lanes(),
+                    ))
+                };
+                let mut f = SimdT::splat(0.0);
+                for (iprev, &bl) in bl.iter().enumerate() {
+                    f = index_to_simd(iprev).mul_adde(SimdT::splat(bl), f);
+                }
+                f *= idx;
+
+                unsafe {
+                    f.write_to_slice_unaligned(std::slice::from_raw_parts_mut(
+                        fut_ptr(j, ifut),
+                        SimdT::lanes(),
+                    ));
+                }
+            }
+            for j in simdified..ny {
+                unsafe {
+                    let mut f = 0.0;
+                    for (iprev, bl) in bl.iter().enumerate() {
+                        f += bl * *prev_ptr(j, iprev);
+                    }
+                    *fut_ptr(j, ifut) = f * idx;
+                }
+            }
+        }
+    }
+
+    // Diagonal elements
+    {
+        for ifut in M..nx - M {
+            for j in (0..simdified).step_by(SimdT::lanes()) {
+                let index_to_simd = |i| unsafe {
+                    // j never moves past end of slice due to step_by and
+                    // rounding down
+                    SimdT::from_slice_unaligned(std::slice::from_raw_parts(
+                        prev_ptr(j, i),
+                        SimdT::lanes(),
+                    ))
+                };
+                let mut f = SimdT::splat(0.0);
+                for (id, &d) in matrix.diag.iter().enumerate() {
+                    let offset = ifut - half_diag_width + id;
+                    f = index_to_simd(offset).mul_adde(SimdT::splat(d), f);
+                }
+                f *= idx;
+                unsafe {
+                    // puts simd along stride 1, j never goes past end of slice
+                    f.write_to_slice_unaligned(std::slice::from_raw_parts_mut(
+                        fut_ptr(j, ifut),
+                        SimdT::lanes(),
+                    ));
+                }
+            }
+            for j in simdified..ny {
+                let mut f = 0.0;
+                for (id, &d) in matrix.diag.iter().enumerate() {
+                    let offset = ifut - half_diag_width + id;
+                    unsafe {
+                        f += d * *prev_ptr(j, offset);
+                    }
+                }
+                unsafe {
+                    *fut_ptr(j, ifut) = idx * f;
+                }
+            }
+        }
+    }
+
+    // End block
+    {
+        // Get blocks and corresponding offsets
+        // (rev to iterate in ifut increasing order)
+        for (bl, ifut) in matrix.end.iter_rows().zip(nx - M..) {
+            for j in (0..simdified).step_by(SimdT::lanes()) {
+                let index_to_simd = |i| unsafe {
+                    // j never moves past end of slice due to step_by and
+                    // rounding down
+                    SimdT::from_slice_unaligned(std::slice::from_raw_parts(
+                        prev_ptr(j, i),
+                        SimdT::lanes(),
+                    ))
+                };
+                let mut f = SimdT::splat(0.0);
+                for (&bl, iprev) in bl.iter().zip(nx - N..) {
+                    f = index_to_simd(iprev).mul_adde(SimdT::splat(bl), f);
+                }
+                f = f * idx;
+                unsafe {
+                    f.write_to_slice_unaligned(std::slice::from_raw_parts_mut(
+                        fut_ptr(j, ifut),
+                        SimdT::lanes(),
+                    ));
+                }
+            }
+
+            for j in simdified..ny {
+                unsafe {
+                    let mut f = 0.0;
+                    for (&bl, iprev) in bl.iter().zip(nx - N..) {
+                        f += bl * *prev_ptr(j, iprev);
+                    }
+                    *fut_ptr(j, ifut) = f * idx;
+                }
+            }
+        }
+    }
+}
+
+#[inline(always)]
 pub(crate) fn diff_op_2d_sliceable<const M: usize, const N: usize, const D: usize>(
     matrix: &BlockMatrix<Float, M, N, D>,
     optype: OperatorType,
@@ -407,7 +576,7 @@ pub(crate) fn diff_op_2d<const M: usize, const N: usize, const D: usize>(
     assert_eq!(prev.shape(), fut.shape());
     match (prev.strides(), fut.strides()) {
         ([_, 1], [_, 1]) => diff_op_2d_sliceable(matrix, optype, prev, fut),
-        ([1, _], [1, _]) => diff_op_2d_sliceable_y(matrix, optype, prev, fut),
+        ([1, _], [1, _]) => diff_op_2d_sliceable_y_simd(matrix, optype, prev, fut),
         _ => diff_op_2d_fallback(matrix, optype, prev, fut),
     }
 }
