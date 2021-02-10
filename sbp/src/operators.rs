@@ -78,7 +78,9 @@ pub trait SbpOperator2d: Send + Sync {
     }
 
     fn op_xi(&self) -> &dyn SbpOperator1d;
-    fn op_eta(&self) -> &dyn SbpOperator1d;
+    fn op_eta(&self) -> &dyn SbpOperator1d {
+        self.op_xi()
+    }
 
     fn upwind(&self) -> Option<Box<dyn UpwindOperator2d>> {
         None
@@ -98,7 +100,9 @@ pub trait UpwindOperator2d: Send + Sync {
     }
 
     fn op_xi(&self) -> &dyn UpwindOperator1d;
-    fn op_eta(&self) -> &dyn UpwindOperator1d;
+    fn op_eta(&self) -> &dyn UpwindOperator1d {
+        self.op_xi()
+    }
 }
 
 pub trait InterpolationOperator: Send + Sync {
