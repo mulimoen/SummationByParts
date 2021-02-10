@@ -433,6 +433,14 @@ pub(crate) fn diff_op_2d_sliceable_y_simd<const M: usize, const N: usize, const 
         let prev = &prev[..N * ny];
         let fut = &mut fut[..M * ny];
 
+        /*
+        let prevcol = {
+            let prev_ptr = prev.as_ptr();
+            move |i: usize| -> &[Float] {
+                unsafe { std::slice::from_raw_parts(prev_ptr.add(i * ny), ny) }
+            }
+        };
+        */
         let prevcol = |i: usize| -> &[Float] { &prev[i * ny..(i + 1) * ny] };
 
         for (&bl, fut) in matrix.iter_rows().zip(fut.chunks_exact_mut(ny)) {
@@ -468,9 +476,16 @@ pub(crate) fn diff_op_2d_sliceable_y_simd<const M: usize, const N: usize, const 
         let half_diag_width = (D - 1) / 2;
         assert!(half_diag_width <= M);
 
-        let prevcol = |i: usize| -> &[Float] { &prev[i * ny..(i + 1) * ny] };
+        let prevcol = {
+            let prev_ptr = prev.as_ptr();
+            move |i: usize| -> &[Float] {
+                unsafe { std::slice::from_raw_parts(prev_ptr.add(i * ny), ny) }
+            }
+        };
+        //let prevcol = |i: usize| -> &[Float] { &prev[i * ny..(i + 1) * ny] };
+
         for (fut, ifut) in futmid.chunks_exact_mut(ny).zip(M..nx - M) {
-            let mut fut = fut.chunks_exact_mut(SimdT::lanes());
+            let mut fut = fut.array_chunks_mut::<{ SimdT::lanes() }>();
             for (j, fut) in fut.by_ref().enumerate() {
                 let index_to_simd =
                     |i| SimdT::from_slice_unaligned(&prevcol(i)[SimdT::lanes() * j..]);
@@ -481,7 +496,6 @@ pub(crate) fn diff_op_2d_sliceable_y_simd<const M: usize, const N: usize, const 
                 }
                 f *= idx;
                 {
-                    // puts simd along stride 1, j never goes past end of slice
                     f.write_to_slice_unaligned(fut);
                 }
             }
