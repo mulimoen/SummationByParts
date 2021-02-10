@@ -444,7 +444,7 @@ pub(crate) fn diff_op_2d_sliceable_y_simd<const M: usize, const N: usize, const 
         let prevcol = |i: usize| -> &[Float] { &prev[i * ny..(i + 1) * ny] };
 
         for (&bl, fut) in matrix.iter_rows().zip(fut.chunks_exact_mut(ny)) {
-            let mut fut = fut.chunks_exact_mut(SimdT::lanes());
+            let mut fut = fut.array_chunks_mut::<{ SimdT::lanes() }>();
             for (j, fut) in fut.by_ref().enumerate() {
                 let index_to_simd =
                     |i| SimdT::from_slice_unaligned(&prevcol(i)[SimdT::lanes() * j..]);
@@ -487,17 +487,23 @@ pub(crate) fn diff_op_2d_sliceable_y_simd<const M: usize, const N: usize, const 
         for (fut, ifut) in futmid.chunks_exact_mut(ny).zip(M..nx - M) {
             let mut fut = fut.array_chunks_mut::<{ SimdT::lanes() }>();
             for (j, fut) in fut.by_ref().enumerate() {
-                let index_to_simd =
-                    |i| SimdT::from_slice_unaligned(&prevcol(i)[SimdT::lanes() * j..]);
+                //let index_to_simd =
+                //    |i| SimdT::from_slice_unaligned(&prevcol(i)[SimdT::lanes() * j..]);
+                let index_to_simd = |i: usize| unsafe {
+                    let prev = std::slice::from_raw_parts(
+                        prev.as_ptr().add(i * ny + SimdT::lanes() * j),
+                        SimdT::lanes(),
+                    );
+                    SimdT::from_slice_unaligned_unchecked(prev)
+                };
                 let mut f = SimdT::splat(0.0);
-                for (id, &d) in matrix.diag.iter().enumerate() {
+                // direct iter does not optimize well here
+                for (id, &d) in matrix.diag.row(0).iter().enumerate() {
                     let offset = ifut - half_diag_width + id;
                     f = index_to_simd(offset).mul_adde(SimdT::splat(d), f);
                 }
                 f *= idx;
-                {
-                    f.write_to_slice_unaligned(fut);
-                }
+                f.write_to_slice_unaligned(fut);
             }
             for (j, fut) in (simdified..ny).zip(fut.into_remainder()) {
                 let mut f = 0.0;
@@ -507,9 +513,7 @@ pub(crate) fn diff_op_2d_sliceable_y_simd<const M: usize, const N: usize, const 
                         f += d * prevcol(offset)[j];
                     }
                 }
-                {
-                    *fut = idx * f;
-                }
+                *fut = idx * f;
             }
         }
     }
