@@ -95,20 +95,20 @@ impl<T, const M: usize, const N: usize> Matrix<T, M, N> {
 impl<T, const N: usize> ColVector<T, N> {
     #[inline(always)]
     pub fn map_to_col(slice: &[T; N]) -> &ColVector<T, N> {
-        unsafe { std::mem::transmute::<&[T; N], &Self>(slice) }
+        unsafe { &*(slice.as_ptr().cast()) }
     }
     #[inline(always)]
     pub fn map_to_col_mut(slice: &mut [T; N]) -> &mut ColVector<T, N> {
-        unsafe { std::mem::transmute::<&mut [T; N], &mut Self>(slice) }
+        unsafe { &mut *(slice.as_mut_ptr().cast()) }
     }
 }
 
 impl<T, const N: usize> RowVector<T, N> {
     pub fn map_to_row(slice: &[T; N]) -> &Self {
-        unsafe { std::mem::transmute::<&[T; N], &Self>(slice) }
+        unsafe { &*(slice.as_ptr().cast()) }
     }
     pub fn map_to_row_mut(slice: &mut [T; N]) -> &mut Self {
-        unsafe { std::mem::transmute::<&mut [T; N], &mut Self>(slice) }
+        unsafe { &mut *(slice.as_mut_ptr().cast()) }
     }
 }
 
