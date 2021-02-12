@@ -191,6 +191,19 @@ struct Options {
     /// Print error at the end of the run
     #[structopt(long)]
     error: bool,
+    /// Output information regarding time elapsed and error
+    /// in json format
+    #[structopt(long)]
+    output_json: bool,
+}
+
+#[derive(Default, serde::Serialize)]
+struct OutputInformation {
+    filename: std::path::PathBuf,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    time_elapsed: Option<std::time::Duration>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    error: Option<Float>,
 }
 
 fn main() {
@@ -273,9 +286,14 @@ fn main() {
     }
     progressbar.finish_and_clear();
 
+    let mut outinfo = OutputInformation {
+        filename: opt.output,
+        ..Default::default()
+    };
+
     if let Some(timer) = timer {
         let duration = timer.elapsed();
-        println!("Time elapsed: {} seconds", duration.as_secs_f64());
+        outinfo.time_elapsed = Some(duration);
     }
 
     output.add_timestep(ntime, &sys.fnow);
@@ -287,7 +305,18 @@ fn main() {
             fvort.vortex(grid.x(), grid.y(), time, &vortexparams);
             e += fmod.h2_err(&fvort, &**op);
         }
-        println!("Total error: {:e}", e);
+        outinfo.error = Some(e);
+    }
+
+    if opt.output_json {
+        println!("{}", json5::to_string(&outinfo).unwrap());
+    } else {
+        if let Some(duration) = outinfo.time_elapsed {
+            println!("Time elapsed: {} seconds", duration.as_secs_f64());
+        }
+        if let Some(error) = outinfo.error {
+            println!("Total error: {:e}", error);
+        }
     }
 }
 
