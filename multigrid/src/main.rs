@@ -197,7 +197,20 @@ fn main() {
     let opt = Options::from_args();
     let filecontents = std::fs::read_to_string(&opt.json).unwrap();
 
-    let config: parsing::Configuration = json5::from_str(&filecontents).unwrap();
+    let config: parsing::Configuration = match json5::from_str(&filecontents) {
+        Ok(config) => config,
+        Err(e) => {
+            eprintln!("Configuration could not be read: {}", e);
+            if let json5::Error::Message {
+                location: Some(location),
+                ..
+            } = e
+            {
+                eprintln!("\t{:?}", location);
+            }
+            return;
+        }
+    };
 
     let parsing::RuntimeConfiguration {
         names,
