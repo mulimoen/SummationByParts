@@ -431,7 +431,9 @@ class FieldDrawer {
         }
         let field = new Float32Array(wasm.memory.buffer, fieldPtr, width*height);
         fieldDrawer.draw(field);
-        lineDrawer.draw();
+        if (document.getElementById("gridlines").checked) {
+            lineDrawer.draw();
+        }
     }
 
     async function drawLoop() {
@@ -536,4 +538,8 @@ class FieldDrawer {
             draw();
         }
     }, {"passive": false});
+
+    setup();
+    is_setup = true;
+    animation = window.requestAnimationFrame(drawLoop);
 }());
