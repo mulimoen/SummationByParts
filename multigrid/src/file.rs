@@ -101,7 +101,7 @@ impl File {
                     .gzip(3)
                     .shuffle(true)
                     .chunk((1, grid.ny(), grid.nx()))
-                    .resizable_idx(&[true, false, false])
+                    .resizable(true)
                     .create(name, (0, grid.ny(), grid.nx()))
             };
             add_var("rho")?;

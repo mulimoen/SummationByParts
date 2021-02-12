@@ -17,8 +17,3 @@ debug = true
 
 [profile.release]
 debug = true
-
-[patch]
-[patch.crates-io]
-hdf5 = { git = "https://github.com/mulimoen/hdf5-rust.git", branch = "feature/resizable_idx" }
-hdf5-sys = { git = "https://github.com/mulimoen/hdf5-rust.git", branch = "feature/resizable_idx" }
