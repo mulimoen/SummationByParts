@@ -27,7 +27,7 @@ impl Upwind4h2 {
     const DIFF: BlockMatrix<Float, 4, 7, 7> = BlockMatrix::new(
         Self::DIFF_BLOCK,
         Self::DIFF_DIAG,
-        super::flip_sign(super::flip_ud(super::flip_lr(Self::DIFF_BLOCK))),
+        Self::DIFF_BLOCK.flip_lr().flip_ud().flip_sign(),
     );
 
     #[rustfmt::skip]
@@ -45,7 +45,7 @@ impl Upwind4h2 {
     const DISS: BlockMatrix<Float, 4, 7, 7> = BlockMatrix::new(
         Self::DISS_BLOCK,
         Self::DISS_DIAG,
-        super::flip_ud(super::flip_lr(Self::DISS_BLOCK)),
+        Self::DISS_BLOCK.flip_lr().flip_ud(),
     );
 }
 

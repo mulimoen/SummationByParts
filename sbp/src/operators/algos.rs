@@ -3,7 +3,7 @@ use ndarray::s;
 use num_traits::Zero;
 
 pub(crate) mod constmatrix;
-pub(crate) use constmatrix::{flip_lr, flip_sign, flip_ud, ColVector, Matrix, RowVector};
+pub(crate) use constmatrix::{ColVector, Matrix, RowVector};
 
 #[cfg(feature = "fast-float")]
 mod fastfloat;

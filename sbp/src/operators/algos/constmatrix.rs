@@ -263,70 +263,66 @@ mod approx {
     }
 }
 
-pub(crate) const fn flip_ud<const M: usize, const N: usize>(
-    mut m: Matrix<super::Float, M, N>,
-) -> Matrix<super::Float, M, N> {
-    let mut i = 0;
-    while i < M / 2 {
-        let tmp = m.data[i];
-        m.data[i] = m.data[M - 1 - i];
-        m.data[M - 1 - i] = tmp;
-        i += 1;
+impl<const M: usize, const N: usize> Matrix<super::Float, M, N> {
+    pub(crate) const fn flip_ud(&self) -> Self {
+        let mut m = Self::new([[0.0; N]; M]);
+        let mut i = 0;
+        while i < M {
+            m.data[M - 1 - i] = self.data[i];
+            i += 1;
+        }
+        m
     }
-    m
+
+    pub(crate) const fn flip_lr(&self) -> Self {
+        let mut m = Self::new([[0.0; N]; M]);
+        let mut i = 0;
+        while i < M {
+            let mut j = 0;
+            while j < N {
+                m.data[i][N - 1 - j] = self.data[i][j];
+                j += 1;
+            }
+            i += 1;
+        }
+        m
+    }
+
+    /// Flip all sign bits
+    pub(crate) const fn flip_sign(&self) -> Self {
+        let mut m = Self::new([[0.0; N]; M]);
+        let mut i = 0;
+        while i < M {
+            let mut j = 0;
+            while j < N {
+                m.data[i][j] = -self.data[i][j];
+                j += 1;
+            }
+            i += 1;
+        }
+        m
+    }
 }
 
-pub(crate) const fn flip_lr<const M: usize, const N: usize>(
-    mut m: Matrix<super::Float, M, N>,
-) -> Matrix<super::Float, M, N> {
-    let mut i = 0;
-    while i < M {
-        let mut j = 0;
-        while j < N / 2 {
-            let tmp = m.data[i][j];
-            m.data[i][j] = m.data[i][N - 1 - j];
-            m.data[i][N - 1 - j] = tmp;
-            j += 1;
-        }
-        i += 1;
-    }
-    m
-}
-
-/// Flip all sign bits
-pub(crate) const fn flip_sign<const M: usize, const N: usize>(
-    mut m: Matrix<super::Float, M, N>,
-) -> Matrix<super::Float, M, N> {
-    let mut i = 0;
-    while i < M {
-        let mut j = 0;
-        while j < N {
-            m.data[i][j] = -m.data[i][j];
-            j += 1;
-        }
-        i += 1;
-    }
-    m
-}
 mod flipping {
     use super::*;
 
     #[test]
     fn flip_lr_test() {
         let m = Matrix::new([[1.0, 2.0, 3.0, 4.0]]);
-        let flipped = flip_lr(m);
+        let flipped = m.flip_lr();
         assert_eq!(flipped, Matrix::new([[4.0, 3.0, 2.0, 1.0]]));
         let m = Matrix::new([[1.0, 2.0, 3.0, 4.0, 5.0]]);
-        let flipped = flip_lr(m);
+        let flipped = m.flip_lr();
         assert_eq!(flipped, Matrix::new([[5.0, 4.0, 3.0, 2.0, 1.0]]));
     }
     #[test]
     fn flip_ud_test() {
         let m = Matrix::new([[1.0], [2.0], [3.0], [4.0]]);
-        let flipped = flip_ud(m);
+        let flipped = m.flip_ud();
         assert_eq!(flipped, Matrix::new([[4.0], [3.0], [2.0], [1.0]]));
         let m = Matrix::new([[1.0], [2.0], [3.0], [4.0], [5.0]]);
-        let flipped = flip_ud(m);
+        let flipped = m.flip_ud();
         assert_eq!(flipped, Matrix::new([[5.0], [4.0], [3.0], [2.0], [1.0]]));
     }
 }

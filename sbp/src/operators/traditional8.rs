@@ -30,7 +30,7 @@ impl SBP8 {
     const DIFF: BlockMatrix<Float, 8, 12, 9> = BlockMatrix::new(
         Self::DIFF_BLOCK,
         Self::DIFF_DIAG,
-        super::flip_sign(super::flip_ud(super::flip_lr(Self::DIFF_BLOCK))),
+        Self::DIFF_BLOCK.flip_lr().flip_ud().flip_sign(),
     );
 }
 

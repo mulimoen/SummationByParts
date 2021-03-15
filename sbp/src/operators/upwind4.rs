@@ -24,8 +24,7 @@ impl Upwind4 {
     const DIFF_DIAG: RowVector<Float, 7> = RowVector::new([[
         -1.0 / 24.0, 1.0 / 4.0, -7.0 / 8.0, 0.0, 7.0 / 8.0, -1.0 / 4.0, 1.0 / 24.0
     ]]);
-    const DIFF_BLOCKEND: Matrix<Float, 4, 7> =
-        super::flip_sign(super::flip_ud(super::flip_lr(Self::DIFF_BLOCK)));
+    const DIFF_BLOCKEND: Matrix<Float, 4, 7> = Self::DIFF_BLOCK.flip_lr().flip_ud().flip_sign();
 
     const DIFF: BlockMatrix<Float, 4, 7, 7> =
         BlockMatrix::new(Self::DIFF_BLOCK, Self::DIFF_DIAG, Self::DIFF_BLOCKEND);
@@ -41,7 +40,7 @@ impl Upwind4 {
     const DISS_DIAG: RowVector<Float, 7> = Matrix::new([[
         1.0 / 24.0, -1.0 / 4.0, 5.0 / 8.0, -5.0 / 6.0, 5.0 / 8.0, -1.0 / 4.0, 1.0 / 24.0
     ]]);
-    const DISS_BLOCKEND: Matrix<Float, 4, 7> = super::flip_ud(super::flip_lr(Self::DISS_BLOCK));
+    const DISS_BLOCKEND: Matrix<Float, 4, 7> = Self::DISS_BLOCK.flip_lr().flip_ud();
 
     const DISS: BlockMatrix<Float, 4, 7, 7> =
         BlockMatrix::new(Self::DISS_BLOCK, Self::DISS_DIAG, Self::DISS_BLOCKEND);

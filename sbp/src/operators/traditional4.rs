@@ -25,7 +25,7 @@ impl SBP4 {
         [3.0/98.0, 0.0, -59.0/98.0, 0.0, 32.0/49.0, -4.0/49.0]
     ]);
     const DIFF_BLOCKEND: super::Matrix<Float, 4, 6> =
-        super::flip_sign(super::flip_ud(super::flip_lr(Self::DIFF_BLOCK)));
+        Self::DIFF_BLOCK.flip_lr().flip_ud().flip_sign();
 
     const DIFF: BlockMatrix<Float, 4, 6, 5> =
         BlockMatrix::new(Self::DIFF_BLOCK, Self::DIFF_DIAG, Self::DIFF_BLOCKEND);
@@ -44,7 +44,7 @@ impl SBP4 {
     const D2: BlockMatrix<Float, 4, 6, 5> = BlockMatrix::new(
         Self::D2BLOCK,
         Self::D2DIAG,
-        super::flip_ud(super::flip_lr(Self::D2BLOCK)),
+        Self::D2BLOCK.flip_lr().flip_ud(),
     );
 }
 
