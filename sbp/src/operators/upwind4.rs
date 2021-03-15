@@ -14,35 +14,38 @@ impl Upwind4 {
         49.0 / 144.0, 61.0 / 48.0, 41.0 / 48.0, 149.0 / 144.0
     ]);
     #[rustfmt::skip]
-    const DIFF_BLOCK: Matrix<Float, 4, 7> = Matrix::new([
+    const MINIMAL_DIFF_BLOCK: Matrix<Float, 4, 7> = Matrix::new([
         [  -72.0 / 49.0, 187.0 / 98.0,   -20.0 / 49.0,   -3.0 / 98.0,           0.0,           0.0,         0.0],
         [-187.0 / 366.0,          0.0,   69.0 / 122.0, -16.0 / 183.0,    2.0 / 61.0,           0.0,         0.0],
         [  20.0 / 123.0, -69.0 / 82.0,            0.0, 227.0 / 246.0,  -12.0 / 41.0,    2.0 / 41.0,         0.0],
         [   3.0 / 298.0, 16.0 / 149.0, -227.0 / 298.0,           0.0, 126.0 / 149.0, -36.0 / 149.0, 6.0 / 149.0],
     ]);
+    const DIFF_BLOCK: Matrix<Float, 4, 8> = Self::MINIMAL_DIFF_BLOCK.resize();
+
     #[rustfmt::skip]
     const DIFF_DIAG: RowVector<Float, 7> = RowVector::new([[
         -1.0 / 24.0, 1.0 / 4.0, -7.0 / 8.0, 0.0, 7.0 / 8.0, -1.0 / 4.0, 1.0 / 24.0
     ]]);
-    const DIFF_BLOCKEND: Matrix<Float, 4, 7> = Self::DIFF_BLOCK.flip_lr().flip_ud().flip_sign();
+    const DIFF_BLOCKEND: Matrix<Float, 4, 8> = Self::DIFF_BLOCK.flip_lr().flip_ud().flip_sign();
 
-    const DIFF: BlockMatrix<Float, 4, 7, 7> =
+    const DIFF: BlockMatrix<Float, 4, 8, 7> =
         BlockMatrix::new(Self::DIFF_BLOCK, Self::DIFF_DIAG, Self::DIFF_BLOCKEND);
 
     #[rustfmt::skip]
-    const DISS_BLOCK: Matrix<Float, 4, 7> = Matrix::new([
+    const MINIMAL_DISS_BLOCK: Matrix<Float, 4, 7> = Matrix::new([
         [-3.0 / 49.0,    9.0 / 49.0,  -9.0 / 49.0,     3.0 / 49.0,          0.0,           0.0,         0.0],
         [ 3.0 / 61.0,  -11.0 / 61.0,  15.0 / 61.0,    -9.0 / 61.0,   2.0 / 61.0,           0.0,         0.0],
         [-3.0 / 41.0,   15.0 / 41.0, -29.0 / 41.0,    27.0 / 41.0, -12.0 / 41.0,    2.0 / 41.0,         0.0],
         [3.0 / 149.0, -27.0 / 149.0, 81.0 / 149.0, -117.0 / 149.0, 90.0 / 149.0, -36.0 / 149.0, 6.0 / 149.0],
     ]);
+    const DISS_BLOCK: Matrix<Float, 4, 8> = Self::MINIMAL_DISS_BLOCK.resize();
     #[rustfmt::skip]
     const DISS_DIAG: RowVector<Float, 7> = Matrix::new([[
         1.0 / 24.0, -1.0 / 4.0, 5.0 / 8.0, -5.0 / 6.0, 5.0 / 8.0, -1.0 / 4.0, 1.0 / 24.0
     ]]);
-    const DISS_BLOCKEND: Matrix<Float, 4, 7> = Self::DISS_BLOCK.flip_lr().flip_ud();
+    const DISS_BLOCKEND: Matrix<Float, 4, 8> = Self::DISS_BLOCK.flip_lr().flip_ud();
 
-    const DISS: BlockMatrix<Float, 4, 7, 7> =
+    const DISS: BlockMatrix<Float, 4, 8, 7> =
         BlockMatrix::new(Self::DISS_BLOCK, Self::DISS_DIAG, Self::DISS_BLOCKEND);
 }
 

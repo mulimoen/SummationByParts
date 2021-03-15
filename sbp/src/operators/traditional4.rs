@@ -18,16 +18,16 @@ impl SBP4 {
         1.0 / 12.0, -2.0 / 3.0, 0.0, 2.0 / 3.0, -1.0 / 12.0
     ]]);
     #[rustfmt::skip]
-    const DIFF_BLOCK: Matrix<Float, 4, 6> = Matrix::new([
+    const MINIMAL_DIFF_BLOCK: Matrix<Float, 4, 6> = Matrix::new([
         [-24.0/17.0, 59.0/34.0, -4.0/17.0, -3.0/34.0, 0.0, 0.0],
         [-1.0/2.0, 0.0, 1.0/2.0, 0.0, 0.0, 0.0],
         [4.0/43.0, -59.0/86.0, 0.0, 59.0/86.0, -4.0/43.0, 0.0],
         [3.0/98.0, 0.0, -59.0/98.0, 0.0, 32.0/49.0, -4.0/49.0]
     ]);
-    const DIFF_BLOCKEND: super::Matrix<Float, 4, 6> =
-        Self::DIFF_BLOCK.flip_lr().flip_ud().flip_sign();
+    const DIFF_BLOCK: Matrix<Float, 4, 8> = Self::MINIMAL_DIFF_BLOCK.resize();
+    const DIFF_BLOCKEND: Matrix<Float, 4, 8> = Self::DIFF_BLOCK.flip_lr().flip_ud().flip_sign();
 
-    const DIFF: BlockMatrix<Float, 4, 6, 5> =
+    const DIFF: BlockMatrix<Float, 4, 8, 5> =
         BlockMatrix::new(Self::DIFF_BLOCK, Self::DIFF_DIAG, Self::DIFF_BLOCKEND);
 
     #[rustfmt::skip]

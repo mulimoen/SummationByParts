@@ -113,7 +113,6 @@ impl<T, const N: usize> RowVector<T, N> {
 }
 
 impl<T, const M: usize, const P: usize> Matrix<T, M, P> {
-    #[inline(always)]
     pub fn matmul_into<const N: usize>(&mut self, lhs: &Matrix<T, M, N>, rhs: &Matrix<T, N, P>)
     where
         T: Default + Copy + core::ops::Mul<Output = T> + core::ops::Add<Output = T>,
@@ -300,6 +299,28 @@ impl<const M: usize, const N: usize> Matrix<super::Float, M, N> {
             }
             i += 1;
         }
+        m
+    }
+
+    /// Zero extends if larger than self
+    pub(crate) const fn resize<const M2: usize, const N2: usize>(
+        &self,
+    ) -> Matrix<super::Float, M2, N2> {
+        let mut m = Matrix::new([[0.0; N2]; M2]);
+
+        let m_min = if M < M2 { M } else { M2 };
+        let n_min = if N < N2 { N } else { N2 };
+
+        let mut i = 0;
+        while i < m_min {
+            let mut j = 0;
+            while j < n_min {
+                m.data[i][j] = self.data[i][j];
+                j += 1;
+            }
+            i += 1;
+        }
+
         m
     }
 }
