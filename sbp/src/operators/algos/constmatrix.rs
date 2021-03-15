@@ -4,7 +4,7 @@ use num_traits::identities::Zero;
 
 /// A row-major matrix
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-#[repr(C)]
+#[repr(transparent)]
 pub struct Matrix<T, const M: usize, const N: usize> {
     pub data: [[T; N]; M],
 }
@@ -345,5 +345,19 @@ mod flipping {
         let m = Matrix::new([[1.0], [2.0], [3.0], [4.0], [5.0]]);
         let flipped = m.flip_ud();
         assert_eq!(flipped, Matrix::new([[5.0], [4.0], [3.0], [2.0], [1.0]]));
+    }
+
+    #[test]
+    fn assert_castability_of_alignment() {
+        let m = Matrix::new([[1.0], [2.0], [3.0], [4.0_f64]]);
+        assert_eq!(std::mem::align_of_val(&m), std::mem::align_of::<f64>());
+        let m = Matrix::new([[1.0], [2.0], [3.0], [4.0_f32]]);
+        assert_eq!(std::mem::align_of_val(&m), std::mem::align_of::<f32>());
+        let m = Matrix::new([[1], [2], [3], [4_i32]]);
+        assert_eq!(std::mem::align_of_val(&m), std::mem::align_of::<i32>());
+        let m = Matrix::new([[1], [2], [3], [4_u64]]);
+        assert_eq!(std::mem::align_of_val(&m), std::mem::align_of::<u64>());
+        let m = Matrix::new([[1], [2], [3], [4_u128]]);
+        assert_eq!(std::mem::align_of_val(&m), std::mem::align_of::<u128>());
     }
 }
