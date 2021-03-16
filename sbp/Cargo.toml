@@ -1,7 +1,7 @@
 [package]
 name = "sbp"
 version = "0.1.1"
-authors = ["Magnus Ulimoen <flymagnus@gmail.com>"]
+authors = ["Magnus Ulimoen <magnus@ulimoen.dev>"]
 edition = "2018"
 
 [dependencies]
