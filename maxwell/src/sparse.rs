@@ -236,11 +236,11 @@ pub fn rhs_matrix(op: &dyn SbpOperator2d, grid: &super::Grid) -> Implicit {
 
 /// RHS with some additional dissipation from the upwind operator
 pub fn rhs_matrix_with_upwind_dissipation(
-    op: &dyn UpwindOperator2d,
+    op: impl UpwindOperator2d + SbpOperator2d,
     grid: &super::Grid,
 ) -> sprs::CsMat<Float> {
-    let rhs = rhs_matrix(op.as_sbp(), grid).rhs;
-    let metrics = grid.metrics(op.as_sbp()).unwrap();
+    let rhs = rhs_matrix(&op, grid).rhs;
+    let metrics = grid.metrics(&op).unwrap();
     let nx = grid.nx();
     let ny = grid.ny();
 
@@ -262,14 +262,14 @@ pub fn rhs_matrix_with_upwind_dissipation(
     };
 
     let diss_x = {
-        let diss_x = UpwindOperator2d::op_xi(op).diss_matrix(nx);
+        let diss_x = UpwindOperator2d::op_xi(&op).diss_matrix(nx);
         let diss_x = kronecker_product(eye(ny).view(), diss_x.view());
         let met = diss(metrics.detj_dxi_dx(), metrics.detj_dxi_dy());
         &met * &kronecker_product(eye(3).view(), diss_x.view())
     };
 
     let diss_y = {
-        let diss_y = UpwindOperator2d::op_eta(op).diss_matrix(ny);
+        let diss_y = UpwindOperator2d::op_eta(&op).diss_matrix(ny);
         let diss_y = kronecker_product(diss_y.view(), eye(nx).view());
         let met = diss(metrics.detj_deta_dx(), metrics.detj_deta_dy());
         &met * &kronecker_product(eye(3).view(), diss_y.view())

@@ -204,10 +204,11 @@ fn dual_dirichlet_sparse(v: ArrayView1<Float>, v0: Float, vn: Float) {
     let rhs = move |fut: &mut Array1<Float>, prev: &Array1<Float>, _t: Float| {
         fut.fill(0.0);
         let prev = prev.as_slice().unwrap();
+        {
+            let fut = fut.as_slice_mut().unwrap();
+            sprs::prod::mul_acc_mat_vec_csr(system.view(), prev, fut);
+        }
         let fut = fut.as_slice_mut().unwrap();
-
-        sprs::prod::mul_acc_mat_vec_csr(system.view(), prev, fut);
-
         sprs::prod::mul_acc_mat_vec_csr(bc.view(), &[v0, vn][..], fut);
     };
 

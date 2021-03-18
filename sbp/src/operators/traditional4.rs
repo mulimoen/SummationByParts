@@ -111,12 +111,13 @@ impl super::SbpOperator1d2 for SBP4 {
             // d_x => -d_x when reversed
             d1.iter_mut().for_each(|v| *v *= -1.0);
             // Indices are now in reverse order
-            sprs::CsMat::new(
+            sprs::CsMat::new_from_unsorted(
                 (1, n),
                 vec![0, d1.len()],
                 (0..n).rev().take(d1.len()).collect(),
                 d1,
             )
+            .unwrap()
         }
     }
 }
