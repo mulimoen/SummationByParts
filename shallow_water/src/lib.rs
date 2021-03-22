@@ -9,15 +9,15 @@ const G: Float = 1.0;
 #[derive(Clone, Debug)]
 pub struct Field(Array3<Float>);
 
-impl<'a> Into<ArrayView3<'a, Float>> for &'a Field {
-    fn into(self) -> ArrayView3<'a, Float> {
-        self.0.view()
-    }
-}
+impl integrate::Integrable for Field {
+    type State = Field;
+    type Diff = Field;
 
-impl<'a> Into<ArrayViewMut3<'a, Float>> for &'a mut Field {
-    fn into(self) -> ArrayViewMut3<'a, Float> {
-        self.0.view_mut()
+    fn assign(s: &mut Self::State, o: &Self::State) {
+        s.0.assign(&o.0);
+    }
+    fn scaled_add(s: &mut Self::State, o: &Self::Diff, scale: Float) {
+        s.0.scaled_add(scale, &o.0);
     }
 }
 
@@ -301,7 +301,7 @@ impl System {
             }
             log::trace!("Iteration complete");
         };
-        integrate::integrate::<integrate::Rk4, _, _, _>(
+        integrate::integrate::<integrate::Rk4, Field, _>(
             rhs,
             &self.fnow,
             &mut self.fnext,

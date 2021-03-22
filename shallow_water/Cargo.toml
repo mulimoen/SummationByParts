@@ -8,3 +8,4 @@ edition = "2018"
 ndarray = "0.14.0"
 sbp = { path = "../sbp" }
 log = "0.4.8"
+integrate = { path = "../utils/integrate" }

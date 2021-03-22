@@ -8,8 +8,7 @@
 //! on the `k` parameter to hold the system state differences.
 //! This parameter is tied to the Butcher Tableau
 
-use super::Float;
-use ndarray::{ArrayView, ArrayViewMut};
+use float::Float;
 
 /// The Butcher Tableau, with the state transitions described as
 /// [on wikipedia](https://en.wikipedia.org/wiki/Runge%E2%80%93Kutta_methods#Explicit_Runge%E2%80%93Kutta_methods).
@@ -150,6 +149,14 @@ impl EmbeddedButcherTableau for BogackiShampine {
     const BSTAR: &'static [Float] = &[7.0 / 24.0, 1.0 / 4.0, 1.0 / 3.0, 1.0 / 8.0];
 }
 
+pub trait Integrable {
+    type State;
+    type Diff;
+
+    fn assign(s: &mut Self::State, o: &Self::State);
+    fn scaled_add(s: &mut Self::State, o: &Self::Diff, scale: Float);
+}
+
 #[allow(clippy::too_many_arguments)]
 /// Integrates using the [`ButcherTableau`] specified. `rhs` should be the result
 /// of the right hand side of $u_t = rhs$
@@ -159,48 +166,44 @@ impl EmbeddedButcherTableau for BogackiShampine {
 ///
 /// Should be called as
 /// ```rust,ignore
-/// integrate::<Rk4, _, _, _, _>(...)
+/// integrate::<Rk4, System, _>(...)
 /// ```
-pub fn integrate<BTableau: ButcherTableau, F, RHS, D>(
+pub fn integrate<BTableau: ButcherTableau, F: Integrable, RHS>(
     mut rhs: RHS,
-    prev: &F,
-    fut: &mut F,
+    prev: &F::State,
+    fut: &mut F::State,
     time: &mut Float,
     dt: Float,
-    k: &mut [F],
+    k: &mut [F::Diff],
 ) where
-    for<'r> &'r F: std::convert::Into<ArrayView<'r, Float, D>>,
-    for<'r> &'r mut F: std::convert::Into<ArrayViewMut<'r, Float, D>>,
-    D: ndarray::Dimension,
-    RHS: FnMut(&mut F, &F, Float),
+    RHS: FnMut(&mut F::Diff, &F::State, Float),
 {
-    assert_eq!(prev.into().shape(), fut.into().shape());
     assert!(k.len() >= BTableau::S);
 
     for i in 0.. {
         let simtime;
         match i {
             0 => {
-                fut.into().assign(&prev.into());
+                F::assign(fut, prev);
                 simtime = *time;
             }
             i if i < BTableau::S => {
-                fut.into().assign(&prev.into());
+                F::assign(fut, prev);
                 for (&a, k) in BTableau::A[i - 1].iter().zip(k.iter()) {
                     if a == 0.0 {
                         continue;
                     }
-                    fut.into().scaled_add(a * dt, &k.into());
+                    F::scaled_add(fut, k, a * dt);
                 }
                 simtime = *time + dt * BTableau::C[i - 1];
             }
             _ if i == BTableau::S => {
-                fut.into().assign(&prev.into());
+                F::assign(fut, prev);
                 for (&b, k) in BTableau::B.iter().zip(k.iter()) {
                     if b == 0.0 {
                         continue;
                     }
-                    fut.into().scaled_add(b * dt, &k.into());
+                    F::scaled_add(fut, k, b * dt);
                 }
                 *time += dt;
                 return;
@@ -219,27 +222,24 @@ pub fn integrate<BTableau: ButcherTableau, F, RHS, D>(
 ///
 /// This produces two results, the most accurate result in `fut`, and the less accurate
 /// result in `fut2`. This can be used for convergence testing and adaptive timesteps.
-pub fn integrate_embedded_rk<BTableau: EmbeddedButcherTableau, F, RHS, D>(
+pub fn integrate_embedded_rk<BTableau: EmbeddedButcherTableau, F: Integrable, RHS>(
     rhs: RHS,
-    prev: &F,
-    fut: &mut F,
-    fut2: &mut F,
+    prev: &F::State,
+    fut: &mut F::State,
+    fut2: &mut F::State,
     time: &mut Float,
     dt: Float,
-    k: &mut [F],
+    k: &mut [F::Diff],
 ) where
-    for<'r> &'r F: std::convert::Into<ArrayView<'r, Float, D>>,
-    for<'r> &'r mut F: std::convert::Into<ArrayViewMut<'r, Float, D>>,
-    RHS: FnMut(&mut F, &F, Float),
-    D: ndarray::Dimension,
+    RHS: FnMut(&mut F::Diff, &F::State, Float),
 {
-    integrate::<BTableau, F, RHS, D>(rhs, prev, fut, time, dt, k);
-    fut2.into().assign(&prev.into());
+    integrate::<BTableau, F, RHS>(rhs, prev, fut, time, dt, k);
+    F::assign(fut2, prev);
     for (&b, k) in BTableau::BSTAR.iter().zip(k.iter()) {
         if b == 0.0 {
             continue;
         }
-        fut2.into().scaled_add(b * dt, &k.into());
+        F::scaled_add(fut2, k, b * dt);
     }
 }
 
@@ -255,21 +255,19 @@ pub fn integrate_embedded_rk<BTableau: EmbeddedButcherTableau, F, RHS, D>(
 ///
 /// This function requires the `rayon` feature, and is not callable in
 /// a `wasm` context.
-pub fn integrate_multigrid<BTableau: ButcherTableau, F, RHS, D>(
+pub fn integrate_multigrid<BTableau: ButcherTableau, F: Integrable, RHS>(
     mut rhs: RHS,
-    prev: &[F],
-    fut: &mut [F],
+    prev: &[F::State],
+    fut: &mut [F::State],
     time: &mut Float,
     dt: Float,
-    k: &mut [&mut [F]],
+    k: &mut [&mut [F::Diff]],
 
     pool: &rayon::ThreadPool,
 ) where
-    for<'r> &'r F: std::convert::Into<ArrayView<'r, Float, D>>,
-    for<'r> &'r mut F: std::convert::Into<ArrayViewMut<'r, Float, D>>,
-    RHS: FnMut(&mut [F], &[F], Float),
-    F: Send + Sync,
-    D: ndarray::Dimension,
+    RHS: FnMut(&mut [F::Diff], &[F::State], Float),
+    F::State: Send + Sync,
+    F::Diff: Send + Sync,
 {
     for i in 0.. {
         let simtime;
@@ -279,8 +277,7 @@ pub fn integrate_multigrid<BTableau: ButcherTableau, F, RHS, D>(
                     assert!(k.len() >= BTableau::S);
                     for (prev, fut) in prev.iter().zip(fut.iter_mut()) {
                         s.spawn(move |_| {
-                            assert_eq!(prev.into().shape(), fut.into().shape());
-                            fut.into().assign(&prev.into());
+                            F::assign(fut, prev);
                         });
                     }
                 });
@@ -291,12 +288,12 @@ pub fn integrate_multigrid<BTableau: ButcherTableau, F, RHS, D>(
                     for (ig, (prev, fut)) in prev.iter().zip(fut.iter_mut()).enumerate() {
                         let k = &k;
                         s.spawn(move |_| {
-                            fut.into().assign(&prev.into());
+                            F::assign(fut, prev);
                             for (ik, &a) in BTableau::A[i - 1].iter().enumerate() {
                                 if a == 0.0 {
                                     continue;
                                 }
-                                fut.into().scaled_add(a * dt, &(&k[ik][ig]).into());
+                                F::scaled_add(fut, &k[ik][ig], a * dt);
                             }
                         });
                     }
@@ -308,12 +305,12 @@ pub fn integrate_multigrid<BTableau: ButcherTableau, F, RHS, D>(
                     for (ig, (prev, fut)) in prev.iter().zip(fut.iter_mut()).enumerate() {
                         let k = &k;
                         s.spawn(move |_| {
-                            fut.into().assign(&prev.into());
+                            F::assign(fut, prev);
                             for (ik, &b) in BTableau::B.iter().enumerate() {
                                 if b == 0.0 {
                                     continue;
                                 }
-                                fut.into().scaled_add(b * dt, &(&k[ik][ig]).into());
+                                F::scaled_add(fut, &k[ik][ig], b * dt);
                             }
                         });
                     }
@@ -328,4 +325,48 @@ pub fn integrate_multigrid<BTableau: ButcherTableau, F, RHS, D>(
 
         rhs(&mut k[i], &fut, simtime);
     }
+}
+
+#[test]
+/// Solving a second order PDE
+fn ballistic() {
+    #[derive(Clone, Debug)]
+    struct Ball {
+        z: Float,
+        v: Float,
+    }
+    impl Integrable for Ball {
+        type State = Ball;
+        type Diff = (Float, Float);
+        fn assign(s: &mut Self::State, o: &Self::State) {
+            s.z = o.z;
+            s.v = o.v;
+        }
+        fn scaled_add(s: &mut Self::State, o: &Self::Diff, sc: Float) {
+            s.z += o.0 * sc;
+            s.v += o.1 * sc;
+        }
+    }
+
+    let mut t = 0.0;
+    let dt = 0.001;
+    let initial = Ball { z: 0.0, v: 10.0 };
+    let g = -9.81;
+
+    let mut k = [(0.0, 0.0); 4];
+    let gravity = |d: &mut (Float, Float), s: &Ball, _time: Float| {
+        d.1 = g;
+        d.0 = s.v
+    };
+    let mut next = initial.clone();
+    //while next.z >= 0.0 {
+    while t < 1.0 {
+        let mut next2 = next.clone();
+        integrate::<EulerMethod, Ball, _>(gravity, &next, &mut next2, &mut t, dt, &mut k);
+        std::mem::swap(&mut next, &mut next2);
+    }
+    let expected_vel = initial.v + g * t;
+    assert!((next.v - expected_vel).abs() < 1e-3);
+    let expected_pos = initial.z + initial.v * t + g / 2.0 * t.powi(2);
+    assert!((next.z - expected_pos).abs() < 1e-2);
 }

@@ -1,10 +1,23 @@
+use integrate::{integrate, Rk4};
 use ndarray::{Array1, ArrayView1};
 use plotters::prelude::*;
 use sbp::{
-    integrate::{integrate, Rk4},
     operators::{SbpOperator1d, SbpOperator1d2, SBP4},
     Float,
 };
+
+struct Field(Array1<Float>);
+
+impl integrate::Integrable for Field {
+    type State = Array1<Float>;
+    type Diff = Array1<Float>;
+    fn assign(s: &mut Self::State, o: &Self::State) {
+        s.assign(o)
+    }
+    fn scaled_add(s: &mut Self::State, o: &Self::Diff, scale: Float) {
+        s.scaled_add(scale, o)
+    }
+}
 
 fn main() {
     let nx: usize = 101;
@@ -76,7 +89,7 @@ fn dual_dirichlet(v: ArrayView1<Float>, v0: Float, vn: Float) {
                 .unwrap();
             drawing_area.present().unwrap();
         }
-        integrate::<Rk4, _, _, _>(rhs, &v1, &mut v2, &mut 0.0, dt, &mut k);
+        integrate::<Rk4, Field, _>(rhs, &v1, &mut v2, &mut 0.0, dt, &mut k);
         std::mem::swap(&mut v1, &mut v2);
     }
 }
@@ -143,7 +156,7 @@ fn neumann_dirichlet(v: ArrayView1<Float>, v0: Float, vn: Float) {
                 .unwrap();
             drawing_area.present().unwrap();
         }
-        integrate::<Rk4, _, _, _>(rhs, &v1, &mut v2, &mut 0.0, dt, &mut k);
+        integrate::<Rk4, Field, _>(rhs, &v1, &mut v2, &mut 0.0, dt, &mut k);
         std::mem::swap(&mut v1, &mut v2);
     }
 }
@@ -231,7 +244,7 @@ fn dual_dirichlet_sparse(v: ArrayView1<Float>, v0: Float, vn: Float) {
                 .unwrap();
             drawing_area.present().unwrap();
         }
-        integrate::<Rk4, _, _, _>(rhs, &v1, &mut v2, &mut 0.0, dt, &mut k);
+        integrate::<Rk4, Field, _>(rhs, &v1, &mut v2, &mut 0.0, dt, &mut k);
         std::mem::swap(&mut v1, &mut v2);
     }
 }

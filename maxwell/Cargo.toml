@@ -11,6 +11,7 @@ sparse = ["sbp/sparse", "sprs"]
 ndarray = "0.14.0"
 sbp = { path = "../sbp" }
 sprs = { version = "0.10.0", optional = true, default-features = false }
+integrate = { path = "../utils/integrate" }
 
 [dev-dependencies]
 criterion = "0.3.2"

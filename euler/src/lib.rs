@@ -2,7 +2,6 @@ pub use arrayvec::ArrayVec;
 use ndarray::azip;
 use ndarray::prelude::*;
 use sbp::grid::{Grid, Metrics};
-use sbp::integrate;
 use sbp::operators::{InterpolationOperator, SbpOperator2d, UpwindOperator2d};
 use sbp::utils::Direction;
 use sbp::Float;
@@ -57,7 +56,7 @@ impl<SBP: SbpOperator2d> System<SBP> {
             let boundaries = boundary_extractor(y, grid, &bc);
             RHS_trad(op, k, y, metrics, &boundaries, wb)
         };
-        integrate::integrate::<integrate::Rk4, _, _, _>(
+        integrate::integrate::<integrate::Rk4, Field, _>(
             rhs_trad,
             &self.sys.0,
             &mut self.sys.1,
@@ -131,7 +130,7 @@ impl<UO: UpwindOperator2d + SbpOperator2d> System<UO> {
             let boundaries = boundary_extractor(y, grid, &bc);
             RHS_upwind(op, k, y, metrics, &boundaries, wb)
         };
-        integrate::integrate::<integrate::Rk4, _, _, _>(
+        integrate::integrate::<integrate::Rk4, Field, _>(
             rhs_upwind,
             &self.sys.0,
             &mut self.sys.1,
@@ -159,7 +158,7 @@ impl<UO: UpwindOperator2d + SbpOperator2d> System<UO> {
         let mut time = 0.0;
         let mut sys2 = self.sys.0.clone();
         while time < dt {
-            integrate::integrate_embedded_rk::<integrate::BogackiShampine, _, _, _>(
+            integrate::integrate_embedded_rk::<integrate::BogackiShampine, Field, _>(
                 &mut rhs_upwind,
                 &self.sys.0,
                 &mut self.sys.1,
@@ -184,27 +183,15 @@ impl<UO: UpwindOperator2d + SbpOperator2d> System<UO> {
 /// A 4 x ny x nx array
 pub struct Field(pub(crate) Array3<Float>);
 
-impl std::ops::Deref for Field {
-    type Target = Array3<Float>;
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
+impl integrate::Integrable for Field {
+    type State = Field;
+    type Diff = Field;
 
-impl std::ops::DerefMut for Field {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.0
+    fn assign(s: &mut Self::State, o: &Self::State) {
+        s.0.assign(&o.0);
     }
-}
-
-impl<'a> std::convert::From<&'a Field> for ArrayView3<'a, Float> {
-    fn from(f: &'a Field) -> Self {
-        f.0.view()
-    }
-}
-impl<'a> std::convert::From<&'a mut Field> for ArrayViewMut3<'a, Float> {
-    fn from(f: &'a mut Field) -> Self {
-        f.0.view_mut()
+    fn scaled_add(s: &mut Self::State, o: &Self::Diff, scale: Float) {
+        s.0.scaled_add(scale, &o.0);
     }
 }
 
@@ -220,6 +207,20 @@ impl Field {
     }
     pub fn ny(&self) -> usize {
         self.0.shape()[1]
+    }
+
+    pub(crate) fn slice<Do: Dimension>(
+        &self,
+        info: &ndarray::SliceInfo<[ndarray::SliceOrIndex; 3], Do>,
+    ) -> ArrayView<Float, Do> {
+        self.0.slice(info)
+    }
+
+    pub(crate) fn slice_mut<Do: Dimension>(
+        &mut self,
+        info: &ndarray::SliceInfo<[ndarray::SliceOrIndex; 3], Do>,
+    ) -> ArrayViewMut<Float, Do> {
+        self.0.slice_mut(info)
     }
 
     pub fn rho(&self) -> ArrayView2<Float> {
@@ -613,9 +614,9 @@ fn upwind_dissipation(
     tmp: (&mut Field, &mut Field),
 ) {
     let n = y.nx() * y.ny();
-    let yview = y.view().into_shape((4, n)).unwrap();
-    let mut tmp0 = tmp.0.view_mut().into_shape((4, n)).unwrap();
-    let mut tmp1 = tmp.1.view_mut().into_shape((4, n)).unwrap();
+    let yview = y.0.view().into_shape((4, n)).unwrap();
+    let mut tmp0 = tmp.0 .0.view_mut().into_shape((4, n)).unwrap();
+    let mut tmp1 = tmp.1 .0.view_mut().into_shape((4, n)).unwrap();
 
     for ((((((y, mut tmp0), mut tmp1), detj_dxi_dx), detj_dxi_dy), detj_deta_dx), detj_deta_dy) in
         yview

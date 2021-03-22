@@ -7,8 +7,6 @@ pub use float::{consts, Float};
 
 /// Grid and grid metrics
 pub mod grid;
-/// RK operators and methods for implicit integration
-pub mod integrate;
 /// SBP and interpolation operators
 pub mod operators;
 /// General utilities

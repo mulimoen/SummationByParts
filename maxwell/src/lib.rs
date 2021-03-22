@@ -1,7 +1,6 @@
 use ndarray::azip;
 use ndarray::prelude::*;
 use sbp::grid::{Grid, Metrics};
-use sbp::integrate;
 use sbp::operators::{SbpOperator2d, UpwindOperator2d};
 use sbp::Float;
 
@@ -11,27 +10,15 @@ pub mod sparse;
 #[derive(Clone, Debug)]
 pub struct Field(pub(crate) Array3<Float>);
 
-impl std::ops::Deref for Field {
-    type Target = Array3<Float>;
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
+impl integrate::Integrable for Field {
+    type State = Field;
+    type Diff = Field;
 
-impl std::ops::DerefMut for Field {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.0
+    fn assign(s: &mut Self::State, o: &Self::State) {
+        s.0.assign(&o.0);
     }
-}
-
-impl<'a> std::convert::From<&'a Field> for ArrayView3<'a, Float> {
-    fn from(f: &'a Field) -> Self {
-        f.0.view()
-    }
-}
-impl<'a> std::convert::From<&'a mut Field> for ArrayViewMut3<'a, Float> {
-    fn from(f: &'a mut Field) -> Self {
-        f.0.view_mut()
+    fn scaled_add(s: &mut Self::State, o: &Self::Diff, scale: Float) {
+        s.0.scaled_add(scale, &o.0);
     }
 }
 
@@ -47,6 +34,20 @@ impl Field {
     }
     pub fn ny(&self) -> usize {
         self.0.shape()[1]
+    }
+
+    pub(crate) fn slice<Do: Dimension>(
+        &self,
+        info: &ndarray::SliceInfo<[ndarray::SliceOrIndex; 3], Do>,
+    ) -> ArrayView<Float, Do> {
+        self.0.slice(info)
+    }
+
+    pub(crate) fn slice_mut<Do: Dimension>(
+        &mut self,
+        info: &ndarray::SliceInfo<[ndarray::SliceOrIndex; 3], Do>,
+    ) -> ArrayViewMut<Float, Do> {
+        self.0.slice_mut(info)
     }
 
     pub fn ex(&self) -> ArrayView2<Float> {
@@ -147,7 +148,7 @@ impl<SBP: SbpOperator2d> System<SBP> {
             RHS(op, fut, prev, grid, metrics, wb);
         };
         let mut _time = 0.0;
-        integrate::integrate::<integrate::Rk4, _, _, _>(
+        integrate::integrate::<integrate::Rk4, Field, _>(
             rhs_adaptor,
             &self.sys.0,
             &mut self.sys.1,
@@ -162,15 +163,15 @@ impl<SBP: SbpOperator2d> System<SBP> {
         let rhs = self.rhs.view();
         //let lhs = self.explicit.view();
         let rhs_f = |next: &mut Field, now: &Field, _t: Float| {
-            next.fill(0.0);
+            next.0.fill(0.0);
             sprs::prod::mul_acc_mat_vec_csr(
                 rhs,
-                now.as_slice().unwrap(),
-                next.as_slice_mut().unwrap(),
+                now.0.as_slice().unwrap(),
+                next.0.as_slice_mut().unwrap(),
             );
             // sprs::lingalg::dsolve(..)
         };
-        sbp::integrate::integrate::<sbp::integrate::Rk4, _, _, _>(
+        integrate::integrate::<integrate::Rk4, Field, _>(
             rhs_f,
             &self.sys.0,
             &mut self.sys.1,
@@ -188,9 +189,9 @@ impl<SBP: SbpOperator2d> System<SBP> {
 
         sbp::utils::jacobi_method(
             lhs,
-            b.as_slice().unwrap(),
-            self.sys.0.as_slice_mut().unwrap(),
-            self.sys.1.as_slice_mut().unwrap(),
+            b.0.as_slice().unwrap(),
+            self.sys.0 .0.as_slice_mut().unwrap(),
+            self.sys.1 .0.as_slice_mut().unwrap(),
             10,
         );
     }
@@ -207,7 +208,7 @@ impl<UO: SbpOperator2d + UpwindOperator2d> System<UO> {
             RHS_upwind(op, fut, prev, grid, metrics, wb);
         };
         let mut _time = 0.0;
-        integrate::integrate::<integrate::Rk4, _, _, _>(
+        integrate::integrate::<integrate::Rk4, Field, _>(
             rhs_adaptor,
             &self.sys.0,
             &mut self.sys.1,

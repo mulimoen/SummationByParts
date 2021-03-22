@@ -38,7 +38,8 @@ impl OutputThread {
         match self.rx.as_ref().unwrap().try_recv() {
             Ok(mut copy_fields) => {
                 for (from, to) in fields.iter().zip(copy_fields.iter_mut()) {
-                    to.assign(&from);
+                    use integrate::Integrable;
+                    euler::Field::assign(to, from);
                 }
                 self.tx
                     .as_ref()
