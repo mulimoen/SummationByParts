@@ -1,5 +1,5 @@
+use argh::FromArgs;
 use rayon::prelude::*;
-use structopt::StructOpt;
 
 use sbp::operators::SbpOperator2d;
 use sbp::*;
@@ -180,30 +180,36 @@ impl System {
     }
 }
 
-#[derive(Debug, StructOpt)]
-struct Options {
+#[derive(Debug, FromArgs)]
+/// Options for configuring and running the solver
+struct CliOptions {
+    #[argh(positional)]
     json: std::path::PathBuf,
-    /// Disable the progressbar
-    #[structopt(long)]
-    no_progressbar: bool,
-    /// Number of simultaneous threads
-    #[structopt(short, long)]
+    /// number of simultaneous threads
+    #[argh(option, short = 'j')]
     jobs: Option<usize>,
-    /// Name of output file
-    #[structopt(default_value = "output.hdf", long, short)]
+    /// name of output file
+    #[argh(
+        option,
+        short = 'o',
+        default = "std::path::PathBuf::from(\"output.hdf\")"
+    )]
     output: std::path::PathBuf,
-    /// Number of outputs to save
-    #[structopt(long, short)]
+    /// number of outputs to save
+    #[argh(option, short = 'n')]
     number_of_outputs: Option<u64>,
-    /// Print the time to complete, taken in the compute loop
-    #[structopt(long)]
+    /// print the time to complete, taken in the compute loop
+    #[argh(switch)]
     timings: bool,
-    /// Print error at the end of the run
-    #[structopt(long)]
+    /// print error at the end of the run
+    #[argh(switch)]
     error: bool,
-    /// Output information regarding time elapsed and error
+    /// disable the progressbar
+    #[argh(switch)]
+    no_progressbar: bool,
+    /// output information regarding time elapsed and error
     /// in json format
-    #[structopt(long)]
+    #[argh(switch)]
     output_json: bool,
 }
 
@@ -217,7 +223,7 @@ struct OutputInformation {
 }
 
 fn main() {
-    let opt = Options::from_args();
+    let opt: CliOptions = argh::from_env();
     let filecontents = std::fs::read_to_string(&opt.json).unwrap();
 
     let config: parsing::Configuration = match json5::from_str(&filecontents) {
