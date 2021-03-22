@@ -1,8 +1,8 @@
-use super::*;
+use super::Float;
 
 #[repr(transparent)]
 #[derive(Copy, Clone, Debug, PartialEq, Default)]
-pub(crate) struct FastFloat(Float);
+pub struct FastFloat(Float);
 
 use core::intrinsics::{fadd_fast, fdiv_fast, fmul_fast, fsub_fast};
 

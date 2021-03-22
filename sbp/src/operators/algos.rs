@@ -6,9 +6,7 @@ pub(crate) mod constmatrix;
 pub(crate) use constmatrix::{ColVector, Matrix, RowVector};
 
 #[cfg(feature = "fast-float")]
-mod fastfloat;
-#[cfg(feature = "fast-float")]
-use fastfloat::FastFloat;
+use float::FastFloat;
 
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) struct DiagonalMatrix<const B: usize> {
