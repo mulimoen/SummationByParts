@@ -9,7 +9,7 @@ edition = "2018"
 sbp = { path = "../sbp", features = ["serde1", "fast-float"] }
 euler = { path = "../euler", features = ["serde1"] }
 hdf5 = "0.7.0"
-integrate = { path = "../utils/integrate", features = ["rayon"] }
+integrate = { path = "../utils/integrate" }
 rayon = "1.3.0"
 indicatif = "0.15.0"
 structopt = "0.3.14"

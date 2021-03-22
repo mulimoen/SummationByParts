@@ -1,3 +1,4 @@
+use rayon::prelude::*;
 use structopt::StructOpt;
 
 use sbp::operators::SbpOperator2d;
@@ -18,6 +19,21 @@ struct System {
     eb: Vec<euler::BoundaryStorage>,
     time: Float,
     operators: Vec<Box<dyn SbpOperator2d>>,
+}
+
+impl integrate::Integrable for System {
+    type State = Vec<euler::Field>;
+    type Diff = Vec<euler::Field>;
+    fn assign(s: &mut Self::State, o: &Self::State) {
+        s.par_iter_mut()
+            .zip(o.par_iter())
+            .for_each(|(s, o)| euler::Field::assign(s, o))
+    }
+    fn scaled_add(s: &mut Self::State, o: &Self::Diff, scale: Float) {
+        s.par_iter_mut()
+            .zip(o.par_iter())
+            .for_each(|(s, o)| euler::Field::scaled_add(s, o, scale))
+    }
 }
 
 impl System {
@@ -68,7 +84,7 @@ impl System {
         }
     }
 
-    fn advance(&mut self, dt: Float, pool: &rayon::ThreadPool) {
+    fn advance(&mut self, dt: Float) {
         let metrics = &self.metrics;
         let grids = &self.grids;
         let bt = &self.bt;
@@ -76,9 +92,9 @@ impl System {
         let eb = &mut self.eb;
         let operators = &self.operators;
 
-        let rhs = move |fut: &mut [euler::Field], prev: &[euler::Field], time: Float| {
+        let rhs = move |fut: &mut Vec<euler::Field>, prev: &Vec<euler::Field>, time: Float| {
             let prev_all = &prev;
-            pool.scope(|s| {
+            rayon::scope(|s| {
                 for (((((((fut, prev), wb), grid), metrics), op), bt), eb) in fut
                     .iter_mut()
                     .zip(prev.iter())
@@ -101,19 +117,13 @@ impl System {
             });
         };
 
-        let mut k = self
-            .k
-            .iter_mut()
-            .map(|k| k.as_mut_slice())
-            .collect::<Vec<_>>();
-        integrate::integrate_multigrid::<integrate::Rk4, euler::Field, _>(
+        integrate::integrate::<integrate::Rk4, System, _>(
             rhs,
             &self.fnow,
             &mut self.fnext,
             &mut self.time,
             dt,
-            &mut k,
-            pool,
+            &mut self.k,
         );
 
         std::mem::swap(&mut self.fnow, &mut self.fnext);
@@ -178,7 +188,7 @@ struct Options {
     no_progressbar: bool,
     /// Number of simultaneous threads
     #[structopt(short, long)]
-    jobs: Option<Option<usize>>,
+    jobs: Option<usize>,
     /// Name of output file
     #[structopt(default_value = "output.hdf", long, short)]
     output: std::path::PathBuf,
@@ -241,20 +251,13 @@ fn main() {
 
     let ntime = (integration_time / dt).round() as u64;
 
-    let pool = {
-        let builder = rayon::ThreadPoolBuilder::new();
-        if let Some(j) = opt.jobs {
-            if let Some(j) = j {
-                builder.num_threads(j)
-            } else {
-                builder
-            }
-        } else {
-            builder.num_threads(1)
-        }
-        .build()
-        .unwrap()
-    };
+    {
+        let nthreads = opt.jobs.unwrap_or(1);
+        rayon::ThreadPoolBuilder::new()
+            .num_threads(nthreads)
+            .build_global()
+            .unwrap();
+    }
 
     let should_output = |itime| {
         opt.number_of_outputs.map_or(false, |num_out| {
@@ -282,7 +285,7 @@ fn main() {
             output.add_timestep(itime, &sys.fnow);
         }
         progressbar.inc(1);
-        sys.advance(dt, &pool);
+        sys.advance(dt);
     }
     progressbar.finish_and_clear();
 
