@@ -2,7 +2,6 @@ use super::*;
 use ndarray::s;
 use num_traits::Zero;
 
-pub(crate) mod constmatrix;
 pub(crate) use constmatrix::{ColVector, Matrix, RowVector};
 
 #[cfg(feature = "fast-float")]

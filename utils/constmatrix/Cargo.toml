@@ -1,0 +1,10 @@
+[package]
+name = "constmatrix"
+version = "0.1.0"
+authors = ["Magnus Ulimoen <magnus@ulimoen.dev>"]
+edition = "2018"
+
+[dependencies]
+approx = { version = "0.4.0", optional = true }
+float = { path = "../float" }
+num-traits = "0.2.14"

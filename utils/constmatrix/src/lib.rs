@@ -1,5 +1,6 @@
-#![allow(unused)]
+#![feature(const_fn_floating_point_arithmetic)]
 
+use float::Float;
 use num_traits::identities::Zero;
 
 /// A row-major matrix
@@ -178,7 +179,7 @@ where
 
 #[cfg(test)]
 mod tests {
-    use super::{super::*, *};
+    use super::*;
     #[test]
     fn construct_copy_type() {
         let _m0 = Matrix::<i32, 4, 3>::default();
@@ -209,6 +210,7 @@ mod tests {
     }
 }
 
+#[cfg(feature = "approx")]
 mod approx {
     use super::Matrix;
     use ::approx::{AbsDiffEq, RelativeEq, UlpsEq};
@@ -262,8 +264,8 @@ mod approx {
     }
 }
 
-impl<const M: usize, const N: usize> Matrix<super::Float, M, N> {
-    pub(crate) const fn flip_ud(&self) -> Self {
+impl<const M: usize, const N: usize> Matrix<Float, M, N> {
+    pub const fn flip_ud(&self) -> Self {
         let mut m = Self::new([[0.0; N]; M]);
         let mut i = 0;
         while i < M {
@@ -273,7 +275,7 @@ impl<const M: usize, const N: usize> Matrix<super::Float, M, N> {
         m
     }
 
-    pub(crate) const fn flip_lr(&self) -> Self {
+    pub const fn flip_lr(&self) -> Self {
         let mut m = Self::new([[0.0; N]; M]);
         let mut i = 0;
         while i < M {
@@ -288,7 +290,7 @@ impl<const M: usize, const N: usize> Matrix<super::Float, M, N> {
     }
 
     /// Flip all sign bits
-    pub(crate) const fn flip_sign(&self) -> Self {
+    pub const fn flip_sign(&self) -> Self {
         let mut m = Self::new([[0.0; N]; M]);
         let mut i = 0;
         while i < M {
@@ -303,9 +305,7 @@ impl<const M: usize, const N: usize> Matrix<super::Float, M, N> {
     }
 
     /// Zero extends if larger than self
-    pub(crate) const fn resize<const M2: usize, const N2: usize>(
-        &self,
-    ) -> Matrix<super::Float, M2, N2> {
+    pub const fn resize<const M2: usize, const N2: usize>(&self) -> Matrix<Float, M2, N2> {
         let mut m = Matrix::new([[0.0; N2]; M2]);
 
         let m_min = if M < M2 { M } else { M2 };
@@ -325,6 +325,7 @@ impl<const M: usize, const N: usize> Matrix<super::Float, M, N> {
     }
 }
 
+#[cfg(test)]
 mod flipping {
     use super::*;
 

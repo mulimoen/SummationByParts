@@ -9,6 +9,7 @@ members = [
     "gridgeneration",
     "heat-equation",
     "utils/float",
+    "utils/constmatrix",
 ]
 
 default-members = ["sbp", "euler", "maxwell", "shallow_water"]
