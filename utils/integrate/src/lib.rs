@@ -7,6 +7,8 @@
 //! The integration functions are memory efficient, and relies
 //! on the `k` parameter to hold the system state differences.
 //! This parameter is tied to the Butcher Tableau
+#![forbid(unsafe_code)]
+#![no_std]
 
 use float::Float;
 

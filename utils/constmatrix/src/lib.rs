@@ -1,3 +1,4 @@
+#![no_std]
 #![feature(const_fn_floating_point_arithmetic)]
 
 use float::Float;
@@ -27,7 +28,7 @@ impl<T: Copy + Zero + PartialEq, const M: usize, const N: usize> Zero for Matrix
         }
     }
     fn is_zero(&self) -> bool {
-        self == &Self::zero()
+        self.iter().all(|x| x.is_zero())
     }
 }
 
@@ -113,10 +114,31 @@ impl<T, const N: usize> RowVector<T, N> {
     }
 }
 
+impl<const M: usize, const P: usize> Matrix<Float, M, P> {
+    /// A specialised matmul for Float, using fma
+    pub fn matmul_float_into<const N: usize>(
+        &mut self,
+        lhs: &Matrix<Float, M, N>,
+        rhs: &Matrix<Float, N, P>,
+    ) {
+        for i in 0..M {
+            for j in 0..P {
+                let mut t = 0.0;
+                for k in 0..N {
+                    t = Float::mul_add(lhs[(i, k)], rhs[(k, j)], t);
+                    // t = t + lhs[(i, k)] * rhs[(k, j)];
+                }
+                self[(i, j)] = t;
+            }
+        }
+    }
+}
+
 impl<T, const M: usize, const P: usize> Matrix<T, M, P> {
     pub fn matmul_into<const N: usize>(&mut self, lhs: &Matrix<T, M, N>, rhs: &Matrix<T, N, P>)
     where
         T: Default + Copy + core::ops::Mul<Output = T> + core::ops::Add<Output = T>,
+        T: 'static,
     {
         for i in 0..M {
             for j in 0..P {
@@ -135,6 +157,7 @@ macro_rules! impl_op_mul_mul {
         impl<T, const N: usize, const M: usize, const P: usize> core::ops::Mul<$rhs> for $lhs
         where
             T: Copy + Default + core::ops::Add<Output = T> + core::ops::Mul<Output = T>,
+            T: 'static,
         {
             type Output = Matrix<T, M, P>;
             fn mul(self, lhs: $rhs) -> Self::Output {
@@ -351,14 +374,14 @@ mod flipping {
     #[test]
     fn assert_castability_of_alignment() {
         let m = Matrix::new([[1.0], [2.0], [3.0], [4.0_f64]]);
-        assert_eq!(std::mem::align_of_val(&m), std::mem::align_of::<f64>());
+        assert_eq!(core::mem::align_of_val(&m), core::mem::align_of::<f64>());
         let m = Matrix::new([[1.0], [2.0], [3.0], [4.0_f32]]);
-        assert_eq!(std::mem::align_of_val(&m), std::mem::align_of::<f32>());
+        assert_eq!(core::mem::align_of_val(&m), core::mem::align_of::<f32>());
         let m = Matrix::new([[1], [2], [3], [4_i32]]);
-        assert_eq!(std::mem::align_of_val(&m), std::mem::align_of::<i32>());
+        assert_eq!(core::mem::align_of_val(&m), core::mem::align_of::<i32>());
         let m = Matrix::new([[1], [2], [3], [4_u64]]);
-        assert_eq!(std::mem::align_of_val(&m), std::mem::align_of::<u64>());
+        assert_eq!(core::mem::align_of_val(&m), core::mem::align_of::<u64>());
         let m = Matrix::new([[1], [2], [3], [4_u128]]);
-        assert_eq!(std::mem::align_of_val(&m), std::mem::align_of::<u128>());
+        assert_eq!(core::mem::align_of_val(&m), core::mem::align_of::<u128>());
     }
 }
