@@ -6,7 +6,7 @@ edition = "2018"
 
 
 [dependencies]
-sbp = { path = "../sbp", features = ["serde1", "fast-float"] }
+sbp = { path = "../sbp", features = ["serde1"] }
 euler = { path = "../euler", features = ["serde1"] }
 hdf5 = "0.7.0"
 integrate = { path = "../utils/integrate" }

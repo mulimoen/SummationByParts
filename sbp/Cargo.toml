@@ -17,7 +17,6 @@ constmatrix = { path = "../utils/constmatrix" }
 [features]
 # Use f32 as precision, default is f64
 f32 = ["float/f32"]
-fast-float = ["float/fast-float"]
 sparse = ["sprs"]
 serde1 = ["serde", "ndarray/serde"]
 
