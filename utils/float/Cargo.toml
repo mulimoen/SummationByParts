@@ -6,7 +6,5 @@ edition = "2018"
 
 [features]
 f32 = []
-fast-float = []
 
 [dependencies]
-num-traits = "0.2.14"

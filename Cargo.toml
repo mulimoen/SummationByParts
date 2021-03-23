@@ -9,6 +9,7 @@ members = [
     "gridgeneration",
     "heat-equation",
     "utils/float",
+    "utils/fast-float",
     "utils/integrate",
     "utils/constmatrix",
 ]
