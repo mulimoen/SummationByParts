@@ -123,10 +123,15 @@ impl<const M: usize, const P: usize> Matrix<Float, M, P> {
     ) {
         for i in 0..M {
             for j in 0..P {
-                let mut t = 0.0;
-                for k in 0..N {
+                // Slightly cheaper to do first computation separately
+                // rather than store zero and issue all ops as fma
+                let mut t = if N == 0 {
+                    0.0
+                } else {
+                    lhs[(i, 0)] * rhs[(0, j)]
+                };
+                for k in 1..N {
                     t = Float::mul_add(lhs[(i, k)], rhs[(k, j)], t);
-                    // t = t + lhs[(i, k)] * rhs[(k, j)];
                 }
                 self[(i, j)] = t;
             }

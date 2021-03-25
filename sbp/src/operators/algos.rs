@@ -102,7 +102,10 @@ pub(crate) fn diff_op_1d_slice<const M: usize, const N: usize, const D: usize>(
     prev: &[Float],
     fut: &mut [Float],
 ) {
+    use std::convert::TryInto;
     #[inline(never)]
+    /// This prevents code bloat, both start and end block gives
+    /// a matrix multiplication with the same matrix sizes
     fn dedup_matmul<const M: usize, const N: usize>(
         c: &mut ColVector<Float, M>,
         a: &Matrix<Float, M, N>,
@@ -129,7 +132,6 @@ pub(crate) fn diff_op_1d_slice<const M: usize, const N: usize, const D: usize>(
     let (futb1, fut) = fut.split_at_mut(M);
     let (fut, futb2) = fut.split_at_mut(nx - 2 * M);
 
-    use std::convert::TryInto;
     {
         let prev = ColVector::<_, N>::map_to_col(prev.array_windows::<N>().next().unwrap());
         let fut = ColVector::<_, M>::map_to_col_mut(futb1.try_into().unwrap());
@@ -138,19 +140,39 @@ pub(crate) fn diff_op_1d_slice<const M: usize, const N: usize, const D: usize>(
         *fut *= idx;
     }
 
-    // The window needs to be aligned to the diagonal elements,
-    // based on the block size
-    let window_elems_to_skip = M - ((D - 1) / 2);
-
-    for (window, f) in prev[window_elems_to_skip..]
-        .array_windows::<D>()
-        .zip(fut.array_chunks_mut::<1>())
     {
-        let fut = ColVector::<_, 1>::map_to_col_mut(f);
-        let prev = ColVector::<_, D>::map_to_col(window);
+        // The window needs to be aligned to the diagonal elements,
+        // based on the block size
+        let window_elems_to_skip = M - ((D - 1) / 2);
 
-        fut.matmul_float_into(&matrix.diag, prev);
-        *fut *= idx;
+        // The compiler is pretty clever right here. It is able to
+        // inline the entire computation into a very tight loop.
+        // It seems the "optimal" way is to broadcast each element of diag
+        // into separate SIMD vectors.
+        // Then an unroll of SIMD::lanes items from fut and prev:
+        // f[0] = diag[0] * in[0] + diag[1] * in[1] + diag[2] * in[3] + ...
+        // f[1] = diag[0] * in[1] + diag[1] * in[2] + diag[2] * in[4] + ...
+        //                   \-- fma's along the vertical axis, then horizontal
+        //
+        // The resulting inner loop performs:
+        // one mul, D-1 fma,
+        // one mul (by idx),
+        // one store
+        // two integer adds (input and output offsets)
+        // one test + jump
+        //
+        // The compiler is clever enough to combine two such unrollings and merge
+        // these computations to prevent stalling
+        for (window, f) in prev[window_elems_to_skip..]
+            .array_windows::<D>()
+            .zip(fut.array_chunks_mut::<1>())
+        {
+            let fut = ColVector::<_, 1>::map_to_col_mut(f);
+            let prev = ColVector::<_, D>::map_to_col(window);
+
+            fut.matmul_float_into(&matrix.diag, prev);
+            *fut *= idx;
+        }
     }
 
     {
