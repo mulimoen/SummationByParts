@@ -281,7 +281,7 @@ fn ballistic() {
     while t < 1.0 {
         let mut next2 = next.clone();
         integrate::<EulerMethod, Ball, _>(gravity, &next, &mut next2, &mut t, dt, &mut k);
-        std::mem::swap(&mut next, &mut next2);
+        core::mem::swap(&mut next, &mut next2);
     }
     let expected_vel = initial.v + g * t;
     assert!((next.v - expected_vel).abs() < 1e-3);
