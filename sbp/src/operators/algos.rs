@@ -142,9 +142,8 @@ pub(crate) fn diff_op_1d_slice<const M: usize, const N: usize, const D: usize>(
     // based on the block size
     let window_elems_to_skip = M - ((D - 1) / 2);
 
-    for (window, f) in prev
+    for (window, f) in prev[window_elems_to_skip..]
         .array_windows::<D>()
-        .skip(window_elems_to_skip)
         .zip(fut.array_chunks_mut::<1>())
     {
         let fut = ColVector::<_, 1>::map_to_col_mut(f);
