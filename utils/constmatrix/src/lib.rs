@@ -131,7 +131,13 @@ impl<const M: usize, const P: usize> Matrix<Float, M, P> {
                     lhs[(i, 0)] * rhs[(0, j)]
                 };
                 for k in 1..N {
-                    t = Float::mul_add(lhs[(i, k)], rhs[(k, j)], t);
+                    cfg_if::cfg_if!(
+                        if #[cfg(target_feature="fma")] {
+                            t = Float::mul_add(lhs[(i, k)], rhs[(k, j)], t);
+                        } else {
+                            t = t + lhs[(i, k)]*rhs[(k, j)];
+                        }
+                    );
                 }
                 self[(i, j)] = t;
             }
