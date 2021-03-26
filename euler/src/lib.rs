@@ -618,15 +618,11 @@ fn upwind_dissipation(
     let mut tmp0 = tmp.0 .0.view_mut().into_shape((4, n)).unwrap();
     let mut tmp1 = tmp.1 .0.view_mut().into_shape((4, n)).unwrap();
 
-    for ((((((y, mut tmp0), mut tmp1), detj_dxi_dx), detj_dxi_dy), detj_deta_dx), detj_deta_dy) in
-        yview
-            .axis_iter(ndarray::Axis(1))
-            .zip(tmp0.axis_iter_mut(ndarray::Axis(1)))
-            .zip(tmp1.axis_iter_mut(ndarray::Axis(1)))
-            .zip(metrics.detj_dxi_dx().iter())
-            .zip(metrics.detj_dxi_dy().iter())
-            .zip(metrics.detj_deta_dx().iter())
-            .zip(metrics.detj_deta_dy().iter())
+    for (((y, mut tmp0), mut tmp1), metric) in yview
+        .axis_iter(ndarray::Axis(1))
+        .zip(tmp0.axis_iter_mut(ndarray::Axis(1)))
+        .zip(tmp1.axis_iter_mut(ndarray::Axis(1)))
+        .zip(metrics.iter())
     {
         let rho = y[0];
         assert!(rho > 0.0);
@@ -637,8 +633,8 @@ fn upwind_dissipation(
         let u = rhou / rho;
         let v = rhov / rho;
 
-        let uhat = detj_dxi_dx * u + detj_dxi_dy * v;
-        let vhat = detj_deta_dx * u + detj_deta_dy * v;
+        let uhat = metric.detj_dxi_dx * u + metric.detj_dxi_dy * v;
+        let vhat = metric.detj_deta_dx * u + metric.detj_deta_dy * v;
 
         let p = pressure(GAMMA, rho, rhou, rhov, e);
         assert!(p > 0.0);
@@ -648,8 +644,8 @@ fn upwind_dissipation(
         // not that important in this case
         let hypot = |x: Float, y: Float| Float::sqrt(x * x + y * y);
 
-        let alpha_u = uhat.abs() + c * hypot(*detj_dxi_dx, *detj_dxi_dy);
-        let alpha_v = vhat.abs() + c * hypot(*detj_deta_dx, *detj_deta_dy);
+        let alpha_u = uhat.abs() + c * hypot(metric.detj_dxi_dx, metric.detj_dxi_dy);
+        let alpha_v = vhat.abs() + c * hypot(metric.detj_deta_dx, metric.detj_deta_dy);
 
         tmp0[0] = alpha_u * rho;
         tmp1[0] = alpha_v * rho;

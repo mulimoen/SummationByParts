@@ -162,4 +162,37 @@ impl Metrics {
     pub fn detj_deta_dy(&self) -> ArrayView2<Float> {
         self.detj_deta_dy.view()
     }
+    pub fn iter(
+        &self,
+    ) -> impl DoubleEndedIterator<Item = Metric> + ExactSizeIterator<Item = Metric> + '_ {
+        let n = self.nx() * self.ny();
+        let detj = &self.detj.as_slice().unwrap()[..n];
+        let detj_dxi_dx = &self.detj_dxi_dx.as_slice().unwrap()[..n];
+        let detj_dxi_dy = &self.detj_dxi_dy.as_slice().unwrap()[..n];
+        let detj_deta_dx = &self.detj_deta_dx.as_slice().unwrap()[..n];
+        let detj_deta_dy = &self.detj_deta_dy.as_slice().unwrap()[..n];
+
+        detj.iter()
+            .zip(detj_dxi_dx)
+            .zip(detj_dxi_dy)
+            .zip(detj_deta_dx)
+            .zip(detj_deta_dy)
+            .map(
+                |((((&detj, &detj_dxi_dx), &detj_dxi_dy), &detj_deta_dx), &detj_deta_dy)| Metric {
+                    detj,
+                    detj_dxi_dx,
+                    detj_dxi_dy,
+                    detj_deta_dx,
+                    detj_deta_dy,
+                },
+            )
+    }
+}
+
+pub struct Metric {
+    pub detj: Float,
+    pub detj_dxi_dx: Float,
+    pub detj_dxi_dy: Float,
+    pub detj_deta_dx: Float,
+    pub detj_deta_dy: Float,
 }
