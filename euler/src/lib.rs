@@ -644,8 +644,12 @@ fn upwind_dissipation(
         assert!(p > 0.0);
         let c = (GAMMA * p / rho).sqrt();
 
-        let alpha_u = uhat.abs() + c * Float::hypot(*detj_dxi_dx, *detj_dxi_dy);
-        let alpha_v = vhat.abs() + c * Float::hypot(*detj_deta_dx, *detj_deta_dy);
+        // The accurate hypot is very slow, and the accuracy is
+        // not that important in this case
+        let hypot = |x: Float, y: Float| Float::sqrt(x * x + y * y);
+
+        let alpha_u = uhat.abs() + c * hypot(*detj_dxi_dx, *detj_dxi_dy);
+        let alpha_v = vhat.abs() + c * hypot(*detj_deta_dx, *detj_deta_dy);
 
         tmp0[0] = alpha_u * rho;
         tmp1[0] = alpha_v * rho;
