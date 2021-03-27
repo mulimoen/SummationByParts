@@ -460,7 +460,8 @@ use serde::{Deserialize, Serialize};
 #[derive(Clone, Debug)]
 #[cfg_attr(feature = "serde1", derive(Serialize, Deserialize))]
 pub struct VortexParameters {
-    pub vortices: ArrayVec<[Vortice; 5]>,
+    // The limit of 5 vortices can be bumped if needed...
+    pub vortices: ArrayVec<Vortice, 5>,
     pub mach: Float,
 }
 
