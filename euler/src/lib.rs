@@ -643,23 +643,26 @@ fn fluxes(k: (&mut Field, &mut Field), y: &Field, metrics: &Metrics, wb: &mut Fi
         *p = pressure(GAMMA, rho, rhou, rhov, e)
     });
 
-    k.0.rho_mut().assign(&rhou);
-    azip!((eflux in k.0.rhou_mut(), rho in &rho, rhou in &rhou, p in &p) {
+    let (mut c0, c1, mut c2, c3) = k.0.components_mut();
+    c0.assign(&rhou);
+    azip!((eflux in c1, rho in &rho, rhou in &rhou, p in &p) {
         *eflux = rhou*rhou/rho + p;
     });
-    azip!((eflux in k.0.rhov_mut(), rho in &rho, rhou in &rhou, rhov in &rhov) {
+    azip!((eflux in c2.view_mut(), rho in &rho, rhou in &rhou, rhov in &rhov) {
         *eflux = rhou*rhov/rho;
     });
-    azip!((eflux in k.0.e_mut(), rho in &rho, rhou in &rhou, e in &e, p in &p) {
+    azip!((eflux in c3, rho in &rho, rhou in &rhou, e in &e, p in &p) {
         *eflux = rhou*(e + p)/rho;
     });
 
-    k.1.rho_mut().assign(&rhov);
-    k.1.rhou_mut().assign(&k.0.rhov_mut());
-    azip!((fflux in k.1.rhov_mut(), rho in &rho, rhov in &rhov, p in &p) {
+    let rhouv = &c2;
+    let (mut c0, mut c1, c2, c3) = k.1.components_mut();
+    c0.assign(&rhov);
+    c1.assign(rhouv);
+    azip!((fflux in c2, rho in &rho, rhov in &rhov, p in &p) {
         *fflux = rhov*rhov/rho + p;
     });
-    azip!((fflux in k.1.e_mut(), rho in &rho, rhov in &rhov, e in &e, p in &p) {
+    azip!((fflux in c3, rho in &rho, rhov in &rhov, e in &e, p in &p) {
         *fflux = rhov*(e + p)/rho;
     });
 
