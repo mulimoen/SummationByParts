@@ -1,9 +1,12 @@
 #![cfg(feature = "expensive_tests")]
 use euler::*;
 use ndarray::prelude::*;
-use sbp::Float;
+use sbp::{
+    operators::{SbpOperator2d, UpwindOperator2d},
+    Float,
+};
 
-fn run_with_size(size: usize, op: impl sbp::operators::UpwindOperator2d + Copy) -> Float {
+fn run_with_size(size: usize, op: impl SbpOperator2d + UpwindOperator2d + Copy) -> Float {
     let nx = size;
     let ny = size;
     let x = Array1::linspace(-5.0, 5.0, nx);
@@ -48,9 +51,10 @@ fn run_with_size(size: usize, op: impl sbp::operators::UpwindOperator2d + Copy) 
     verifield.h2_err(sys.field(), &op)
 }
 
-fn convergence(op: impl sbp::operators::UpwindOperator2d + Copy) {
+fn convergence(op: impl SbpOperator2d + UpwindOperator2d + Copy, expected_q: Float) {
     let sizes = [25, 35, 50, 71, 100, 150, 200];
     let mut prev: Option<(usize, Float)> = None;
+    let mut q_last = None;
     println!("Size\tError(h2)\tq");
     for size in &sizes {
         print!("{:3}x{:3}", size, size);
@@ -66,18 +70,21 @@ fn convergence(op: impl sbp::operators::UpwindOperator2d + Copy) {
             let q =
                 Float::log10(e0 / e1) / Float::log10((m0 as Float / m1 as Float).powf(1.0 / 2.0));
             print!("\t{}", q);
+            q_last = Some(q);
         }
         println!();
         prev = Some((*size, e));
     }
+    let actual_q = q_last.unwrap();
+    assert!(actual_q < expected_q);
 }
 
 #[test]
 fn convergence_upwind4() {
-    convergence(sbp::operators::Upwind4);
+    convergence(sbp::operators::Upwind4, -4.0);
 }
 
 #[test]
 fn convergence_upwind9() {
-    convergence(sbp::operators::Upwind9);
+    convergence(sbp::operators::Upwind9, -8.5);
 }
