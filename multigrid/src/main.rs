@@ -12,7 +12,7 @@ struct System {
     fnow: Vec<euler::Field>,
     fnext: Vec<euler::Field>,
     wb: Vec<euler::WorkBuffers>,
-    k: [Vec<euler::Field>; 4],
+    k: [Vec<euler::Diff>; 4],
     grids: Vec<grid::Grid>,
     metrics: Vec<grid::Metrics>,
     bt: Vec<euler::BoundaryCharacteristics>,
@@ -26,7 +26,7 @@ pub(crate) static MULTITHREAD: AtomicBool = AtomicBool::new(false);
 
 impl integrate::Integrable for System {
     type State = Vec<euler::Field>;
-    type Diff = Vec<euler::Field>;
+    type Diff = Vec<euler::Diff>;
     fn assign(s: &mut Self::State, o: &Self::State) {
         if MULTITHREAD.load(Ordering::Acquire) {
             s.par_iter_mut()
@@ -66,7 +66,11 @@ impl System {
             .iter()
             .map(|g| euler::WorkBuffers::new(g.ny(), g.nx()))
             .collect();
-        let k = [fnow.clone(), fnow.clone(), fnow.clone(), fnow.clone()];
+        let k = grids
+            .iter()
+            .map(|g| euler::Diff::zeros((g.ny(), g.nx())))
+            .collect::<Vec<_>>();
+        let k = [k.clone(), k.clone(), k.clone(), k];
         let metrics = grids
             .iter()
             .zip(&operators)
@@ -107,7 +111,7 @@ impl System {
         let eb = &mut self.eb;
         let operators = &self.operators;
 
-        let rhs = move |fut: &mut Vec<euler::Field>, prev: &Vec<euler::Field>, time: Float| {
+        let rhs = move |fut: &mut Vec<euler::Diff>, prev: &Vec<euler::Field>, time: Float| {
             let prev_all = &prev;
             if MULTITHREAD.load(Ordering::Acquire) {
                 rayon::scope(|s| {

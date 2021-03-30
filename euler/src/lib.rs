@@ -16,7 +16,7 @@ pub const GAMMA: Float = 1.4;
 #[derive(Debug)]
 pub struct System<SBP: SbpOperator2d> {
     sys: (Field, Field),
-    k: [Field; 4],
+    k: [Diff; 4],
     wb: WorkBuffers,
     grid: (Grid, Metrics),
     op: SBP,
@@ -34,10 +34,10 @@ impl<SBP: SbpOperator2d> System<SBP> {
             sys: (Field::new(ny, nx), Field::new(ny, nx)),
             grid: (grid, metrics),
             k: [
-                Field::new(ny, nx),
-                Field::new(ny, nx),
-                Field::new(ny, nx),
-                Field::new(ny, nx),
+                Diff::zeros((ny, nx)),
+                Diff::zeros((ny, nx)),
+                Diff::zeros((ny, nx)),
+                Diff::zeros((ny, nx)),
             ],
             wb: WorkBuffers::new(ny, nx),
             op,
@@ -55,7 +55,7 @@ impl<SBP: SbpOperator2d> System<SBP> {
         let wb = &mut self.wb.0;
         let grid = &self.grid.0;
         let metrics = &self.grid.1;
-        let rhs_trad = |k: &mut Field, y: &Field, _time: Float| {
+        let rhs_trad = |k: &mut Diff, y: &Field, _time: Float| {
             let boundaries = boundary_extractor(y, grid, &bc);
             RHS_trad(op, k, y, metrics, &boundaries, wb)
         };
@@ -128,7 +128,7 @@ impl<UO: UpwindOperator2d + SbpOperator2d> System<UO> {
         let op = &self.op;
         let grid = &self.grid;
         let wb = &mut self.wb.0;
-        let rhs_upwind = |k: &mut Field, y: &Field, _time: Float| {
+        let rhs_upwind = |k: &mut Diff, y: &Field, _time: Float| {
             let (grid, metrics) = grid;
             let boundaries = boundary_extractor(y, grid, &bc);
             RHS_upwind(op, k, y, metrics, &boundaries, wb)
@@ -153,7 +153,7 @@ impl<UO: UpwindOperator2d + SbpOperator2d> System<UO> {
         let op = &self.op;
         let grid = &self.grid;
         let wb = &mut self.wb.0;
-        let mut rhs_upwind = |k: &mut Field, y: &Field, _time: Float| {
+        let mut rhs_upwind = |k: &mut Diff, y: &Field, _time: Float| {
             let (grid, metrics) = grid;
             let boundaries = boundary_extractor(y, grid, &bc);
             RHS_upwind(op, k, y, metrics, &boundaries, wb)
@@ -186,9 +186,13 @@ impl<UO: UpwindOperator2d + SbpOperator2d> System<UO> {
 /// A 4 x ny x nx array
 pub struct Field(pub(crate) Array3<Float>);
 
+#[derive(Clone, Debug)]
+/// A 4 x ny x nx array
+pub struct Diff(pub(crate) Array3<Float>);
+
 impl integrate::Integrable for Field {
     type State = Field;
-    type Diff = Field;
+    type Diff = Diff;
 
     fn assign(s: &mut Self::State, o: &Self::State) {
         s.0.assign(&o.0);
@@ -288,17 +292,21 @@ impl Field {
     pub fn west(&self) -> ArrayView2<Float> {
         self.slice(s![.., .., 0])
     }
+    #[allow(unused)]
     fn north_mut(&mut self) -> ArrayViewMut2<Float> {
         let ny = self.ny();
         self.slice_mut(s![.., ny - 1, ..])
     }
+    #[allow(unused)]
     fn south_mut(&mut self) -> ArrayViewMut2<Float> {
         self.slice_mut(s![.., 0, ..])
     }
+    #[allow(unused)]
     fn east_mut(&mut self) -> ArrayViewMut2<Float> {
         let nx = self.nx();
         self.slice_mut(s![.., .., nx - 1])
     }
+    #[allow(unused)]
     fn west_mut(&mut self) -> ArrayViewMut2<Float> {
         self.slice_mut(s![.., .., 0])
     }
@@ -448,6 +456,34 @@ fn h2_diff() {
     assert!((field0.h2_err(&field1, &SBP8).powi(2) - 4.0).abs() < 1e-3);
 }
 
+// Lazy inheritance...
+impl core::ops::Deref for Diff {
+    type Target = Array3<Float>;
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl Diff {
+    pub fn zeros((ny, nx): (usize, usize)) -> Self {
+        Self(Array3::zeros((4, ny, nx)))
+    }
+    fn north_mut(&mut self) -> ArrayViewMut2<Float> {
+        let ny = self.shape()[1];
+        self.0.slice_mut(s![.., ny - 1, ..])
+    }
+    fn south_mut(&mut self) -> ArrayViewMut2<Float> {
+        self.0.slice_mut(s![.., 0, ..])
+    }
+    fn east_mut(&mut self) -> ArrayViewMut2<Float> {
+        let nx = self.shape()[2];
+        self.0.slice_mut(s![.., .., nx - 1])
+    }
+    fn west_mut(&mut self) -> ArrayViewMut2<Float> {
+        self.0.slice_mut(s![.., .., 0])
+    }
+}
+
 fn pressure(gamma: Float, rho: Float, rhou: Float, rhov: Float, e: Float) -> Float {
     (gamma - 1.0) * (e - (rhou * rhou + rhov * rhov) / (2.0 * rho))
 }
@@ -455,7 +491,7 @@ fn pressure(gamma: Float, rho: Float, rhou: Float, rhov: Float, e: Float) -> Flo
 #[allow(non_snake_case)]
 pub fn RHS_trad(
     op: &dyn SbpOperator2d,
-    k: &mut Field,
+    k: &mut Diff,
     y: &Field,
     metrics: &Metrics,
     boundaries: &BoundaryTerms,
@@ -490,7 +526,7 @@ pub fn RHS_trad(
 #[allow(non_snake_case)]
 pub fn RHS_upwind(
     op: &dyn SbpOperator2d,
-    k: &mut Field,
+    k: &mut Diff,
     y: &Field,
     metrics: &Metrics,
     boundaries: &BoundaryTerms,
@@ -880,17 +916,20 @@ fn vortexify(
 /// Boundary conditions (SAT)
 fn SAT_characteristics(
     op: &dyn SbpOperator2d,
-    k: &mut Field,
+    k: &mut Diff,
     y: &Field,
     metrics: &Metrics,
     boundaries: &BoundaryTerms,
 ) {
+    let ny = y.ny();
+    let nx = y.nx();
+
     // North boundary
     {
         let hi = if op.is_h2eta() {
-            (k.ny() - 2) as Float / op.heta()[0]
+            (ny - 2) as Float / op.heta()[0]
         } else {
-            (k.ny() - 1) as Float / op.heta()[0]
+            (ny - 1) as Float / op.heta()[0]
         };
         let sign = -1.0;
         let tau = 1.0;
@@ -910,9 +949,9 @@ fn SAT_characteristics(
     // South boundary
     {
         let hi = if op.is_h2eta() {
-            (k.ny() - 2) as Float / op.heta()[0]
+            (ny - 2) as Float / op.heta()[0]
         } else {
-            (k.ny() - 1) as Float / op.heta()[0]
+            (ny - 1) as Float / op.heta()[0]
         };
         let sign = 1.0;
         let tau = -1.0;
@@ -932,9 +971,9 @@ fn SAT_characteristics(
     // West Boundary
     {
         let hi = if op.is_h2xi() {
-            (k.nx() - 2) as Float / op.hxi()[0]
+            (nx - 2) as Float / op.hxi()[0]
         } else {
-            (k.nx() - 1) as Float / op.hxi()[0]
+            (nx - 1) as Float / op.hxi()[0]
         };
         let sign = 1.0;
         let tau = -1.0;
@@ -954,9 +993,9 @@ fn SAT_characteristics(
     // East Boundary
     {
         let hi = if op.is_h2xi() {
-            (k.nx() - 2) as Float / op.hxi()[0]
+            (nx - 2) as Float / op.hxi()[0]
         } else {
-            (k.nx() - 1) as Float / op.hxi()[0]
+            (nx - 1) as Float / op.hxi()[0]
         };
         let sign = -1.0;
         let tau = 1.0;
