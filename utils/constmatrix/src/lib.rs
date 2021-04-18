@@ -132,7 +132,7 @@ impl<const M: usize, const P: usize> Matrix<Float, M, P> {
                 };
                 for k in 1..N {
                     cfg_if::cfg_if!(
-                        if #[cfg(target_feature="fma")] {
+                        if #[cfg(any(target_feature="fma", target_feature="neon"))] {
                             t = Float::mul_add(lhs[(i, k)], rhs[(k, j)], t);
                         } else {
                             t = t + lhs[(i, k)]*rhs[(k, j)];
