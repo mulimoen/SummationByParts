@@ -204,41 +204,42 @@ def plot_pressure_slider(grids, save: bool, filename="figure.png"):
     sm = plt.cm.ScalarMappable(cmap=cmap, norm=norm)
     plt.colorbar(sm, cax=cbar_ax)
 
-    plt.xlabel("x")
-    plt.ylabel("y")
+    ax.set_xlabel("x")
+    ax.set_ylabel("y")
 
     itime = len(t) - 1
     slider = mpl.widgets.Slider(
         slider_ax, "itime", 0, itime, valinit=itime, valstep=1, valfmt="%0.0f"
     )
 
-    contours = []
+    class Updater(object):
+        def __init__(this):
+            this.contours = None
 
-    def update(itime):
-        global contours
-        contours = []
-        itime = int(itime)
-        for ct in contours:
-            for coll in ct.collections:
-                coll.remove()
-        for g in grids:
-            ct = ax.contourf(
-                g["x"],
-                g["y"],
-                pressure(
+        def update(this, itime):
+            itime = int(itime)
+            for g in grids:
+                if this.contours is not None:
+                    for coll in this.contours.collections:
+                        coll.remove()
+                pres = pressure(
                     g["rho"][itime, :, :],
                     g["rhou"][itime, :, :],
                     g["rhov"][itime, :, :],
                     g["e"][itime, :, :],
-                ),
-                cmap=cmap,
-                levels=levels,
-            )
-            contours.append(ct)
-            slider.valtext.set_text(t[itime])
+                )
+                this.contours = ax.contourf(
+                    g["x"],
+                    g["y"],
+                    pres,
+                    cmap=cmap,
+                    levels=levels,
+                )
+                slider.valtext.set_text(t[itime])
 
-    update(itime)
-    slider.on_changed(update)
+    up = Updater()
+    up.update(itime)
+    slider.on_changed(up.update)
 
     plt.show()
 
