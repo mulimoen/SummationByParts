@@ -48,13 +48,15 @@
         }
     },
     "integration_time": 2.0,
-    "vortex": {
-        "vortices": [{
-            "x0": -1.0,
-            "y0": 0.0,
-            "eps": 1.0,
-            "rstar": 0.5
-        }],
-        "mach": 0.5
+    "initial_conditions": {
+        "vortex": {
+            "vortices": [{
+                "x0": -1.0,
+                "y0": 0.0,
+                "eps": 1.0,
+                "rstar": 0.5
+            }],
+            "mach": 0.5
+        }
     }
 }

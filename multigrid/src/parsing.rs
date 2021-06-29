@@ -1,8 +1,12 @@
+use std::convert::{TryFrom, TryInto};
+
 use sbp::operators::SbpOperator2d;
 use sbp::utils::h2linspace;
 use sbp::Float;
 
 use serde::{Deserialize, Serialize};
+
+use crate::eval;
 
 #[derive(Copy, Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -35,6 +39,10 @@ pub struct Linspace {
 pub enum GridLike {
     Linspace(Linspace),
     Array(ArrayForm),
+    /*
+    #[serde(rename = "initial_conditions")]
+    InitialConditions,
+    */
 }
 
 impl From<GridLike> for ArrayForm {
@@ -46,6 +54,7 @@ impl From<GridLike> for ArrayForm {
                 ndarray::Array::linspace(lin.start, lin.end, lin.steps)
             }),
             GridLike::Array(arr) => arr,
+            // GridLike::InitialConditions => Self::Unknown,
         }
     }
 }
@@ -137,25 +146,185 @@ pub struct GridConfig {
 type Grids = indexmap::IndexMap<String, GridConfig>;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
+/// Will be evaluated by evalexpr
+pub struct ExpressionsConservation {
+    pub globals: Option<String>,
+    pub rho: String,
+    pub rhou: String,
+    pub rhov: String,
+    pub e: String,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+/// Will be evaluated by evalexpr
+pub struct ExpressionsPressure {
+    pub globals: Option<String>,
+    pub rho: String,
+    pub u: String,
+    pub v: String,
+    pub p: String,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+#[serde(untagged)]
+pub enum Expressions {
+    Conservation(ExpressionsConservation),
+    Pressure(ExpressionsPressure),
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum InputInitialConditions {
+    Vortex(euler::VortexParameters),
+    // File(String),
+    Expressions(Expressions),
+}
+
+#[derive(Clone, Debug)]
+pub enum InitialConditions {
+    Vortex(euler::VortexParameters),
+    // File(hdf5::File),
+    Expressions(std::sync::Arc<eval::Evaluator>),
+}
+
+impl TryFrom<Expressions> for eval::Evaluator {
+    type Error = ();
+    fn try_from(expr: Expressions) -> Result<Self, Self::Error> {
+        let mut context = eval::default_context();
+        match expr {
+            Expressions::Pressure(ExpressionsPressure {
+                globals,
+                rho,
+                u,
+                v,
+                p,
+            }) => {
+                if let Some(globals) = &globals {
+                    evalexpr::eval_with_context_mut(globals, &mut context).unwrap();
+                }
+                let [rho, u, v, p] = [
+                    evalexpr::build_operator_tree(&rho).unwrap(),
+                    evalexpr::build_operator_tree(&u).unwrap(),
+                    evalexpr::build_operator_tree(&v).unwrap(),
+                    evalexpr::build_operator_tree(&p).unwrap(),
+                ];
+                Ok(eval::Evaluator::Pressure(eval::EvaluatorPressure {
+                    ctx: context,
+                    rho,
+                    u,
+                    v,
+                    p,
+                }))
+            }
+            Expressions::Conservation(ExpressionsConservation {
+                globals,
+                rho,
+                rhou,
+                rhov,
+                e,
+            }) => {
+                if let Some(globals) = &globals {
+                    evalexpr::eval_with_context_mut(globals, &mut context).unwrap();
+                }
+                let [rho, rhou, rhov, e] = [
+                    evalexpr::build_operator_tree(&rho).unwrap(),
+                    evalexpr::build_operator_tree(&rhou).unwrap(),
+                    evalexpr::build_operator_tree(&rhov).unwrap(),
+                    evalexpr::build_operator_tree(&e).unwrap(),
+                ];
+                Ok(eval::Evaluator::Conservation(eval::EvaluatorConservation {
+                    ctx: context,
+                    rho,
+                    rhou,
+                    rhov,
+                    e,
+                }))
+            }
+        }
+    }
+}
+
+impl TryFrom<InputInitialConditions> for InitialConditions {
+    type Error = ();
+    fn try_from(v: InputInitialConditions) -> Result<Self, Self::Error> {
+        Ok(match v {
+            InputInitialConditions::Vortex(v) => Self::Vortex(v),
+            // InputInitialConditions::File(file) => Self::File(hdf5::File::open(file).unwrap()),
+            InputInitialConditions::Expressions(expr) => {
+                Self::Expressions(std::sync::Arc::new(expr.try_into()?))
+            }
+        })
+    }
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum InputBoundaryConditions {
+    /// Initial conditions also contain the bc
+    #[serde(rename = "initial_conditions")]
+    InputInitialConditions,
+    Vortex(euler::VortexParameters),
+    Expressions(Expressions),
+    #[serde(rename = "not_needed")]
+    NotNeeded,
+}
+
+impl Default for InputBoundaryConditions {
+    fn default() -> Self {
+        Self::NotNeeded
+    }
+}
+
+#[derive(Clone, Debug)]
+pub enum BoundaryConditions {
+    Vortex(euler::VortexParameters),
+    Expressions(std::sync::Arc<eval::Evaluator>),
+    NotNeeded,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+/// Input configuration (json)
 pub struct Configuration {
     pub grids: Grids,
     pub integration_time: Float,
-    pub vortex: euler::VortexParameters,
+    pub initial_conditions: InputInitialConditions,
+    #[serde(default)]
+    pub boundary_conditions: InputBoundaryConditions,
 }
 
 pub struct RuntimeConfiguration {
     pub names: Vec<String>,
     pub grids: Vec<sbp::grid::Grid>,
-    pub bc: Vec<euler::BoundaryCharacteristics>,
+    pub grid_connections: Vec<euler::BoundaryCharacteristics>,
     pub op: Vec<Box<dyn SbpOperator2d>>,
     pub integration_time: Float,
-    pub vortex: euler::VortexParameters,
+    pub initial_conditions: InitialConditions,
+    pub boundary_conditions: BoundaryConditions,
 }
 
 impl Configuration {
     pub fn into_runtime(mut self) -> RuntimeConfiguration {
         let default = self.grids.shift_remove("default").unwrap_or_default();
         let names = self.grids.keys().cloned().collect();
+
+        let initial_conditions: InitialConditions =
+            self.initial_conditions.clone().try_into().unwrap();
+
+        let boundary_conditions = match &self.boundary_conditions {
+            InputBoundaryConditions::NotNeeded => BoundaryConditions::NotNeeded,
+            InputBoundaryConditions::Vortex(vp) => BoundaryConditions::Vortex(vp.clone()),
+            InputBoundaryConditions::Expressions(expr) => BoundaryConditions::Expressions(
+                std::sync::Arc::new(expr.clone().try_into().unwrap()),
+            ),
+            InputBoundaryConditions::InputInitialConditions => match &initial_conditions {
+                InitialConditions::Vortex(vp) => BoundaryConditions::Vortex(vp.clone()),
+                InitialConditions::Expressions(expr) => {
+                    BoundaryConditions::Expressions(expr.clone())
+                } // _ => panic!("Boundary conditions were set to initial conditions, although initial conditions are not available",),
+            },
+        };
+
         let grids = self
             .grids
             .iter()
@@ -198,7 +367,23 @@ impl Configuration {
                     (ArrayForm::Array2(x), ArrayForm::Array2(y)) => {
                         assert_eq!(x.shape(), y.shape());
                         (x, y)
-                    }
+                    } /*
+                      (ArrayForm::Unknown, ArrayForm::Unknown) => {
+                          if let InitialConditions::File(file) = &initial_conditions {
+                              let g = file.group(name).unwrap();
+                              let x = g.dataset("x").unwrap().read_2d::<Float>().unwrap();
+                              let y = g.dataset("y").unwrap().read_2d::<Float>().unwrap();
+                              assert_eq!(x.shape(), y.shape());
+                              (x, y)
+                          } else {
+                              panic!(
+                                  "Grid {} requires a valid file for setting initial size",
+                                  name
+                              );
+                          }
+                      }
+                      _ => todo!(),
+                      */
                 };
                 sbp::grid::Grid::new(x, y).unwrap()
             })
@@ -237,11 +422,11 @@ impl Configuration {
                 Box::new((matcher(eta), matcher(xi))) as Box<dyn SbpOperator2d>
             })
             .collect();
-        let bc = self
+        let grid_connections = self
             .grids
             .iter()
             .enumerate()
-            .map(|(i, (_name, g))| {
+            .map(|(i, (name, g))| {
                 let default_bc = default.boundary_conditions.clone().unwrap_or_default();
                 g.boundary_conditions
                     .clone()
@@ -249,10 +434,26 @@ impl Configuration {
                     .zip(default_bc)
                     .map(|(bc, fallback)| bc.or(fallback))
                     .map(|bc| match bc {
-                        None | Some(BoundaryType::Vortex) => {
-                            euler::BoundaryCharacteristic::Vortex(self.vortex.clone())
-                        }
+                        None => match &boundary_conditions {
+                            BoundaryConditions::Vortex(vortex) => {
+                                euler::BoundaryCharacteristic::Vortex(vortex.clone())
+                            }
+                            BoundaryConditions::Expressions(expr) => {
+                                euler::BoundaryCharacteristic::Eval(expr.clone() )
+                            }
+                            _ => panic!(
+                                "Boundary conditions are not available, but needed for grid {}",
+                                name
+                            ),
+                        },
                         Some(BoundaryType::This) => euler::BoundaryCharacteristic::Grid(i),
+                        Some(BoundaryType::Vortex) => euler::BoundaryCharacteristic::Vortex(
+                            if let BoundaryConditions::Vortex(vortex) = &boundary_conditions {
+                                vortex.clone()
+                            } else {
+                                panic!("Wanted vortex boundary conditions not found, needed for grid {}", name)
+                            },
+                        ),
                         Some(BoundaryType::Neighbour(name)) => {
                             let j = self.grids.get_index_of(&name).unwrap();
                             euler::BoundaryCharacteristic::Grid(j)
@@ -282,10 +483,11 @@ impl Configuration {
         RuntimeConfiguration {
             names,
             grids,
-            bc,
+            grid_connections,
             op,
             integration_time: self.integration_time,
-            vortex: self.vortex,
+            initial_conditions,
+            boundary_conditions,
         }
     }
 }
@@ -298,6 +500,11 @@ pub enum ArrayForm {
     Array1(ndarray::Array1<Float>),
     /// The usize is the inner dimension (nx)
     Array2(ndarray::Array2<Float>),
+    /*
+    /// A still unknown array, will be filled out by later
+    /// pass when initial_conditions file is known
+    Unknown,
+    */
 }
 
 impl From<ndarray::Array1<Float>> for ArrayForm {

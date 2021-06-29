@@ -5,10 +5,6 @@
             "operators": {
                 "xi": "upwind9",
                 "eta": "upwind9h2"
-            },
-            "boundary_conditions": {
-                "east": "vortex",
-                "west": "vortex"
             }
         },
         "grid0": {
@@ -26,14 +22,18 @@
             }
         }
     },
-    "integration_time": 2.0,
-    "vortex": {
-        "vortices": [{
-            "x0": -1.0,
-            "y0": 0.0,
-            "rstar": 0.5,
-            "eps": 1.0
-        }],
-        "mach": 0.5
-    }
+
+    "initial_conditions": {
+        "vortex": {
+            "vortices": [{
+                "x0": -1.0,
+                "y0": 0.0,
+                "rstar": 0.5,
+                "eps": 1.0
+            }],
+            "mach": 0.5
+        }
+    },
+    "boundary_conditions": "initial_conditions",
+    "integration_time": 2.0
 }

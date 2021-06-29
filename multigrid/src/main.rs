@@ -1,12 +1,14 @@
 use argh::FromArgs;
 use rayon::prelude::*;
 
+use euler::eval::Evaluator;
 use sbp::operators::SbpOperator2d;
 use sbp::*;
 
 mod file;
 mod parsing;
 use file::*;
+mod eval;
 
 struct System {
     fnow: Vec<euler::Field>,
@@ -283,14 +285,35 @@ fn main() {
     let parsing::RuntimeConfiguration {
         names,
         grids,
-        bc: bt,
+        grid_connections,
         op: operators,
         integration_time,
-        vortex: vortexparams,
+        initial_conditions,
+        boundary_conditions: _,
     } = config.into_runtime();
 
-    let mut sys = System::new(grids, bt, operators);
-    sys.vortex(0.0, &vortexparams);
+    let mut sys = System::new(grids, grid_connections, operators);
+    match initial_conditions {
+        /*
+        parsing::InitialConditions::File(f) => {
+            for grid in &sys.grids {
+                // Copy initial conditions from file, requires name of field
+                todo!()
+            }
+        }
+        */
+        parsing::InitialConditions::Vortex(vortexparams) => sys.vortex(0.0, &vortexparams),
+        parsing::InitialConditions::Expressions(expr) => {
+            let t = 0.0;
+            for (grid, field) in sys.grids.iter().zip(sys.fnow.iter_mut()) {
+                // Evaluate the expressions on all variables
+                let x = grid.x();
+                let y = grid.y();
+                let (rho, rhou, rhov, e) = field.components_mut();
+                (*expr).evaluate(t, x, y, rho, rhou, rhov, e);
+            }
+        }
+    }
 
     let dt = sys.max_dt();
 
@@ -348,16 +371,23 @@ fn main() {
     }
 
     output.add_timestep(ntime, &sys.fnow);
+    /*
     if opt.error {
         let time = ntime as Float * dt;
         let mut e = 0.0;
         for ((fmod, grid), op) in sys.fnow.iter().zip(&sys.grids).zip(&sys.operators) {
             let mut fvort = fmod.clone();
-            fvort.vortex(grid.x(), grid.y(), time, &vortexparams);
+            fvort.vortex(
+                grid.x(),
+                grid.y(),
+                time,
+                &vortexparams.as_ref().unwrap().clone(),
+            );
             e += fmod.h2_err(&fvort, &**op);
         }
         outinfo.error = Some(e);
     }
+    */
 
     if opt.output_json {
         println!("{}", json5::to_string(&outinfo).unwrap());

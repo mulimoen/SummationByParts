@@ -6,6 +6,8 @@ use sbp::operators::{InterpolationOperator, SbpOperator2d, UpwindOperator2d};
 use sbp::utils::Direction;
 use sbp::Float;
 
+pub mod eval;
+
 mod vortex;
 pub use vortex::{vortex, VortexParameters, Vortice};
 
@@ -691,9 +693,23 @@ pub enum BoundaryCharacteristic {
     This,
     Grid(usize),
     Vortex(VortexParameters),
+    Eval(std::sync::Arc<dyn eval::Evaluator<ndarray::Ix1>>),
     // Vortices(Vec<VortexParameters>),
     Interpolate(usize, Box<dyn InterpolationOperator>),
     MultiGrid(Vec<(usize, usize, usize)>),
+}
+
+impl std::fmt::Debug for BoundaryCharacteristic {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::This => write!(f, "This"),
+            Self::Grid(g) => write!(f, "Grid({})", g),
+            Self::Vortex(vp) => write!(f, "{:?}", vp),
+            Self::Eval(_) => write!(f, "Eval"),
+            Self::Interpolate(_, _) => write!(f, "Interpolate"),
+            Self::MultiGrid(m) => write!(f, "Multigrid: {:?}", m),
+        }
+    }
 }
 
 pub type BoundaryTerms<'a> = Direction<ArrayView2<'a, Float>>;
@@ -708,6 +724,7 @@ fn boundary_extractor<'a>(
         north: match &bc.north {
             BoundaryCharacteristic::This => field.south(),
             BoundaryCharacteristic::Vortex(_params) => todo!(),
+            BoundaryCharacteristic::Eval(_) => todo!(),
             BoundaryCharacteristic::Grid(_)
             | BoundaryCharacteristic::Interpolate(_, _)
             | BoundaryCharacteristic::MultiGrid(_) => panic!("Only working on self grid"),
@@ -715,6 +732,7 @@ fn boundary_extractor<'a>(
         south: match &bc.south {
             BoundaryCharacteristic::This => field.north(),
             BoundaryCharacteristic::Vortex(_params) => todo!(),
+            BoundaryCharacteristic::Eval(_) => todo!(),
             BoundaryCharacteristic::Grid(_)
             | BoundaryCharacteristic::Interpolate(_, _)
             | BoundaryCharacteristic::MultiGrid(_) => panic!("Only working on self grid"),
@@ -722,6 +740,7 @@ fn boundary_extractor<'a>(
         west: match &bc.west {
             BoundaryCharacteristic::This => field.east(),
             BoundaryCharacteristic::Vortex(_params) => todo!(),
+            BoundaryCharacteristic::Eval(_) => todo!(),
             BoundaryCharacteristic::Grid(_)
             | BoundaryCharacteristic::Interpolate(_, _)
             | BoundaryCharacteristic::MultiGrid(_) => panic!("Only working on self grid"),
@@ -729,6 +748,7 @@ fn boundary_extractor<'a>(
         east: match &bc.east {
             BoundaryCharacteristic::This => field.west(),
             BoundaryCharacteristic::Vortex(_params) => todo!(),
+            BoundaryCharacteristic::Eval(_) => todo!(),
             BoundaryCharacteristic::Grid(_)
             | BoundaryCharacteristic::Interpolate(_, _)
             | BoundaryCharacteristic::MultiGrid(_) => panic!("Only working on self grid"),
@@ -748,11 +768,6 @@ fn boundary_extract<'a>(
     match bc {
         BoundaryCharacteristic::This => seldir(field),
         BoundaryCharacteristic::Grid(g) => seldir(&fields[*g]),
-        BoundaryCharacteristic::Vortex(v) => {
-            let field = eb.unwrap();
-            vortexify(field.view_mut(), grid, v, time);
-            field.view()
-        }
         BoundaryCharacteristic::Interpolate(g, operator) => {
             let to = eb.unwrap();
             let fine2coarse = field.nx() < fields[*g].nx();
@@ -784,6 +799,24 @@ fn boundary_extract<'a>(
                 }
             }
             to.view()
+        }
+        BoundaryCharacteristic::Vortex(v) => {
+            let field = eb.unwrap();
+            vortexify(field.view_mut(), grid, v, time);
+            field.view()
+        }
+        BoundaryCharacteristic::Eval(expr) => {
+            let field = eb.unwrap();
+            let (x, y) = grid;
+            let mut fiter = field.outer_iter_mut();
+            let (rho, rhou, rhov, e) = (
+                fiter.next().unwrap(),
+                fiter.next().unwrap(),
+                fiter.next().unwrap(),
+                fiter.next().unwrap(),
+            );
+            expr.evaluate(time, x, y, rho, rhou, rhov, e);
+            field.view()
         }
     }
 }
@@ -864,6 +897,7 @@ impl BoundaryStorage {
         Self {
             north: match bt.north() {
                 BoundaryCharacteristic::Vortex(_)
+                | BoundaryCharacteristic::Eval(_)
                 | BoundaryCharacteristic::Interpolate(_, _)
                 | BoundaryCharacteristic::MultiGrid(_) => {
                     Some(ndarray::Array2::zeros((4, grid.nx())))
@@ -872,6 +906,7 @@ impl BoundaryStorage {
             },
             south: match bt.south() {
                 BoundaryCharacteristic::Vortex(_)
+                | BoundaryCharacteristic::Eval(_)
                 | BoundaryCharacteristic::Interpolate(_, _)
                 | BoundaryCharacteristic::MultiGrid(_) => {
                     Some(ndarray::Array2::zeros((4, grid.nx())))
@@ -880,6 +915,7 @@ impl BoundaryStorage {
             },
             east: match bt.east() {
                 BoundaryCharacteristic::Vortex(_)
+                | BoundaryCharacteristic::Eval(_)
                 | BoundaryCharacteristic::Interpolate(_, _)
                 | BoundaryCharacteristic::MultiGrid(_) => {
                     Some(ndarray::Array2::zeros((4, grid.ny())))
@@ -888,6 +924,7 @@ impl BoundaryStorage {
             },
             west: match bt.west() {
                 BoundaryCharacteristic::Vortex(_)
+                | BoundaryCharacteristic::Eval(_)
                 | BoundaryCharacteristic::Interpolate(_, _)
                 | BoundaryCharacteristic::MultiGrid(_) => {
                     Some(ndarray::Array2::zeros((4, grid.ny())))
