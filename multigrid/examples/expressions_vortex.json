@@ -18,10 +18,10 @@
 
     "initial_conditions": {
         "expressions": {
-            "globals": "uinf=1;vinf=0;beta=5;y0=0;x0=0;Tfactor=(GAMMA-1)*beta*beta/(8*GAMMA*PI*PI)",
-            "rho": "math::pow(1 - Tfactor*math::exp(1 - ((x-x0)*(x-x0) + (y-y0)*(y-y0))), 1.0/(GAMMA - 1))",
-            "u": "uinf + beta/(2*PI) * math::exp((1 - ((x-x0)*(x-x0) + (y-y0)*(y-y0)))/2)*(-(y-y0))",
-            "v": "vinf + beta/(2*PI) * math::exp((1 - ((x-x0)*(x-x0) + (y-y0)*(y-y0)))/2)*((x-x0))",
+            "globals": "uinf=1;vinf=1;beta=5;y00=0;x00=0;Tfactor=(GAMMA-1)*beta*beta/(8*GAMMA*PI*PI)",
+            "rho": "x0=x00+uinf*t;y0=y00+vinf*t; math::pow(1 - Tfactor*math::exp(1 - ((x-x0)*(x-x0) + (y-y0)*(y-y0))), 1.0/(GAMMA - 1))",
+            "u": "x0=x00+uinf*t;y0=y00+vinf*t; uinf + beta/(2*PI) * math::exp((1 - ((x-x0)*(x-x0) + (y-y0)*(y-y0)))/2)*(-(y-y0))",
+            "v": "x0=x00+uinf*t;y0=y00+vinf*t; vinf + beta/(2*PI) * math::exp((1 - ((x-x0)*(x-x0) + (y-y0)*(y-y0)))/2)*((x-x0))",
             "p": "math::pow(rho, GAMMA)"
         }
     },

@@ -57,6 +57,7 @@ struct ContextWrapper<'a> {
     v: Option<Value>,
     rhou: Option<Value>,
     rhov: Option<Value>,
+    id: std::collections::HashMap<String, Value>,
 }
 
 impl<'a> ContextWrapper<'a> {
@@ -71,6 +72,7 @@ impl<'a> ContextWrapper<'a> {
             rhov: None,
             u: None,
             v: None,
+            id: std::collections::HashMap::new(),
         }
     }
 }
@@ -86,12 +88,19 @@ impl Context for ContextWrapper<'_> {
             "rhov" => self.rhov.as_ref(),
             "u" => self.u.as_ref(),
             "v" => self.v.as_ref(),
-            id => self.ctx.get_value(id),
+            id => self.id.get(id).or_else(|| self.ctx.get_value(id)),
         }
     }
 
     fn call_function(&self, identifier: &str, argument: &Value) -> EvalexprResult<Value> {
         self.ctx.call_function(identifier, argument)
+    }
+}
+
+impl ContextWithMutableVariables for ContextWrapper<'_> {
+    fn set_value(&mut self, identifier: String, value: Value) -> EvalexprResult<()> {
+        self.id.insert(identifier, value);
+        Ok(())
     }
 }
 
@@ -112,7 +121,7 @@ impl<D: Dimension> euler::eval::Evaluator<D> for EvaluatorConservation {
             ctx.x = Some(x.into());
             ctx.y = Some(y.into());
 
-            *rho = self.rho.eval_number_with_context(&ctx).unwrap();
+            *rho = self.rho.eval_number_with_context_mut(&mut ctx).unwrap();
         });
 
         azip!((&x in &x, &y in &y, &rho in &rho, rhou in &mut rhou) {
@@ -120,7 +129,7 @@ impl<D: Dimension> euler::eval::Evaluator<D> for EvaluatorConservation {
             ctx.y = Some(y.into());
             ctx.rho = Some(rho.into());
 
-            *rhou = self.rhou.eval_number_with_context(&ctx).unwrap();
+            *rhou = self.rhou.eval_number_with_context_mut(&mut ctx).unwrap();
         });
 
         azip!((&x in &x, &y in &y, &rho in &rho, rhov in &mut rhov) {
@@ -128,7 +137,7 @@ impl<D: Dimension> euler::eval::Evaluator<D> for EvaluatorConservation {
             ctx.y = Some(y.into());
             ctx.rho = Some(rho.into());
 
-            *rhov = self.rhov.eval_number_with_context(&ctx).unwrap();
+            *rhov = self.rhov.eval_number_with_context_mut(&mut ctx).unwrap();
         });
 
         azip!((&x in &x, &y in &y, &rho in &rho, &rhou in &rhou, &rhov in &rhov, e in &mut e) {
@@ -138,7 +147,7 @@ impl<D: Dimension> euler::eval::Evaluator<D> for EvaluatorConservation {
             ctx.rhou = Some(rhou.into());
             ctx.rhov = Some(rhov.into());
 
-            *e = self.e.eval_number_with_context(&ctx).unwrap();
+            *e = self.e.eval_number_with_context_mut(&mut ctx).unwrap();
         });
     }
 }
@@ -157,7 +166,7 @@ impl<D: Dimension> euler::eval::EvaluatorPressure<D> for EvaluatorPressure {
             ctx.x = Some(x.into());
             ctx.y = Some(y.into());
 
-            *rho = self.rho.eval_number_with_context(&ctx).unwrap();
+            *rho = self.rho.eval_number_with_context_mut(&mut ctx).unwrap();
         })
     }
 
@@ -176,7 +185,7 @@ impl<D: Dimension> euler::eval::EvaluatorPressure<D> for EvaluatorPressure {
             ctx.y = Some(y.into());
             ctx.rho = Some(rho.into());
 
-            *u = self.u.eval_number_with_context(&ctx).unwrap();
+            *u = self.u.eval_number_with_context_mut(&mut ctx).unwrap();
         })
     }
     fn v(
@@ -194,7 +203,7 @@ impl<D: Dimension> euler::eval::EvaluatorPressure<D> for EvaluatorPressure {
             ctx.y = Some(y.into());
             ctx.rho = Some(rho.into());
 
-            *v = self.v.eval_number_with_context(&ctx).unwrap();
+            *v = self.v.eval_number_with_context_mut(&mut ctx).unwrap();
         })
     }
 
@@ -217,7 +226,7 @@ impl<D: Dimension> euler::eval::EvaluatorPressure<D> for EvaluatorPressure {
             ctx.u = Some(u.into());
             ctx.v = Some(v.into());
 
-            *p = self.p.eval_number_with_context(&ctx).unwrap();
+            *p = self.p.eval_number_with_context_mut(&mut ctx).unwrap();
         })
     }
 }
@@ -322,6 +331,34 @@ pub fn default_context() -> HashMapContext {
                 let s = arg[0].as_number()?;
                 let o = arg[1].as_number()?;
                 Ok(s.hypot(o).into())
+            }),
+        )
+        .unwrap();
+
+    context
+        .set_function(
+            "math::exp".into(),
+            Function::new(|arg| {
+                let arg = arg.as_number()?;
+                Ok(arg.exp().into())
+            }),
+        )
+        .unwrap();
+
+    context
+        .set_function(
+            "math::pow".into(),
+            Function::new(|arg| {
+                let arg = arg.as_tuple()?;
+                if arg.len() != 2 {
+                    return Err(error::EvalexprError::WrongFunctionArgumentAmount {
+                        expected: 2,
+                        actual: arg.len(),
+                    });
+                }
+                let s = arg[0].as_number()?;
+                let o = arg[1].as_number()?;
+                Ok(s.powf(o).into())
             }),
         )
         .unwrap();

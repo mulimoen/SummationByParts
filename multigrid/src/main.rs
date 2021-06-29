@@ -342,6 +342,7 @@ fn main() {
 
     let output = File::create(&opt.output, sys.grids.as_slice(), names).unwrap();
     let mut output = OutputThread::new(output);
+    output.add_timestep(0, &sys.fnow);
 
     let progressbar = progressbar(opt.no_progressbar, ntime);
 
