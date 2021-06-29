@@ -682,7 +682,7 @@ fn output_configuration() {
     let configuration = Configuration {
         grids,
         integration_time: 2.0,
-        vortex: euler::VortexParameters {
+        initial_conditions: InputInitialConditions::Vortex(euler::VortexParameters {
             mach: 0.5,
             vortices: {
                 let mut arr = euler::ArrayVec::new();
@@ -694,7 +694,8 @@ fn output_configuration() {
                 });
                 arr
             },
-        },
+        }),
+        boundary_conditions: InputBoundaryConditions::default(),
     };
     println!("{}", json5::to_string(&configuration).unwrap());
 }
