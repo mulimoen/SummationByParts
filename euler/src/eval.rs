@@ -91,7 +91,7 @@ impl<'a, D: Dimension, BP: EvaluatorPressure<D>> Evaluator<D>
             *e = p / (GAMMA - 1.0) + rho * (u*u + v*v) / 2.0;
 
         });
-        azip!((rho in &rho, rhou in &mut rhou) *rhou /= rho);
-        azip!((rho in &rho, rhov in &mut rhov) *rhov /= rho);
+        azip!((rho in &rho, rhou in &mut rhou) *rhou *= rho);
+        azip!((rho in &rho, rhov in &mut rhov) *rhov *= rho);
     }
 }
