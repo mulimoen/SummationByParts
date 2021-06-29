@@ -224,7 +224,7 @@ pub(crate) fn diff_op_2d_fallback<const M: usize, const N: usize, const D: usize
     };
     let idx = 1.0 / dx;
 
-    fut.fill(0.0.into());
+    fut.fill(0.0);
     let (mut fut0, mut futmid, mut futn) = fut.multi_slice_mut((
         ndarray::s![.., ..M],
         ndarray::s![.., M..nx - M],
@@ -301,7 +301,7 @@ pub(crate) fn diff_op_2d_sliceable_y<const M: usize, const N: usize, const D: us
     };
     let idx = 1.0 / dx;
 
-    fut.fill(0.0.into());
+    fut.fill(0.0);
     let (mut fut0, mut futmid, mut futn) = fut.multi_slice_mut((
         ndarray::s![.., ..M],
         ndarray::s![.., M..nx - M],

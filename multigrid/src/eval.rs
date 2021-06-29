@@ -256,7 +256,7 @@ pub fn default_context() -> HashMapContext {
                     });
                 }
                 let b = arg[0].as_boolean()?;
-                if b.into() {
+                if b {
                     Ok(arg[1].clone())
                 } else {
                     Ok(arg[2].clone())
