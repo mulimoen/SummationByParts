@@ -1,0 +1,31 @@
+{
+    "grids": {
+        "grid": {
+            "x": { "linspace": { "start": -5, "end": 5, "steps": 100 } },
+            "y": { "linspace": { "start": -5, "end": 5, "steps": 100 } },
+            "boundary_conditions": {
+                "south": "this",
+                "north": "this",
+                "east": "this",
+                "west": "this"
+            },
+            "operators": {
+                "xi": "upwind9",
+                "eta": "upwind9"
+            }
+        }
+    },
+
+    "initial_conditions": {
+        "vortex": {
+            "vortices": [{
+                "x0": -1.0,
+                "y0": 0.0,
+                "rstar": 0.5,
+                "eps": 1.0
+            }],
+            "mach": 0.5
+        }
+    },
+    "integration_time": 2.0
+}
