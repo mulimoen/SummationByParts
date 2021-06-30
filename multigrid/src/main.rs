@@ -6,6 +6,7 @@ use sbp::operators::SbpOperator2d;
 use sbp::*;
 
 mod file;
+mod input;
 mod parsing;
 use file::*;
 mod eval;
@@ -267,7 +268,7 @@ fn main() {
     let opt: CliOptions = argh::from_env();
     let filecontents = std::fs::read_to_string(&opt.json).unwrap();
 
-    let config: parsing::Configuration = match json5::from_str(&filecontents) {
+    let config: input::Configuration = match json5::from_str(&filecontents) {
         Ok(config) => config,
         Err(e) => {
             eprintln!("Configuration could not be read: {}", e);
