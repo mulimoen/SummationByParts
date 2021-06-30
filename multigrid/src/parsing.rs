@@ -283,6 +283,10 @@ pub enum BoundaryConditions {
     NotNeeded,
 }
 
+fn default_gamma() -> Float {
+    1.4
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 /// Input configuration (json)
 pub struct Configuration {
@@ -291,6 +295,8 @@ pub struct Configuration {
     pub initial_conditions: InputInitialConditions,
     #[serde(default)]
     pub boundary_conditions: InputBoundaryConditions,
+    #[serde(default = "default_gamma")]
+    pub gamma: Float,
 }
 
 pub struct RuntimeConfiguration {
@@ -305,6 +311,8 @@ pub struct RuntimeConfiguration {
 
 impl Configuration {
     pub fn into_runtime(mut self) -> RuntimeConfiguration {
+        let gamma = self.gamma;
+        let _ = euler::GAMMA.set(gamma);
         let default = self.grids.shift_remove("default").unwrap_or_default();
         let names = self.grids.keys().cloned().collect();
 

@@ -1,6 +1,7 @@
 pub use arrayvec::ArrayVec;
 use ndarray::azip;
 use ndarray::prelude::*;
+use once_cell::sync::OnceCell;
 use sbp::grid::{Grid, Metrics};
 use sbp::operators::{InterpolationOperator, SbpOperator2d, UpwindOperator2d};
 use sbp::utils::Direction;
@@ -11,7 +12,7 @@ use eval::Evaluator;
 mod vortex;
 pub use vortex::{VortexParameters, Vortice};
 
-pub const GAMMA: Float = 1.4;
+pub static GAMMA: OnceCell<Float> = OnceCell::new();
 
 // A collection of buffers that allows one to efficiently
 // move to the next state
@@ -566,6 +567,7 @@ fn upwind_dissipation(
     metrics: &Metrics,
     tmp: (&mut Field, &mut Field),
 ) {
+    let gamma = *GAMMA.get().expect("GAMMA is not defined");
     for (((FieldValue { rho, rhou, rhov, e }, tmp0), tmp1), metric) in y
         .iter()
         .zip(tmp.0.iter_mut())
@@ -580,9 +582,9 @@ fn upwind_dissipation(
         let uhat = metric.detj_dxi_dx * u + metric.detj_dxi_dy * v;
         let vhat = metric.detj_deta_dx * u + metric.detj_deta_dy * v;
 
-        let p = pressure(GAMMA, rho, rhou, rhov, e);
+        let p = pressure(gamma, rho, rhou, rhov, e);
         assert!(p > 0.0);
-        let c = (GAMMA * p / rho).sqrt();
+        let c = (gamma * p / rho).sqrt();
 
         // The accurate hypot is very slow, and the accuracy is
         // not that important in this case
@@ -625,9 +627,11 @@ fn fluxes(k: (&mut Field, &mut Field), y: &Field, metrics: &Metrics, wb: &mut Fi
     let rhov = y.rhov();
     let e = y.e();
 
+    let gamma = *GAMMA.get().expect("GAMMA is not defined");
+
     let mut p = wb.rho_mut();
     azip!((p in &mut p, &rho in &rho, &rhou in &rhou, &rhov in &rhov, &e in &e) {
-        *p = pressure(GAMMA, rho, rhou, rhov, e)
+        *p = pressure(gamma, rho, rhou, rhov, e)
     });
 
     let (mut c0, c1, mut c2, c3) = k.0.components_mut();
@@ -1059,6 +1063,7 @@ fn SAT_characteristic(
     assert_eq!(y.shape(), z.shape());
     assert_eq!(y.shape()[0], 4);
     assert_eq!(y.shape()[1], detj.shape()[0]);
+    let gamma = *GAMMA.get().expect("GAMMA is not defined");
 
     for (((((mut k, y), z), detj), detj_d_dx), detj_d_dy) in k
         .axis_iter_mut(ndarray::Axis(1))
@@ -1086,19 +1091,19 @@ fn SAT_characteristic(
 
         let theta = kx * u + ky * v;
 
-        let p = pressure(GAMMA, rho, rhou, rhov, e);
-        let c = (GAMMA * p / rho).sqrt();
-        let phi2 = (GAMMA - 1.0) * (u * u + v * v) / 2.0;
+        let p = pressure(gamma, rho, rhou, rhov, e);
+        let c = (gamma * p / rho).sqrt();
+        let phi2 = (gamma - 1.0) * (u * u + v * v) / 2.0;
         let alpha = rho / (sbp::consts::SQRT_2 * c);
 
-        let phi2_c2 = (phi2 + c * c) / (GAMMA - 1.0);
+        let phi2_c2 = (phi2 + c * c) / (gamma - 1.0);
 
         #[rustfmt::skip]
         let T = [
             [                 1.0,                   0.0,                       alpha,                       alpha],
             [                   u,                    ky,          alpha*(u + kx * c),          alpha*(u - kx * c)],
             [                   v,                   -kx,          alpha*(v + ky * c),          alpha*(v - ky * c)],
-            [phi2 / (GAMMA - 1.0), rho*(ky * u - kx * v), alpha*(phi2_c2 + c * theta), alpha*(phi2_c2 - c * theta)],
+            [phi2 / (gamma - 1.0), rho*(ky * u - kx * v), alpha*(phi2_c2 + c * theta), alpha*(phi2_c2 - c * theta)],
         ];
         let U = kx_ * u + ky_ * v;
         let L = [
@@ -1110,10 +1115,10 @@ fn SAT_characteristic(
         let beta = 1.0 / (2.0 * c * c);
         #[rustfmt::skip]
         let TI = [
-            [     1.0 - phi2 / (c * c),          (GAMMA - 1.0) * u / (c * c),          (GAMMA - 1.0) * v / (c * c), -(GAMMA - 1.0) / (c * c)],
+            [     1.0 - phi2 / (c * c),          (gamma - 1.0) * u / (c * c),          (gamma - 1.0) * v / (c * c), -(gamma - 1.0) / (c * c)],
             [   -(ky * u - kx * v)/rho,                               ky/rho,                              -kx/rho,                      0.0],
-            [beta * (phi2 - c * theta),  beta * (kx * c - (GAMMA - 1.0) * u),  beta * (ky * c - (GAMMA - 1.0) * v),     beta * (GAMMA - 1.0)],
-            [beta * (phi2 + c * theta), -beta * (kx * c + (GAMMA - 1.0) * u), -beta * (ky * c + (GAMMA - 1.0) * v),     beta * (GAMMA - 1.0)],
+            [beta * (phi2 - c * theta),  beta * (kx * c - (gamma - 1.0) * u),  beta * (ky * c - (gamma - 1.0) * v),     beta * (gamma - 1.0)],
+            [beta * (phi2 + c * theta), -beta * (kx * c + (gamma - 1.0) * u), -beta * (ky * c + (gamma - 1.0) * v),     beta * (gamma - 1.0)],
         ];
 
         let res = [rho - z[0], rhou - z[1], rhov - z[2], e - z[3]];

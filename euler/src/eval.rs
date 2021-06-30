@@ -85,10 +85,11 @@ impl<'a, D: Dimension, BP: EvaluatorPressure<D>> Evaluator<D>
         eva.u(t, x.view(), y.view(), rho.view(), rhou.view_mut());
         eva.v(t, x.view(), y.view(), rho.view(), rhov.view_mut());
         eva.p(t, x, y, rho.view(), rhou.view(), rhov.view(), e.view_mut());
+        let gamma = *GAMMA.get().expect("GAMMA is not defined");
 
         azip!((rho in &rho, u in &rhou, v in &rhov, e in &mut e) {
             let p = *e;
-            *e = p / (GAMMA - 1.0) + rho * (u*u + v*v) / 2.0;
+            *e = p / (gamma - 1.0) + rho * (u*u + v*v) / 2.0;
 
         });
         azip!((rho in &rho, rhou in &mut rhou) *rhou *= rho);

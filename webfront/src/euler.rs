@@ -14,6 +14,7 @@ impl EulerUniverse {
 impl EulerUniverse {
     #[wasm_bindgen(constructor)]
     pub fn new_with_slice(height: usize, width: usize, x: &[f32], y: &[f32]) -> Self {
+        let _ = euler::GAMMA.set(1.4);
         let x = ndarray::Array2::from_shape_vec((height, width), x.to_vec()).unwrap();
         let y = ndarray::Array2::from_shape_vec((height, width), y.to_vec()).unwrap();
         Self(euler::System::new(x, y, operators::Upwind4))

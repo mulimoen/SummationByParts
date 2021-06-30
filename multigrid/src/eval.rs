@@ -250,8 +250,8 @@ fn append_default_context() {
 
 pub fn default_context() -> HashMapContext {
     let mut context = math_consts_context! {}.unwrap();
-
-    context.set_value("GAMMA".into(), GAMMA.into()).unwrap();
+    let gamma = *GAMMA.get().expect("GAMMA is not defined");
+    context.set_value("GAMMA".into(), gamma.into()).unwrap();
 
     context
         .set_function(
