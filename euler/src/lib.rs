@@ -7,9 +7,9 @@ use sbp::utils::Direction;
 use sbp::Float;
 
 pub mod eval;
-
+use eval::Evaluator;
 mod vortex;
-pub use vortex::{vortex, VortexParameters, Vortice};
+pub use vortex::{VortexParameters, Vortice};
 
 pub const GAMMA: Float = 1.4;
 
@@ -320,23 +320,8 @@ impl Field {
         time: Float,
         vortex_param: &VortexParameters,
     ) {
-        assert_eq!(x.shape(), y.shape());
-        assert_eq!(x.shape()[1], self.nx());
-        assert_eq!(x.shape()[0], self.ny());
-
         let (rho, rhou, rhov, e) = self.components_mut();
-        let n = rho.len();
-
-        vortex(
-            rho.into_shape((n,)).unwrap(),
-            rhou.into_shape((n,)).unwrap(),
-            rhov.into_shape((n,)).unwrap(),
-            e.into_shape((n,)).unwrap(),
-            x.into_shape((n,)).unwrap(),
-            y.into_shape((n,)).unwrap(),
-            time,
-            &vortex_param,
-        )
+        vortex_param.evaluate(time, x, y, rho, rhou, rhov, e)
     }
     fn iter(&self) -> impl ExactSizeIterator<Item = FieldValue> + '_ {
         let n = self.nx() * self.ny();
@@ -949,7 +934,7 @@ fn vortexify(
         fiter.next().unwrap(),
     );
     let (y, x) = yx;
-    vortex(rho, rhou, rhov, e, x, y, time, &vparams);
+    vparams.evaluate(time, x, y, rho, rhou, rhov, e)
 }
 
 #[allow(non_snake_case)]
