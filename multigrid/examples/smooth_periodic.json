@@ -1,0 +1,29 @@
+{
+    "grids": {
+        "grid": {
+            "operators": {
+                "xi": "upwind9h2",
+                "eta": "upwind9h2"
+            },
+            "x": { "linspace": { "start": 0, "end": 2, "steps": 50, "h2": true } },
+            "y": { "linspace": { "start": 0, "end": 2, "steps": 50, "h2": true } },
+            "boundary_conditions": {
+                "east": "this",
+                "west": "this",
+                "north": "this",
+                "south": "this"
+            }
+        }
+    },
+    "integration_time": 4.0,
+    "initial_conditions": {
+        "expressions": {
+            "globals": "u0=1; v0=-0.5; p0=1.0;",
+            "rho": "1 + 0.2*math::sin(PI*((x+t*u0) + (y + t*v0))) ",
+            "u": "u0",
+            "v": "v0",
+            "p": "p0"
+        }
+    },
+    "gamma": 1.4
+}
