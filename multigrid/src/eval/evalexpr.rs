@@ -2,11 +2,71 @@ use euler::GAMMA;
 use evalexpr::*;
 use ndarray::{azip, ArrayView, ArrayViewMut, Dimension};
 use sbp::Float;
+use std::convert::TryFrom;
+
+use crate::input;
 
 #[derive(Clone, Debug)]
 pub enum Evaluator {
     Pressure(EvaluatorPressure),
     Conservation(EvaluatorConservation),
+}
+
+impl TryFrom<input::Expressions> for Evaluator {
+    type Error = ();
+    fn try_from(expr: input::Expressions) -> Result<Self, Self::Error> {
+        let mut context = default_context();
+        match expr {
+            input::Expressions::Pressure(input::ExpressionsPressure {
+                globals,
+                rho,
+                u,
+                v,
+                p,
+            }) => {
+                if let Some(globals) = &globals {
+                    evalexpr::eval_with_context_mut(globals, &mut context).unwrap();
+                }
+                let [rho, u, v, p] = [
+                    evalexpr::build_operator_tree(&rho).unwrap(),
+                    evalexpr::build_operator_tree(&u).unwrap(),
+                    evalexpr::build_operator_tree(&v).unwrap(),
+                    evalexpr::build_operator_tree(&p).unwrap(),
+                ];
+                Ok(Evaluator::Pressure(EvaluatorPressure {
+                    ctx: context,
+                    rho,
+                    u,
+                    v,
+                    p,
+                }))
+            }
+            input::Expressions::Conservation(input::ExpressionsConservation {
+                globals,
+                rho,
+                rhou,
+                rhov,
+                e,
+            }) => {
+                if let Some(globals) = &globals {
+                    evalexpr::eval_with_context_mut(globals, &mut context).unwrap();
+                }
+                let [rho, rhou, rhov, e] = [
+                    evalexpr::build_operator_tree(&rho).unwrap(),
+                    evalexpr::build_operator_tree(&rhou).unwrap(),
+                    evalexpr::build_operator_tree(&rhov).unwrap(),
+                    evalexpr::build_operator_tree(&e).unwrap(),
+                ];
+                Ok(Evaluator::Conservation(EvaluatorConservation {
+                    ctx: context,
+                    rho,
+                    rhou,
+                    rhov,
+                    e,
+                }))
+            }
+        }
+    }
 }
 
 #[derive(Debug, Clone)]

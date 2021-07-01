@@ -6,69 +6,6 @@ use sbp::Float;
 use crate::eval;
 use crate::input;
 
-impl TryFrom<input::Expressions> for eval::Evaluator {
-    type Error = ();
-    fn try_from(expr: input::Expressions) -> Result<Self, Self::Error> {
-        let mut context = eval::evalexpr::default_context();
-        match expr {
-            input::Expressions::Pressure(input::ExpressionsPressure {
-                globals,
-                rho,
-                u,
-                v,
-                p,
-            }) => {
-                if let Some(globals) = &globals {
-                    evalexpr::eval_with_context_mut(globals, &mut context).unwrap();
-                }
-                let [rho, u, v, p] = [
-                    evalexpr::build_operator_tree(&rho).unwrap(),
-                    evalexpr::build_operator_tree(&u).unwrap(),
-                    evalexpr::build_operator_tree(&v).unwrap(),
-                    evalexpr::build_operator_tree(&p).unwrap(),
-                ];
-                Ok(eval::Evaluator::EvalExpr(
-                    eval::evalexpr::Evaluator::Pressure(eval::evalexpr::EvaluatorPressure {
-                        ctx: context,
-                        rho,
-                        u,
-                        v,
-                        p,
-                    }),
-                ))
-            }
-            input::Expressions::Conservation(input::ExpressionsConservation {
-                globals,
-                rho,
-                rhou,
-                rhov,
-                e,
-            }) => {
-                if let Some(globals) = &globals {
-                    evalexpr::eval_with_context_mut(globals, &mut context).unwrap();
-                }
-                let [rho, rhou, rhov, e] = [
-                    evalexpr::build_operator_tree(&rho).unwrap(),
-                    evalexpr::build_operator_tree(&rhou).unwrap(),
-                    evalexpr::build_operator_tree(&rhov).unwrap(),
-                    evalexpr::build_operator_tree(&e).unwrap(),
-                ];
-                Ok(eval::Evaluator::EvalExpr(
-                    eval::evalexpr::Evaluator::Conservation(
-                        eval::evalexpr::EvaluatorConservation {
-                            ctx: context,
-                            rho,
-                            rhou,
-                            rhov,
-                            e,
-                        },
-                    ),
-                ))
-            }
-        }
-    }
-}
-
 impl TryFrom<input::InitialConditions> for InitialConditions {
     type Error = ();
     fn try_from(v: input::InitialConditions) -> Result<Self, Self::Error> {

@@ -1,5 +1,6 @@
 use ndarray::{ArrayView, ArrayViewMut, Dimension};
 use sbp::Float;
+use std::convert::{TryFrom, TryInto};
 
 pub mod evalexpr;
 
@@ -22,5 +23,12 @@ impl<D: Dimension> euler::eval::Evaluator<D> for Evaluator {
         match self {
             Self::EvalExpr(c) => c.evaluate(t, x, y, rho, rhou, rhov, e),
         }
+    }
+}
+
+impl TryFrom<crate::input::Expressions> for Evaluator {
+    type Error = ();
+    fn try_from(expr: crate::input::Expressions) -> Result<Self, Self::Error> {
+        Ok(Self::EvalExpr(expr.try_into()?))
     }
 }
