@@ -9,7 +9,7 @@ use crate::input;
 impl TryFrom<input::Expressions> for eval::Evaluator {
     type Error = ();
     fn try_from(expr: input::Expressions) -> Result<Self, Self::Error> {
-        let mut context = eval::default_context();
+        let mut context = eval::evalexpr::default_context();
         match expr {
             input::Expressions::Pressure(input::ExpressionsPressure {
                 globals,
@@ -27,13 +27,15 @@ impl TryFrom<input::Expressions> for eval::Evaluator {
                     evalexpr::build_operator_tree(&v).unwrap(),
                     evalexpr::build_operator_tree(&p).unwrap(),
                 ];
-                Ok(eval::Evaluator::Pressure(eval::EvaluatorPressure {
-                    ctx: context,
-                    rho,
-                    u,
-                    v,
-                    p,
-                }))
+                Ok(eval::Evaluator::EvalExpr(
+                    eval::evalexpr::Evaluator::Pressure(eval::evalexpr::EvaluatorPressure {
+                        ctx: context,
+                        rho,
+                        u,
+                        v,
+                        p,
+                    }),
+                ))
             }
             input::Expressions::Conservation(input::ExpressionsConservation {
                 globals,
@@ -51,13 +53,17 @@ impl TryFrom<input::Expressions> for eval::Evaluator {
                     evalexpr::build_operator_tree(&rhov).unwrap(),
                     evalexpr::build_operator_tree(&e).unwrap(),
                 ];
-                Ok(eval::Evaluator::Conservation(eval::EvaluatorConservation {
-                    ctx: context,
-                    rho,
-                    rhou,
-                    rhov,
-                    e,
-                }))
+                Ok(eval::Evaluator::EvalExpr(
+                    eval::evalexpr::Evaluator::Conservation(
+                        eval::evalexpr::EvaluatorConservation {
+                            ctx: context,
+                            rho,
+                            rhou,
+                            rhov,
+                            e,
+                        },
+                    ),
+                ))
             }
         }
     }
