@@ -35,6 +35,7 @@ fn advance_embedded<UO: SbpOperator2d + UpwindOperator2d>(
 }
 
 fn performance_benchmark(c: &mut Criterion) {
+    let _ = euler::GAMMA.set(1.4);
     let mut group = c.benchmark_group("EulerSystem");
     group.sample_size(25);
 
