@@ -1,0 +1,29 @@
+{
+    "grids": {
+        "grid": {
+            "operators": {
+                "xi": "upwind9",
+                "eta": "upwind9"
+            },
+            "x": { "linspace": { "start": -1, "end": 1, "steps": 200 } },
+            "y": { "linspace": { "start": -1, "end": 1, "steps": 200 } },
+            "boundary_conditions": {
+                "east": "this",
+                "west": "this",
+                "north": "this",
+                "south": "this"
+            }
+        }
+    },
+    "integration_time": 2.0,
+    "initial_conditions": {
+        "expressions": {
+            "globals": "Mach = 0.4; p0 = 1/(GAMMA * Mach^2);",
+            "rho": "1",
+            "u": "r=math::hypot(x,y); -math::sin(math::atan2(y, x)) * case(r < 0.2, 5*r, r < 0.4, 2 - 5*r, 0)",
+            "v": "r=math::hypot(x,y); math::cos(math::atan2(y, x)) * case(r < 0.2, 5*r, r < 0.4, 2 - 5*r, 0)",
+            "p": "r=math::hypot(x,y); case(r < 0.2, p0 + 25.0/2.0*r*r, r < 0.4, p0 + 25.0/2.0*r*r + 4*(1 - 5*r - math::ln(0.2) + math::ln(r)), p0 - 2 + 4*math::ln(2))"
+        }
+    },
+    "gamma": 1.66666666667
+}
