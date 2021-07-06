@@ -17,4 +17,4 @@ serde = { version = "1.0.115", features = ["derive"] }
 json5 = "0.3.0"
 indexmap = { version = "1.5.2", features = ["serde-1"] }
 argh = "0.1.4"
-evalexpr = "6.2.0"
+evalexpr = "6.3.0"
