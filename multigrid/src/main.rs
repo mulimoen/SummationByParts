@@ -30,17 +30,7 @@ pub(crate) static MULTITHREAD: AtomicBool = AtomicBool::new(false);
 impl integrate::Integrable for System {
     type State = Vec<euler::Field>;
     type Diff = Vec<euler::Diff>;
-    fn assign(s: &mut Self::State, o: &Self::State) {
-        if MULTITHREAD.load(Ordering::Acquire) {
-            s.par_iter_mut()
-                .zip(o.par_iter())
-                .for_each(|(s, o)| euler::Field::assign(s, o))
-        } else {
-            s.iter_mut()
-                .zip(o.iter())
-                .for_each(|(s, o)| euler::Field::assign(s, o))
-        }
-    }
+
     fn scaled_add(s: &mut Self::State, o: &Self::Diff, scale: Float) {
         if MULTITHREAD.load(Ordering::Acquire) {
             s.par_iter_mut()

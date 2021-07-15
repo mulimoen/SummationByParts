@@ -6,16 +6,22 @@ use characteristics::{Aminus, Aplus, Bminus, Bplus};
 
 const G: Float = 1.0;
 
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 pub struct Field(Array3<Float>);
+
+impl Clone for Field {
+    fn clone(&self) -> Self {
+        Self(self.0.clone())
+    }
+    fn clone_from(&mut self, source: &Self) {
+        self.0.clone_from(&source.0)
+    }
+}
 
 impl integrate::Integrable for Field {
     type State = Field;
     type Diff = Field;
 
-    fn assign(s: &mut Self::State, o: &Self::State) {
-        s.0.assign(&o.0);
-    }
     fn scaled_add(s: &mut Self::State, o: &Self::Diff, scale: Float) {
         s.0.scaled_add(scale, &o.0);
     }

@@ -152,10 +152,10 @@ impl EmbeddedButcherTableau for BogackiShampine {
 }
 
 pub trait Integrable {
-    type State;
+    /// This type should support `clone_from`
+    type State: Clone;
     type Diff;
 
-    fn assign(s: &mut Self::State, o: &Self::State);
     fn scaled_add(s: &mut Self::State, o: &Self::Diff, scale: Float);
 }
 
@@ -186,11 +186,11 @@ pub fn integrate<BTableau: ButcherTableau, F: Integrable, RHS>(
         let simtime;
         match i {
             0 => {
-                F::assign(fut, prev);
+                fut.clone_from(prev);
                 simtime = *time;
             }
             i if i < BTableau::S => {
-                F::assign(fut, prev);
+                fut.clone_from(prev);
                 for (&a, k) in BTableau::A[i - 1].iter().zip(k.iter()) {
                     if a == 0.0 {
                         continue;
@@ -200,7 +200,7 @@ pub fn integrate<BTableau: ButcherTableau, F: Integrable, RHS>(
                 simtime = *time + dt * BTableau::C[i - 1];
             }
             _ if i == BTableau::S => {
-                F::assign(fut, prev);
+                fut.clone_from(prev);
                 for (&b, k) in BTableau::B.iter().zip(k.iter()) {
                     if b == 0.0 {
                         continue;
@@ -236,7 +236,7 @@ pub fn integrate_embedded_rk<BTableau: EmbeddedButcherTableau, F: Integrable, RH
     RHS: FnMut(&mut F::Diff, &F::State, Float),
 {
     integrate::<BTableau, F, RHS>(rhs, prev, fut, time, dt, k);
-    F::assign(fut2, prev);
+    fut2.clone_from(prev);
     for (&b, k) in BTableau::BSTAR.iter().zip(k.iter()) {
         if b == 0.0 {
             continue;
@@ -256,10 +256,6 @@ fn ballistic() {
     impl Integrable for Ball {
         type State = Ball;
         type Diff = (Float, Float);
-        fn assign(s: &mut Self::State, o: &Self::State) {
-            s.z = o.z;
-            s.v = o.v;
-        }
         fn scaled_add(s: &mut Self::State, o: &Self::Diff, sc: Float) {
             s.z += o.0 * sc;
             s.v += o.1 * sc;
