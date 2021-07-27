@@ -7,12 +7,12 @@ edition = "2018"
 [dependencies]
 ndarray = { version = "0.14.0", features = ["approx"] }
 approx = "0.4.0"
-packed_simd = { version = "0.3.3", package = "packed_simd_2" }
 sprs = { version = "0.10.0", optional = true, default-features = false }
 serde = { version = "1.0.115", optional = true, default-features = false, features = ["derive"] }
 num-traits = "0.2.14"
 float = { path = "../utils/float" }
 constmatrix = { path = "../utils/constmatrix" }
+core_simd = { git = "https://github.com/rust-lang/stdsimd" }
 
 [features]
 # Use f32 as precision, default is f64

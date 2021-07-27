@@ -2,6 +2,7 @@
 #![feature(array_windows)]
 #![feature(array_chunks)]
 #![feature(const_fn_floating_point_arithmetic)]
+#![feature(portable_simd)]
 
 pub use float::{consts, Float};
 
