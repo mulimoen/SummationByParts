@@ -518,6 +518,59 @@ pub fn RHS_trad(
 }
 
 #[allow(non_snake_case)]
+pub fn RHS_no_SAT(
+    op: &dyn SbpOperator2d,
+    k: &mut Diff,
+    y: &Field,
+    metrics: &Metrics,
+    tmp: &mut (Field, Field, Field, Field, Field, Field),
+) {
+    let ehat = &mut tmp.0;
+    let fhat = &mut tmp.1;
+    fluxes((ehat, fhat), y, metrics, &mut tmp.2);
+    let dE = &mut tmp.2;
+    let dF = &mut tmp.3;
+
+    op.diffxi(ehat.rho(), dE.rho_mut());
+    op.diffxi(ehat.rhou(), dE.rhou_mut());
+    op.diffxi(ehat.rhov(), dE.rhov_mut());
+    op.diffxi(ehat.e(), dE.e_mut());
+
+    op.diffeta(fhat.rho(), dF.rho_mut());
+    op.diffeta(fhat.rhou(), dF.rhou_mut());
+    op.diffeta(fhat.rhov(), dF.rhov_mut());
+    op.diffeta(fhat.e(), dF.e_mut());
+
+    if let Some(diss_op) = op.upwind() {
+        let ad_xi = &mut tmp.4;
+        let ad_eta = &mut tmp.5;
+        upwind_dissipation(
+            &*diss_op,
+            (ad_xi, ad_eta),
+            y,
+            metrics,
+            (&mut tmp.0, &mut tmp.1),
+        );
+
+        azip!((out in &mut k.0,
+                        eflux in &dE.0,
+                        fflux in &dF.0,
+                        ad_xi in &ad_xi.0,
+                        ad_eta in &ad_eta.0,
+                        detj in &metrics.detj().broadcast((4, y.ny(), y.nx())).unwrap()) {
+            *out = (-eflux - fflux + ad_xi + ad_eta)/detj
+        });
+    } else {
+        azip!((out in &mut k.0,
+                        eflux in &dE.0,
+                        fflux in &dF.0,
+                        detj in &metrics.detj().broadcast((4, y.ny(), y.nx())).unwrap()) {
+            *out = (-eflux - fflux )/detj
+        });
+    }
+}
+
+#[allow(non_snake_case)]
 pub fn RHS_upwind(
     op: &dyn SbpOperator2d,
     k: &mut Diff,
