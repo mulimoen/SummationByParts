@@ -179,7 +179,7 @@ impl System {
 
     /// Spreads the computation over n threads, in a thread per grid way.
     /// This system can only be called once for ntime calls.
-    pub fn distribute(self, ntime: usize) -> DistributedSystem {
+    pub fn distribute(self, ntime: u64) -> DistributedSystem {
         let nthreads = self.grids.len();
         let time = 0.0;
         // alt: crossbeam::WaitGroup
@@ -199,28 +199,40 @@ impl System {
             | euler::BoundaryCharacteristic::Interpolate(i, _) = wb.north()
             {
                 let (s, r) = crossbeam_channel::bounded(1);
-                pull_channels[*i].south_mut().replace(r).unwrap();
+                pull_channels[*i]
+                    .south_mut()
+                    .replace(r)
+                    .and_then::<(), _>(|_| panic!("channel is already present"));
                 *local_push.north_mut() = Some(s);
             }
             if let euler::BoundaryCharacteristic::Grid(i)
             | euler::BoundaryCharacteristic::Interpolate(i, _) = wb.south()
             {
                 let (s, r) = crossbeam_channel::bounded(1);
-                pull_channels[*i].north_mut().replace(r).unwrap();
+                pull_channels[*i]
+                    .north_mut()
+                    .replace(r)
+                    .and_then::<(), _>(|_| panic!("channel is already present"));
                 *local_push.south_mut() = Some(s);
             }
             if let euler::BoundaryCharacteristic::Grid(i)
             | euler::BoundaryCharacteristic::Interpolate(i, _) = wb.east()
             {
                 let (s, r) = crossbeam_channel::bounded(1);
-                pull_channels[*i].west_mut().replace(r).unwrap();
+                pull_channels[*i]
+                    .west_mut()
+                    .replace(r)
+                    .and_then::<(), _>(|_| panic!("channel is already present"));
                 *local_push.east_mut() = Some(s);
             }
             if let euler::BoundaryCharacteristic::Grid(i)
             | euler::BoundaryCharacteristic::Interpolate(i, _) = wb.west()
             {
                 let (s, r) = crossbeam_channel::bounded(1);
-                pull_channels[*i].east_mut().replace(r).unwrap();
+                pull_channels[*i]
+                    .east_mut()
+                    .replace(r)
+                    .and_then::<(), _>(|_| panic!("channel is already present"));
                 *local_push.west_mut() = Some(s);
             }
 
@@ -279,7 +291,7 @@ impl System {
                             ],
                             boundary_conditions,
                             grid: (grid, metrics),
-                            output: (),
+                            _output: (),
                             push,
                             sbp,
                             t: time,
@@ -294,7 +306,7 @@ impl System {
         // Spawn a new communicator
 
         DistributedSystem {
-            ntime,
+            _ntime: ntime,
             start: b,
             sys: tids,
         }
@@ -335,13 +347,13 @@ pub struct DistributedSystem {
     /// collect, initialise, return something to main)
     /// This simply waits until all threads are ready, then starts the computation on all threads
     start: Arc<Barrier>,
-    ntime: usize,
+    _ntime: u64,
     /// These should be joined to mark the end of the computation
     sys: Vec<std::thread::JoinHandle<()>>,
 }
 
 impl DistributedSystem {
-    fn run(self) {
+    pub fn run(self) {
         // This should start as we have n thread, but barrier blocks on n+1
         self.start.wait();
         self.sys.into_iter().for_each(|tid| tid.join().unwrap());
@@ -383,16 +395,17 @@ struct DistributedSystemPart {
     k: [Diff; 4],
     wb: WorkBuffers,
     barrier: Arc<Barrier>,
-    output: (), // hdf5::Dataset eventually,
+    _output: (), // hdf5::Dataset eventually,
     t: Float,
     dt: Float,
-    ntime: usize,
+    ntime: u64,
 }
 
 impl DistributedSystemPart {
     fn advance(&mut self) {
         self.barrier.wait();
-        for i in 0..self.ntime {
+        for _i in 0..self.ntime {
+            println!("step: {}", _i);
             let metrics = &self.grid.1;
             let wb = &mut self.wb.0;
             let sbp = &self.sbp;
@@ -400,7 +413,7 @@ impl DistributedSystemPart {
             let boundary_conditions = &self.boundary_conditions;
             let grid = &self.grid.0;
 
-            let mut rhs = |k: &mut euler::Diff, y: &euler::Field, time: Float| {
+            let rhs = |k: &mut euler::Diff, y: &euler::Field, time: Float| {
                 // Send off the boundaries optimistically, in case some grid is ready
                 if let Some(s) = &push.north {
                     s.send(y.north().to_owned()).unwrap()
@@ -419,10 +432,6 @@ impl DistributedSystemPart {
                 // This computation does not depend on the boundaries
                 euler::RHS_no_SAT(sbp.deref(), k, y, metrics, wb);
 
-                fn north_sat() {
-                    todo!()
-                }
-
                 // Get boundaries, but be careful and maximise the amount of work which can be
                 // performed before we have all of them, whilst ensuring threads can sleep for as
                 // long as possible
@@ -430,9 +439,14 @@ impl DistributedSystemPart {
                 let mut selectable = 0;
                 let recv_north = match boundary_conditions.north() {
                     DistributedBoundaryConditions::Channel(r)
-                    | DistributedBoundaryConditions::Interpolate(r, _) => Some(r),
+                    | DistributedBoundaryConditions::Interpolate(r, _) => {
+                        selectable += 1;
+                        Some(select.recv(r))
+                    }
                     DistributedBoundaryConditions::This => {
-                        todo!()
+                        let data = y.south();
+                        euler::SAT_north(sbp.deref(), k, y, metrics, data.view());
+                        None
                     }
                     DistributedBoundaryConditions::Vortex(vp) => {
                         let mut data = y.north().to_owned();
@@ -443,37 +457,149 @@ impl DistributedSystemPart {
                             fiter.next().unwrap(),
                             fiter.next().unwrap(),
                         );
-                        let (x, y) = grid.north();
-                        vp.evaluate(time, x, y, rho, rhou, rhov, e);
+                        let (gx, gy) = grid.north();
+                        vp.evaluate(time, gx, gy, rho, rhou, rhov, e);
 
-                        north_sat();
+                        euler::SAT_north(sbp.deref(), k, y, metrics, data.view());
                         None
                     }
                     DistributedBoundaryConditions::Eval(eval) => {
-                        todo!()
+                        let mut data = y.north().to_owned();
+                        let mut fiter = data.outer_iter_mut();
+                        let (rho, rhou, rhov, e) = (
+                            fiter.next().unwrap(),
+                            fiter.next().unwrap(),
+                            fiter.next().unwrap(),
+                            fiter.next().unwrap(),
+                        );
+                        let (gx, gy) = grid.north();
+                        eval.evaluate(time, gx, gy, rho, rhou, rhov, e);
+                        euler::SAT_north(sbp.deref(), k, y, metrics, data.view());
+                        None
                     }
-                    _ => None,
                 };
-                let recv_south = if let Some(r) = boundary_conditions.south().channel() {
-                    selectable += 1;
-                    Some(select.recv(r))
-                } else {
-                    // Do SAT boundary from other BC
-                    None
+                let recv_south = match boundary_conditions.south() {
+                    DistributedBoundaryConditions::Channel(r)
+                    | DistributedBoundaryConditions::Interpolate(r, _) => {
+                        selectable += 1;
+                        Some(select.recv(r))
+                    }
+                    DistributedBoundaryConditions::This => {
+                        let data = y.north();
+                        euler::SAT_south(sbp.deref(), k, y, metrics, data.view());
+                        None
+                    }
+                    DistributedBoundaryConditions::Vortex(vp) => {
+                        let mut data = y.south().to_owned();
+                        let mut fiter = data.outer_iter_mut();
+                        let (rho, rhou, rhov, e) = (
+                            fiter.next().unwrap(),
+                            fiter.next().unwrap(),
+                            fiter.next().unwrap(),
+                            fiter.next().unwrap(),
+                        );
+                        let (gx, gy) = grid.south();
+                        vp.evaluate(time, gx, gy, rho, rhou, rhov, e);
+
+                        euler::SAT_south(sbp.deref(), k, y, metrics, data.view());
+                        None
+                    }
+                    DistributedBoundaryConditions::Eval(eval) => {
+                        let mut data = y.south().to_owned();
+                        let mut fiter = data.outer_iter_mut();
+                        let (rho, rhou, rhov, e) = (
+                            fiter.next().unwrap(),
+                            fiter.next().unwrap(),
+                            fiter.next().unwrap(),
+                            fiter.next().unwrap(),
+                        );
+                        let (gx, gy) = grid.south();
+                        eval.evaluate(time, gx, gy, rho, rhou, rhov, e);
+                        euler::SAT_south(sbp.deref(), k, y, metrics, data.view());
+                        None
+                    }
                 };
-                let recv_west = if let Some(r) = boundary_conditions.west().channel() {
-                    selectable += 1;
-                    Some(select.recv(r))
-                } else {
-                    // Do SAT boundary from other BC
-                    None
+                let recv_east = match boundary_conditions.east() {
+                    DistributedBoundaryConditions::Channel(r)
+                    | DistributedBoundaryConditions::Interpolate(r, _) => {
+                        selectable += 1;
+                        Some(select.recv(r))
+                    }
+                    DistributedBoundaryConditions::This => {
+                        let data = y.west();
+                        euler::SAT_east(sbp.deref(), k, y, metrics, data.view());
+                        None
+                    }
+                    DistributedBoundaryConditions::Vortex(vp) => {
+                        let mut data = y.east().to_owned();
+                        let mut fiter = data.outer_iter_mut();
+                        let (rho, rhou, rhov, e) = (
+                            fiter.next().unwrap(),
+                            fiter.next().unwrap(),
+                            fiter.next().unwrap(),
+                            fiter.next().unwrap(),
+                        );
+                        let (gx, gy) = grid.east();
+                        vp.evaluate(time, gx, gy, rho, rhou, rhov, e);
+
+                        euler::SAT_east(sbp.deref(), k, y, metrics, data.view());
+                        None
+                    }
+                    DistributedBoundaryConditions::Eval(eval) => {
+                        let mut data = y.east().to_owned();
+                        let mut fiter = data.outer_iter_mut();
+                        let (rho, rhou, rhov, e) = (
+                            fiter.next().unwrap(),
+                            fiter.next().unwrap(),
+                            fiter.next().unwrap(),
+                            fiter.next().unwrap(),
+                        );
+                        let (gx, gy) = grid.east();
+                        eval.evaluate(time, gx, gy, rho, rhou, rhov, e);
+                        euler::SAT_east(sbp.deref(), k, y, metrics, data.view());
+                        None
+                    }
                 };
-                let recv_east = if let Some(r) = boundary_conditions.east().channel() {
-                    selectable += 1;
-                    Some(select.recv(r))
-                } else {
-                    // Do SAT boundary from other BC
-                    None
+                let recv_west = match boundary_conditions.west() {
+                    DistributedBoundaryConditions::Channel(r)
+                    | DistributedBoundaryConditions::Interpolate(r, _) => {
+                        selectable += 1;
+                        Some(select.recv(r))
+                    }
+                    DistributedBoundaryConditions::This => {
+                        let data = y.east();
+                        euler::SAT_west(sbp.deref(), k, y, metrics, data.view());
+                        None
+                    }
+                    DistributedBoundaryConditions::Vortex(vp) => {
+                        let mut data = y.west().to_owned();
+                        let mut fiter = data.outer_iter_mut();
+                        let (rho, rhou, rhov, e) = (
+                            fiter.next().unwrap(),
+                            fiter.next().unwrap(),
+                            fiter.next().unwrap(),
+                            fiter.next().unwrap(),
+                        );
+                        let (gx, gy) = grid.west();
+                        vp.evaluate(time, gx, gy, rho, rhou, rhov, e);
+
+                        euler::SAT_west(sbp.deref(), k, y, metrics, data.view());
+                        None
+                    }
+                    DistributedBoundaryConditions::Eval(eval) => {
+                        let mut data = y.west().to_owned();
+                        let mut fiter = data.outer_iter_mut();
+                        let (rho, rhou, rhov, e) = (
+                            fiter.next().unwrap(),
+                            fiter.next().unwrap(),
+                            fiter.next().unwrap(),
+                            fiter.next().unwrap(),
+                        );
+                        let (gx, gy) = grid.west();
+                        eval.evaluate(time, gx, gy, rho, rhou, rhov, e);
+                        euler::SAT_west(sbp.deref(), k, y, metrics, data.view());
+                        None
+                    }
                 };
 
                 // Get an item off each channel, waiting minimally before processing that boundary.
@@ -484,21 +610,29 @@ impl DistributedSystemPart {
                     let s = select.select();
                     let sindex = s.index();
                     match Some(sindex) {
-                        recv_north => {
-                            let r = s.recv(boundary_conditions.north().channel().unwrap());
-                            // process into boundary SAT here
+                        x if x == recv_north => {
+                            let r = s
+                                .recv(boundary_conditions.north().channel().unwrap())
+                                .unwrap();
+                            euler::SAT_north(sbp.deref(), k, y, metrics, r.view());
                         }
-                        recv_south => {
-                            let r = s.recv(boundary_conditions.south().channel().unwrap());
-                            // process into boundary SAT here
+                        x if x == recv_south => {
+                            let r = s
+                                .recv(boundary_conditions.south().channel().unwrap())
+                                .unwrap();
+                            euler::SAT_south(sbp.deref(), k, y, metrics, r.view());
                         }
-                        recv_west => {
-                            let r = s.recv(boundary_conditions.west().channel().unwrap());
-                            // process into boundary SAT here
+                        x if x == recv_west => {
+                            let r = s
+                                .recv(boundary_conditions.west().channel().unwrap())
+                                .unwrap();
+                            euler::SAT_west(sbp.deref(), k, y, metrics, r.view());
                         }
-                        recv_east => {
-                            let r = s.recv(boundary_conditions.east().channel().unwrap());
-                            // process into boundary SAT here
+                        x if x == recv_east => {
+                            let r = s
+                                .recv(boundary_conditions.east().channel().unwrap())
+                                .unwrap();
+                            euler::SAT_east(sbp.deref(), k, y, metrics, r.view());
                         }
                         _ => unreachable!(),
                     }

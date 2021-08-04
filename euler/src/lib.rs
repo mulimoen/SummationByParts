@@ -1002,104 +1002,139 @@ fn vortexify(
 
 #[allow(non_snake_case)]
 /// Boundary conditions (SAT)
-fn SAT_characteristics(
+pub fn SAT_characteristics(
     op: &dyn SbpOperator2d,
     k: &mut Diff,
     y: &Field,
     metrics: &Metrics,
     boundaries: &BoundaryTerms,
 ) {
+    SAT_north(op, k, y, metrics, boundaries.north);
+    SAT_south(op, k, y, metrics, boundaries.south);
+    SAT_east(op, k, y, metrics, boundaries.east);
+    SAT_west(op, k, y, metrics, boundaries.west);
+}
+
+#[allow(non_snake_case)]
+pub fn SAT_north(
+    op: &dyn SbpOperator2d,
+    k: &mut Diff,
+    y: &Field,
+    metrics: &Metrics,
+    boundary: ArrayView2<Float>,
+) {
     let ny = y.ny();
+
+    let hi = if op.is_h2eta() {
+        (ny - 2) as Float / op.heta()[0]
+    } else {
+        (ny - 1) as Float / op.heta()[0]
+    };
+    let sign = -1.0;
+    let tau = 1.0;
+    let slice = s![y.ny() - 1, ..];
+    SAT_characteristic(
+        k.north_mut(),
+        y.north(),
+        boundary,
+        hi,
+        sign,
+        tau,
+        metrics.detj().slice(slice),
+        metrics.detj_deta_dx().slice(slice),
+        metrics.detj_deta_dy().slice(slice),
+    );
+}
+
+#[allow(non_snake_case)]
+pub fn SAT_south(
+    op: &dyn SbpOperator2d,
+    k: &mut Diff,
+    y: &Field,
+    metrics: &Metrics,
+    boundary: ArrayView2<Float>,
+) {
+    let ny = y.ny();
+    let hi = if op.is_h2eta() {
+        (ny - 2) as Float / op.heta()[0]
+    } else {
+        (ny - 1) as Float / op.heta()[0]
+    };
+    let sign = 1.0;
+    let tau = -1.0;
+    let slice = s![0, ..];
+    SAT_characteristic(
+        k.south_mut(),
+        y.south(),
+        boundary,
+        hi,
+        sign,
+        tau,
+        metrics.detj().slice(slice),
+        metrics.detj_deta_dx().slice(slice),
+        metrics.detj_deta_dy().slice(slice),
+    );
+}
+
+#[allow(non_snake_case)]
+pub fn SAT_west(
+    op: &dyn SbpOperator2d,
+    k: &mut Diff,
+    y: &Field,
+    metrics: &Metrics,
+    boundary: ArrayView2<Float>,
+) {
     let nx = y.nx();
 
-    // North boundary
-    {
-        let hi = if op.is_h2eta() {
-            (ny - 2) as Float / op.heta()[0]
-        } else {
-            (ny - 1) as Float / op.heta()[0]
-        };
-        let sign = -1.0;
-        let tau = 1.0;
-        let slice = s![y.ny() - 1, ..];
-        SAT_characteristic(
-            k.north_mut(),
-            y.north(),
-            boundaries.north,
-            hi,
-            sign,
-            tau,
-            metrics.detj().slice(slice),
-            metrics.detj_deta_dx().slice(slice),
-            metrics.detj_deta_dy().slice(slice),
-        );
-    }
-    // South boundary
-    {
-        let hi = if op.is_h2eta() {
-            (ny - 2) as Float / op.heta()[0]
-        } else {
-            (ny - 1) as Float / op.heta()[0]
-        };
-        let sign = 1.0;
-        let tau = -1.0;
-        let slice = s![0, ..];
-        SAT_characteristic(
-            k.south_mut(),
-            y.south(),
-            boundaries.south,
-            hi,
-            sign,
-            tau,
-            metrics.detj().slice(slice),
-            metrics.detj_deta_dx().slice(slice),
-            metrics.detj_deta_dy().slice(slice),
-        );
-    }
-    // West Boundary
-    {
-        let hi = if op.is_h2xi() {
-            (nx - 2) as Float / op.hxi()[0]
-        } else {
-            (nx - 1) as Float / op.hxi()[0]
-        };
-        let sign = 1.0;
-        let tau = -1.0;
-        let slice = s![.., 0];
-        SAT_characteristic(
-            k.west_mut(),
-            y.west(),
-            boundaries.west,
-            hi,
-            sign,
-            tau,
-            metrics.detj().slice(slice),
-            metrics.detj_dxi_dx().slice(slice),
-            metrics.detj_dxi_dy().slice(slice),
-        );
-    }
-    // East Boundary
-    {
-        let hi = if op.is_h2xi() {
-            (nx - 2) as Float / op.hxi()[0]
-        } else {
-            (nx - 1) as Float / op.hxi()[0]
-        };
-        let sign = -1.0;
-        let tau = 1.0;
-        let slice = s![.., y.nx() - 1];
-        SAT_characteristic(
-            k.east_mut(),
-            y.east(),
-            boundaries.east,
-            hi,
-            sign,
-            tau,
-            metrics.detj().slice(slice),
-            metrics.detj_dxi_dx().slice(slice),
-            metrics.detj_dxi_dy().slice(slice),
-        );
-    }
+    let hi = if op.is_h2xi() {
+        (nx - 2) as Float / op.hxi()[0]
+    } else {
+        (nx - 1) as Float / op.hxi()[0]
+    };
+    let sign = 1.0;
+    let tau = -1.0;
+    let slice = s![.., 0];
+    SAT_characteristic(
+        k.west_mut(),
+        y.west(),
+        boundary,
+        hi,
+        sign,
+        tau,
+        metrics.detj().slice(slice),
+        metrics.detj_dxi_dx().slice(slice),
+        metrics.detj_dxi_dy().slice(slice),
+    );
+}
+
+#[allow(non_snake_case)]
+pub fn SAT_east(
+    op: &dyn SbpOperator2d,
+    k: &mut Diff,
+    y: &Field,
+    metrics: &Metrics,
+    boundary: ArrayView2<Float>,
+) {
+    let nx = y.nx();
+    let hi = if op.is_h2xi() {
+        (nx - 2) as Float / op.hxi()[0]
+    } else {
+        (nx - 1) as Float / op.hxi()[0]
+    };
+    let sign = -1.0;
+    let tau = 1.0;
+    let slice = s![.., y.nx() - 1];
+    SAT_characteristic(
+        k.east_mut(),
+        y.east(),
+        boundary,
+        hi,
+        sign,
+        tau,
+        metrics.detj().slice(slice),
+        metrics.detj_dxi_dx().slice(slice),
+        metrics.detj_dxi_dy().slice(slice),
+    );
 }
 
 #[allow(non_snake_case)]

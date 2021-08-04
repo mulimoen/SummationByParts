@@ -42,6 +42,9 @@ struct CliOptions {
     /// in json format
     #[argh(switch)]
     output_json: bool,
+    /// distribute the computation on multiple threads
+    #[argh(switch)]
+    distribute: bool,
 }
 
 #[derive(Default, serde::Serialize)]
@@ -71,7 +74,6 @@ fn main() {
             return;
         }
     };
-
     let parsing::RuntimeConfiguration {
         names,
         grids,
@@ -109,9 +111,19 @@ fn main() {
 
     let ntime = (integration_time / dt).round() as u64;
 
-    {
-        let nthreads = opt.jobs.unwrap_or(1);
-        todo!("nthreads");
+    if opt.distribute {
+        let sys = sys.distribute(ntime);
+        let timer = if opt.timings {
+            Some(std::time::Instant::now())
+        } else {
+            None
+        };
+        sys.run();
+        if let Some(timer) = timer {
+            let duration = timer.elapsed();
+            println!("Duration: {:?}", duration);
+        }
+        return;
     }
 
     let should_output = |itime| {

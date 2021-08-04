@@ -168,8 +168,7 @@ impl input::Configuration {
         let grid_connections = self
             .grids
             .iter()
-            .enumerate()
-            .map(|(i, (name, g))| {
+            .map(|(name, g)| {
                 let default_bc = default.boundary_conditions.clone().unwrap_or_default();
                 use input::BoundaryType;
                 g.boundary_conditions
@@ -190,7 +189,7 @@ impl input::Configuration {
                                 name
                             ),
                         },
-                        Some(BoundaryType::This) => euler::BoundaryCharacteristic::Grid(i),
+                        Some(BoundaryType::This) => euler::BoundaryCharacteristic::This,
                         Some(BoundaryType::Vortex) => euler::BoundaryCharacteristic::Vortex(
                             if let BoundaryConditions::Vortex(vortex) = &boundary_conditions {
                                 vortex.clone()
