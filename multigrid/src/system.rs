@@ -1,3 +1,4 @@
+use crate::parsing;
 use crate::utils::Direction;
 use crossbeam_channel::{Receiver, Select, Sender};
 use euler::{
@@ -9,6 +10,60 @@ use sbp::grid::{Grid, Metrics};
 use sbp::operators::{InterpolationOperator, SbpOperator2d};
 use sbp::*;
 use std::sync::{Arc, Barrier};
+
+pub struct BaseSystem {
+    pub names: Vec<String>,
+    pub grids: Vec<grid::Grid>,
+    pub time: Float,
+    pub boundary_conditions: Vec<euler::BoundaryCharacteristics>,
+    pub initial_conditions: crate::parsing::InitialConditions,
+    pub operators: Vec<Box<dyn SbpOperator2d>>,
+}
+
+impl BaseSystem {
+    pub fn new(
+        names: Vec<String>,
+        grids: Vec<grid::Grid>,
+        time: Float,
+        operators: Vec<Box<dyn SbpOperator2d>>,
+        boundary_conditions: Vec<euler::BoundaryCharacteristics>,
+        initial_conditions: crate::parsing::InitialConditions,
+    ) -> Self {
+        Self {
+            names,
+            grids,
+            time,
+            boundary_conditions,
+            initial_conditions,
+            operators,
+        }
+    }
+    pub fn create(self) -> System {
+        let mut sys = System::new(self.grids, self.boundary_conditions, self.operators);
+        match &self.initial_conditions {
+            /*
+            parsing::InitialConditions::File(f) => {
+                for grid in &sys.grids {
+                    // Copy initial conditions from file, requires name of field
+                    todo!()
+                }
+            }
+            */
+            parsing::InitialConditions::Vortex(vortexparams) => sys.vortex(0.0, &vortexparams),
+            parsing::InitialConditions::Expressions(expr) => {
+                let t = 0.0;
+                for (grid, field) in sys.grids.iter().zip(sys.fnow.iter_mut()) {
+                    // Evaluate the expressions on all variables
+                    let x = grid.x();
+                    let y = grid.y();
+                    let (rho, rhou, rhov, e) = field.components_mut();
+                    (*expr).evaluate(t, x, y, rho, rhou, rhov, e);
+                }
+            }
+        }
+        sys
+    }
+}
 
 pub struct System {
     pub fnow: Vec<euler::Field>,

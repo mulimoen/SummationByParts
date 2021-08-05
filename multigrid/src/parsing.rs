@@ -27,7 +27,7 @@ pub enum InitialConditions {
 }
 
 #[derive(Clone, Debug)]
-pub enum BoundaryConditions {
+enum BoundaryConditions {
     Vortex(euler::VortexParameters),
     Expressions(std::sync::Arc<eval::Evaluator>),
     NotNeeded,
@@ -36,11 +36,10 @@ pub enum BoundaryConditions {
 pub struct RuntimeConfiguration {
     pub names: Vec<String>,
     pub grids: Vec<sbp::grid::Grid>,
-    pub grid_connections: Vec<euler::BoundaryCharacteristics>,
+    pub boundary_conditions: Vec<euler::BoundaryCharacteristics>,
     pub op: Vec<Box<dyn SbpOperator2d>>,
     pub integration_time: Float,
     pub initial_conditions: InitialConditions,
-    pub boundary_conditions: BoundaryConditions,
 }
 
 impl input::Configuration {
@@ -165,7 +164,7 @@ impl input::Configuration {
                 Box::new((matcher(eta), matcher(xi))) as Box<dyn SbpOperator2d>
             })
             .collect();
-        let grid_connections = self
+        let boundary_conditions = self
             .grids
             .iter()
             .map(|(name, g)| {
@@ -226,11 +225,10 @@ impl input::Configuration {
         RuntimeConfiguration {
             names,
             grids,
-            grid_connections,
+            boundary_conditions,
             op,
             integration_time: self.integration_time,
             initial_conditions,
-            boundary_conditions,
         }
     }
 }

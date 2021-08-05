@@ -9,7 +9,6 @@ mod parsing;
 use file::*;
 mod eval;
 mod system;
-use system::*;
 
 #[derive(Debug, FromArgs)]
 /// Options for configuring and running the solver
@@ -77,35 +76,22 @@ fn main() {
     let parsing::RuntimeConfiguration {
         names,
         grids,
-        grid_connections,
+        boundary_conditions,
         op: operators,
         integration_time,
         initial_conditions,
-        boundary_conditions: _,
     } = config.into_runtime();
 
-    let mut sys = System::new(grids, grid_connections, operators);
-    match &initial_conditions {
-        /*
-        parsing::InitialConditions::File(f) => {
-            for grid in &sys.grids {
-                // Copy initial conditions from file, requires name of field
-                todo!()
-            }
-        }
-        */
-        parsing::InitialConditions::Vortex(vortexparams) => sys.vortex(0.0, &vortexparams),
-        parsing::InitialConditions::Expressions(expr) => {
-            let t = 0.0;
-            for (grid, field) in sys.grids.iter().zip(sys.fnow.iter_mut()) {
-                // Evaluate the expressions on all variables
-                let x = grid.x();
-                let y = grid.y();
-                let (rho, rhou, rhov, e) = field.components_mut();
-                (*expr).evaluate(t, x, y, rho, rhou, rhov, e);
-            }
-        }
-    }
+    let basesystem = system::BaseSystem::new(
+        names.clone(),
+        grids,
+        0.0,
+        operators,
+        boundary_conditions,
+        initial_conditions.clone(),
+    );
+    let mut sys = basesystem.create();
+    // System::new(grids, grid_connections, operators);
 
     let dt = sys.max_dt();
 
