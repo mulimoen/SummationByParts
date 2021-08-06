@@ -327,7 +327,7 @@ impl System {
                 }
             });
 
-            let (ny, nx) = (grid.nx(), grid.ny());
+            let (ny, nx) = (grid.ny(), grid.nx());
 
             tids.push(
                 builder
@@ -427,15 +427,6 @@ pub enum DistributedBoundaryConditions {
 
     Interpolate(Receiver<Array2<Float>>, Box<dyn InterpolationOperator>),
     Channel(Receiver<Array2<Float>>),
-}
-
-impl DistributedBoundaryConditions {
-    fn channel(&self) -> Option<&Receiver<Array2<Float>>> {
-        match self {
-            Self::Interpolate(r, _) | Self::Channel(r) => Some(r),
-            _ => None,
-        }
-    }
 }
 
 type PushCommunicator = Option<Sender<Array2<Float>>>;
@@ -661,34 +652,82 @@ impl DistributedSystemPart {
                     let s = select.select();
                     let sindex = s.index();
                     match Some(sindex) {
-                        x if x == recv_north => {
-                            let r = s
-                                .recv(boundary_conditions.north().channel().unwrap())
-                                .unwrap();
-                            // TODO: Interpolation
-                            euler::SAT_north(sbp.deref(), k, y, metrics, r.view());
-                        }
-                        x if x == recv_south => {
-                            let r = s
-                                .recv(boundary_conditions.south().channel().unwrap())
-                                .unwrap();
-                            // TODO: Interpolation
-                            euler::SAT_south(sbp.deref(), k, y, metrics, r.view());
-                        }
-                        x if x == recv_west => {
-                            let r = s
-                                .recv(boundary_conditions.west().channel().unwrap())
-                                .unwrap();
-                            // TODO: Interpolation
-                            euler::SAT_west(sbp.deref(), k, y, metrics, r.view());
-                        }
-                        x if x == recv_east => {
-                            let r = s
-                                .recv(boundary_conditions.east().channel().unwrap())
-                                .unwrap();
-                            // TODO: Interpolation
-                            euler::SAT_east(sbp.deref(), k, y, metrics, r.view());
-                        }
+                        x if x == recv_north => match boundary_conditions.north() {
+                            DistributedBoundaryConditions::Channel(r) => {
+                                let r = s.recv(r).unwrap();
+                                euler::SAT_north(sbp.deref(), k, y, metrics, r.view());
+                            }
+                            DistributedBoundaryConditions::Interpolate(r, int_op) => {
+                                let r = s.recv(r).unwrap();
+                                let is_fine2coarse = r.shape()[1] > wb_ns.shape()[1];
+                                for (mut to, from) in wb_ns.outer_iter_mut().zip(r.outer_iter()) {
+                                    if is_fine2coarse {
+                                        int_op.fine2coarse(from.view(), to.view_mut());
+                                    } else {
+                                        int_op.coarse2fine(from.view(), to.view_mut());
+                                    }
+                                }
+                                euler::SAT_north(sbp.deref(), k, y, metrics, wb_ns.view());
+                            }
+                            _ => unreachable!(),
+                        },
+                        x if x == recv_south => match boundary_conditions.south() {
+                            DistributedBoundaryConditions::Channel(r) => {
+                                let r = s.recv(r).unwrap();
+                                euler::SAT_south(sbp.deref(), k, y, metrics, r.view());
+                            }
+                            DistributedBoundaryConditions::Interpolate(r, int_op) => {
+                                let r = s.recv(r).unwrap();
+                                let is_fine2coarse = r.shape()[1] > wb_ns.shape()[1];
+                                for (mut to, from) in wb_ns.outer_iter_mut().zip(r.outer_iter()) {
+                                    if is_fine2coarse {
+                                        int_op.fine2coarse(from.view(), to.view_mut());
+                                    } else {
+                                        int_op.coarse2fine(from.view(), to.view_mut());
+                                    }
+                                }
+                                euler::SAT_south(sbp.deref(), k, y, metrics, wb_ns.view());
+                            }
+                            _ => unreachable!(),
+                        },
+                        x if x == recv_west => match boundary_conditions.west() {
+                            DistributedBoundaryConditions::Channel(r) => {
+                                let r = s.recv(r).unwrap();
+                                euler::SAT_west(sbp.deref(), k, y, metrics, r.view());
+                            }
+                            DistributedBoundaryConditions::Interpolate(r, int_op) => {
+                                let r = s.recv(r).unwrap();
+                                let is_fine2coarse = r.shape()[1] > wb_ew.shape()[1];
+                                for (mut to, from) in wb_ew.outer_iter_mut().zip(r.outer_iter()) {
+                                    if is_fine2coarse {
+                                        int_op.fine2coarse(from.view(), to.view_mut());
+                                    } else {
+                                        int_op.coarse2fine(from.view(), to.view_mut());
+                                    }
+                                }
+                                euler::SAT_west(sbp.deref(), k, y, metrics, wb_ew.view());
+                            }
+                            _ => unreachable!(),
+                        },
+                        x if x == recv_east => match boundary_conditions.east() {
+                            DistributedBoundaryConditions::Channel(r) => {
+                                let r = s.recv(r).unwrap();
+                                euler::SAT_east(sbp.deref(), k, y, metrics, r.view());
+                            }
+                            DistributedBoundaryConditions::Interpolate(r, int_op) => {
+                                let r = s.recv(r).unwrap();
+                                let is_fine2coarse = r.shape()[1] > wb_ew.shape()[1];
+                                for (mut to, from) in wb_ew.outer_iter_mut().zip(r.outer_iter()) {
+                                    if is_fine2coarse {
+                                        int_op.fine2coarse(from.view(), to.view_mut());
+                                    } else {
+                                        int_op.coarse2fine(from.view(), to.view_mut());
+                                    }
+                                }
+                                euler::SAT_east(sbp.deref(), k, y, metrics, wb_ew.view());
+                            }
+                            _ => unreachable!(),
+                        },
                         _ => unreachable!(),
                     }
                     select.remove(sindex);
