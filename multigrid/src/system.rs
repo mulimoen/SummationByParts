@@ -350,7 +350,10 @@ impl System {
                             push,
                             sbp,
                             t: time,
+
                             wb,
+                            wb_ns: Array2::zeros((4, nx)),
+                            wb_ew: Array2::zeros((4, ny)),
                         };
                         sys.advance();
                     })
@@ -454,19 +457,24 @@ struct DistributedSystemPart {
     t: Float,
     dt: Float,
     ntime: u64,
+
+    /// Work buffer for boundaries
+    wb_ns: Array2<Float>,
+    wb_ew: Array2<Float>,
 }
 
 impl DistributedSystemPart {
     fn advance(&mut self) {
         self.barrier.wait();
         for _i in 0..self.ntime {
-            println!("step: {}", _i);
             let metrics = &self.grid.1;
             let wb = &mut self.wb.0;
             let sbp = &self.sbp;
             let push = &self.push;
             let boundary_conditions = &self.boundary_conditions;
             let grid = &self.grid.0;
+            let wb_ns = &mut self.wb_ns;
+            let wb_ew = &mut self.wb_ew;
 
             let rhs = |k: &mut euler::Diff, y: &euler::Field, time: Float| {
                 // Send off the boundaries optimistically, in case some grid is ready
@@ -499,13 +507,11 @@ impl DistributedSystemPart {
                         Some(select.recv(r))
                     }
                     DistributedBoundaryConditions::This => {
-                        let data = y.south();
-                        euler::SAT_north(sbp.deref(), k, y, metrics, data.view());
+                        euler::SAT_north(sbp.deref(), k, y, metrics, y.south());
                         None
                     }
                     DistributedBoundaryConditions::Vortex(vp) => {
-                        let mut data = y.north().to_owned();
-                        let mut fiter = data.outer_iter_mut();
+                        let mut fiter = wb_ns.outer_iter_mut();
                         let (rho, rhou, rhov, e) = (
                             fiter.next().unwrap(),
                             fiter.next().unwrap(),
@@ -515,12 +521,11 @@ impl DistributedSystemPart {
                         let (gx, gy) = grid.north();
                         vp.evaluate(time, gx, gy, rho, rhou, rhov, e);
 
-                        euler::SAT_north(sbp.deref(), k, y, metrics, data.view());
+                        euler::SAT_north(sbp.deref(), k, y, metrics, wb_ns.view());
                         None
                     }
                     DistributedBoundaryConditions::Eval(eval) => {
-                        let mut data = y.north().to_owned();
-                        let mut fiter = data.outer_iter_mut();
+                        let mut fiter = wb_ns.outer_iter_mut();
                         let (rho, rhou, rhov, e) = (
                             fiter.next().unwrap(),
                             fiter.next().unwrap(),
@@ -529,7 +534,7 @@ impl DistributedSystemPart {
                         );
                         let (gx, gy) = grid.north();
                         eval.evaluate(time, gx, gy, rho, rhou, rhov, e);
-                        euler::SAT_north(sbp.deref(), k, y, metrics, data.view());
+                        euler::SAT_north(sbp.deref(), k, y, metrics, wb_ns.view());
                         None
                     }
                 };
@@ -540,13 +545,11 @@ impl DistributedSystemPart {
                         Some(select.recv(r))
                     }
                     DistributedBoundaryConditions::This => {
-                        let data = y.north();
-                        euler::SAT_south(sbp.deref(), k, y, metrics, data.view());
+                        euler::SAT_south(sbp.deref(), k, y, metrics, y.north());
                         None
                     }
                     DistributedBoundaryConditions::Vortex(vp) => {
-                        let mut data = y.south().to_owned();
-                        let mut fiter = data.outer_iter_mut();
+                        let mut fiter = wb_ns.outer_iter_mut();
                         let (rho, rhou, rhov, e) = (
                             fiter.next().unwrap(),
                             fiter.next().unwrap(),
@@ -556,12 +559,11 @@ impl DistributedSystemPart {
                         let (gx, gy) = grid.south();
                         vp.evaluate(time, gx, gy, rho, rhou, rhov, e);
 
-                        euler::SAT_south(sbp.deref(), k, y, metrics, data.view());
+                        euler::SAT_south(sbp.deref(), k, y, metrics, wb_ns.view());
                         None
                     }
                     DistributedBoundaryConditions::Eval(eval) => {
-                        let mut data = y.south().to_owned();
-                        let mut fiter = data.outer_iter_mut();
+                        let mut fiter = wb_ns.outer_iter_mut();
                         let (rho, rhou, rhov, e) = (
                             fiter.next().unwrap(),
                             fiter.next().unwrap(),
@@ -570,7 +572,7 @@ impl DistributedSystemPart {
                         );
                         let (gx, gy) = grid.south();
                         eval.evaluate(time, gx, gy, rho, rhou, rhov, e);
-                        euler::SAT_south(sbp.deref(), k, y, metrics, data.view());
+                        euler::SAT_south(sbp.deref(), k, y, metrics, wb_ns.view());
                         None
                     }
                 };
@@ -581,13 +583,11 @@ impl DistributedSystemPart {
                         Some(select.recv(r))
                     }
                     DistributedBoundaryConditions::This => {
-                        let data = y.west();
-                        euler::SAT_east(sbp.deref(), k, y, metrics, data.view());
+                        euler::SAT_east(sbp.deref(), k, y, metrics, y.west());
                         None
                     }
                     DistributedBoundaryConditions::Vortex(vp) => {
-                        let mut data = y.east().to_owned();
-                        let mut fiter = data.outer_iter_mut();
+                        let mut fiter = wb_ew.outer_iter_mut();
                         let (rho, rhou, rhov, e) = (
                             fiter.next().unwrap(),
                             fiter.next().unwrap(),
@@ -597,12 +597,11 @@ impl DistributedSystemPart {
                         let (gx, gy) = grid.east();
                         vp.evaluate(time, gx, gy, rho, rhou, rhov, e);
 
-                        euler::SAT_east(sbp.deref(), k, y, metrics, data.view());
+                        euler::SAT_east(sbp.deref(), k, y, metrics, wb_ew.view());
                         None
                     }
                     DistributedBoundaryConditions::Eval(eval) => {
-                        let mut data = y.east().to_owned();
-                        let mut fiter = data.outer_iter_mut();
+                        let mut fiter = wb_ew.outer_iter_mut();
                         let (rho, rhou, rhov, e) = (
                             fiter.next().unwrap(),
                             fiter.next().unwrap(),
@@ -611,7 +610,7 @@ impl DistributedSystemPart {
                         );
                         let (gx, gy) = grid.east();
                         eval.evaluate(time, gx, gy, rho, rhou, rhov, e);
-                        euler::SAT_east(sbp.deref(), k, y, metrics, data.view());
+                        euler::SAT_east(sbp.deref(), k, y, metrics, wb_ew.view());
                         None
                     }
                 };
@@ -622,13 +621,11 @@ impl DistributedSystemPart {
                         Some(select.recv(r))
                     }
                     DistributedBoundaryConditions::This => {
-                        let data = y.east();
-                        euler::SAT_west(sbp.deref(), k, y, metrics, data.view());
+                        euler::SAT_west(sbp.deref(), k, y, metrics, y.east());
                         None
                     }
                     DistributedBoundaryConditions::Vortex(vp) => {
-                        let mut data = y.west().to_owned();
-                        let mut fiter = data.outer_iter_mut();
+                        let mut fiter = wb_ew.outer_iter_mut();
                         let (rho, rhou, rhov, e) = (
                             fiter.next().unwrap(),
                             fiter.next().unwrap(),
@@ -638,12 +635,11 @@ impl DistributedSystemPart {
                         let (gx, gy) = grid.west();
                         vp.evaluate(time, gx, gy, rho, rhou, rhov, e);
 
-                        euler::SAT_west(sbp.deref(), k, y, metrics, data.view());
+                        euler::SAT_west(sbp.deref(), k, y, metrics, wb_ew.view());
                         None
                     }
                     DistributedBoundaryConditions::Eval(eval) => {
-                        let mut data = y.west().to_owned();
-                        let mut fiter = data.outer_iter_mut();
+                        let mut fiter = wb_ew.outer_iter_mut();
                         let (rho, rhou, rhov, e) = (
                             fiter.next().unwrap(),
                             fiter.next().unwrap(),
@@ -652,7 +648,7 @@ impl DistributedSystemPart {
                         );
                         let (gx, gy) = grid.west();
                         eval.evaluate(time, gx, gy, rho, rhou, rhov, e);
-                        euler::SAT_west(sbp.deref(), k, y, metrics, data.view());
+                        euler::SAT_west(sbp.deref(), k, y, metrics, wb_ew.view());
                         None
                     }
                 };
@@ -669,24 +665,28 @@ impl DistributedSystemPart {
                             let r = s
                                 .recv(boundary_conditions.north().channel().unwrap())
                                 .unwrap();
+                            // TODO: Interpolation
                             euler::SAT_north(sbp.deref(), k, y, metrics, r.view());
                         }
                         x if x == recv_south => {
                             let r = s
                                 .recv(boundary_conditions.south().channel().unwrap())
                                 .unwrap();
+                            // TODO: Interpolation
                             euler::SAT_south(sbp.deref(), k, y, metrics, r.view());
                         }
                         x if x == recv_west => {
                             let r = s
                                 .recv(boundary_conditions.west().channel().unwrap())
                                 .unwrap();
+                            // TODO: Interpolation
                             euler::SAT_west(sbp.deref(), k, y, metrics, r.view());
                         }
                         x if x == recv_east => {
                             let r = s
                                 .recv(boundary_conditions.east().channel().unwrap())
                                 .unwrap();
+                            // TODO: Interpolation
                             euler::SAT_east(sbp.deref(), k, y, metrics, r.view());
                         }
                         _ => unreachable!(),
