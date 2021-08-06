@@ -15,9 +15,6 @@ mod system;
 struct CliOptions {
     #[argh(positional)]
     json: std::path::PathBuf,
-    /// number of simultaneous threads
-    #[argh(option, short = 'j')]
-    jobs: Option<usize>,
     /// name of output file
     #[argh(
         option,
