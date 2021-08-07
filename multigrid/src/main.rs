@@ -86,42 +86,28 @@ fn main() {
         operators,
         boundary_conditions,
         initial_conditions.clone(),
+        opt.output.clone(),
     );
-    let mut sys = basesystem.create();
     // System::new(grids, grid_connections, operators);
 
-    let dt = sys.max_dt();
-
-    let ntime = (integration_time / dt).round() as u64;
-
-    if opt.distribute {
-        let sys = sys.distribute(ntime);
-        let timer = if opt.timings {
-            Some(std::time::Instant::now())
-        } else {
-            None
-        };
-        sys.run();
-        if let Some(timer) = timer {
-            let duration = timer.elapsed();
-            println!("Duration: {:?}", duration);
-        }
-        return;
-    }
-
-    let should_output = |itime| {
-        opt.number_of_outputs.map_or(false, |num_out| {
-            if num_out == 0 {
-                false
-            } else {
-                itime % (std::cmp::max(ntime / (num_out - 1), 1)) == 0
-            }
-        })
+    let sys = if opt.distribute {
+        basesystem.create_distributed()
+    } else {
+        basesystem.create()
     };
 
-    let output = File::create(&opt.output, sys.grids.as_slice(), names).unwrap();
-    let mut output = OutputThread::new(output);
-    output.add_timestep(0, &sys.fnow);
+    let dt = sys.max_dt();
+    let ntime = (integration_time / dt).round() as u64;
+    let steps_between_outputs = if let Some(n) = opt.number_of_outputs {
+        std::cmp::max(n / ntime, 1)
+    } else {
+        ntime
+    };
+
+    sys.output(0);
+    //let output = File::create(&opt.output, sys.grids.as_slice(), names).unwrap();
+    //let mut output = OutputThread::new(output);
+    //output.add_timestep(0, &sys.fnow);
 
     let progressbar = progressbar(opt.no_progressbar, ntime);
 
@@ -131,6 +117,16 @@ fn main() {
         None
     };
 
+    let mut itime = 0;
+    while itime < ntime {
+        sys.advance(steps_between_outputs);
+        progressbar.inc(1);
+
+        itime += steps_between_outputs;
+        sys.output(itime);
+    }
+
+    /*
     for itime in 0..ntime {
         if should_output(itime) {
             output.add_timestep(itime, &sys.fnow);
@@ -138,6 +134,7 @@ fn main() {
         progressbar.inc(1);
         sys.advance(dt);
     }
+    */
     progressbar.finish_and_clear();
 
     let mut outinfo = OutputInformation {
@@ -150,8 +147,9 @@ fn main() {
         outinfo.time_elapsed = Some(duration);
     }
 
-    output.add_timestep(ntime, &sys.fnow);
+    //output.add_timestep(ntime, &sys.fnow);
 
+    /*
     if opt.error {
         let time = ntime as Float * dt;
         let mut e = 0.0;
@@ -171,6 +169,7 @@ fn main() {
         }
         outinfo.error = Some(e);
     }
+    */
 
     if opt.output_json {
         println!("{}", json5::to_string(&outinfo).unwrap());
