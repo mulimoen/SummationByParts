@@ -80,7 +80,38 @@ impl BaseSystem {
             .map(|(bt, grid)| euler::BoundaryStorage::new(bt, grid))
             .collect();
 
-        let sys = SingleThreadedSystem {
+        let mut outputs = Vec::with_capacity(self.grids.len());
+        for (name, grid) in self.names.iter().zip(&self.grids) {
+            let g = self.output.create_group(name).unwrap();
+            g.link_soft("/t", "t").unwrap();
+
+            let add_dim = |name| {
+                g.new_dataset::<Float>()
+                    .chunk((grid.ny(), grid.nx()))
+                    .gzip(9)
+                    .create(name, (grid.ny(), grid.nx()))
+            };
+            let xds = add_dim("x").unwrap();
+            xds.write(grid.x()).unwrap();
+            let yds = add_dim("y").unwrap();
+            yds.write(grid.y()).unwrap();
+
+            let add_var = |name| {
+                g.new_dataset::<Float>()
+                    .gzip(3)
+                    .shuffle(true)
+                    .chunk((1, grid.ny(), grid.nx()))
+                    .resizable(true)
+                    .create(name, (0, grid.ny(), grid.nx()))
+            };
+            add_var("rho").unwrap();
+            add_var("rhou").unwrap();
+            add_var("rhov").unwrap();
+            add_var("e").unwrap();
+            outputs.push(g);
+        }
+
+        let mut sys = SingleThreadedSystem {
             fnow,
             fnext,
             k,
@@ -90,8 +121,9 @@ impl BaseSystem {
             bt: self.boundary_conditions,
             eb,
             time: self.time,
+            dt: Float::NAN,
             operators: self.operators,
-            output: todo!(),
+            output: (self.output, outputs),
         };
         match &self.initial_conditions {
             /*
@@ -120,7 +152,6 @@ impl BaseSystem {
     /// Spreads the computation over n threads, in a thread per grid way.
     pub fn create_distributed(self) -> System {
         let nthreads = self.grids.len();
-        // let dt = self.max_dt();
 
         // Build up the boundary conditions
         let mut push_channels: Vec<Direction<Option<Sender<Array2<Float>>>>> =
@@ -215,6 +246,8 @@ impl BaseSystem {
             communicators.push(t_send);
             let time = self.time;
 
+            let output = self.output.clone();
+
             tids.push(
                 builder
                     .spawn(move || {
@@ -231,19 +264,48 @@ impl BaseSystem {
 
                         let wb = WorkBuffers::new(ny, nx);
 
+                        let g = {
+                            let g = output.create_group(&name).unwrap();
+                            g.link_soft("/t", "t").unwrap();
+                            let add_dim = |name| {
+                                g.new_dataset::<Float>()
+                                    .chunk((grid.ny(), grid.nx()))
+                                    .gzip(9)
+                                    .create(name, (grid.ny(), grid.nx()))
+                            };
+                            let xds = add_dim("x").unwrap();
+                            xds.write(grid.x()).unwrap();
+                            let yds = add_dim("y").unwrap();
+                            yds.write(grid.y()).unwrap();
+
+                            let add_var = |name| {
+                                g.new_dataset::<Float>()
+                                    .gzip(3)
+                                    .shuffle(true)
+                                    .chunk((1, grid.ny(), grid.nx()))
+                                    .resizable(true)
+                                    .create(name, (0, grid.ny(), grid.nx()))
+                            };
+                            add_var("rho").unwrap();
+                            add_var("rhou").unwrap();
+                            add_var("rhov").unwrap();
+                            add_var("e").unwrap();
+                            g
+                        };
+
                         let mut sys = DistributedSystemPart {
                             current,
                             fut,
                             k,
                             boundary_conditions,
                             grid: (grid, metrics),
-                            output: todo!(),
+                            output: g,
                             push,
                             sbp,
                             t: time,
                             dt: Float::NAN,
 
-                            name,
+                            _name: name,
                             id,
 
                             recv: t_recv,
@@ -266,6 +328,7 @@ impl BaseSystem {
             sys: tids,
             recv: master_recv,
             send: communicators,
+            output: self.output,
         })
     }
 }
@@ -277,13 +340,47 @@ pub enum System {
 
 impl System {
     pub fn max_dt(&self) -> Float {
-        todo!()
+        match self {
+            Self::SingleThreaded(sys) => sys.max_dt(),
+            Self::MultiThreaded(sys) => {
+                for send in &sys.send {
+                    send.send(MsgFromHost::DtRequest).unwrap();
+                }
+                let mut max_dt = Float::MAX;
+                let mut to_receive = sys.sys.len();
+                while to_receive != 0 {
+                    let dt = match sys.recv.recv().unwrap() {
+                        (_, MsgToHost::MaxDt(dt)) => dt,
+                        _ => unreachable!(),
+                    };
+                    max_dt = max_dt.min(dt);
+                    to_receive -= 1;
+                }
+                max_dt
+            }
+        }
     }
-    pub fn advance(&self, nsteps: u64) {
-        todo!()
+    pub fn set_dt(&mut self, dt: Float) {
+        match self {
+            Self::SingleThreaded(sys) => sys.dt = dt,
+            Self::MultiThreaded(sys) => {
+                for tid in &sys.send {
+                    tid.send(MsgFromHost::DtSet(dt)).unwrap()
+                }
+            }
+        }
+    }
+    pub fn advance(&mut self, nsteps: u64) {
+        match self {
+            Self::SingleThreaded(sys) => sys.advance(nsteps),
+            Self::MultiThreaded(sys) => sys.advance(nsteps),
+        }
     }
     pub fn output(&self, ntime: u64) {
-        todo!()
+        match self {
+            Self::SingleThreaded(sys) => sys.output(ntime),
+            Self::MultiThreaded(sys) => sys.output(ntime),
+        }
     }
 }
 
@@ -297,8 +394,9 @@ pub struct SingleThreadedSystem {
     pub bt: Vec<euler::BoundaryCharacteristics>,
     pub eb: Vec<euler::BoundaryStorage>,
     pub time: Float,
+    pub dt: Float,
     pub operators: Vec<Box<dyn SbpOperator2d>>,
-    pub output: Vec<hdf5::Dataset>,
+    pub output: (hdf5::File, Vec<hdf5::Group>),
 }
 
 impl integrate::Integrable for SingleThreadedSystem {
@@ -319,7 +417,13 @@ impl SingleThreadedSystem {
         }
     }
 
-    pub fn advance(&mut self, dt: Float) {
+    pub fn advance(&mut self, nsteps: u64) {
+        for _ in 0..nsteps {
+            self.advance_single_step(self.dt)
+        }
+    }
+
+    pub fn advance_single_step(&mut self, dt: Float) {
         let metrics = &self.metrics;
         let grids = &self.grids;
         let bt = &self.bt;
@@ -409,6 +513,34 @@ impl SingleThreadedSystem {
 
         max_dt
     }
+
+    pub fn output(&self, ntime: u64) {
+        let tds = self.output.0.dataset("t").unwrap();
+        let tpos = tds.size();
+        tds.resize((tpos + 1,)).unwrap();
+        tds.write_slice(&[ntime], ndarray::s![tpos..tpos + 1])
+            .unwrap();
+        for (group, fnow) in self.output.1.iter().zip(&self.fnow) {
+            let (ny, nx) = (fnow.ny(), fnow.nx());
+            let rhods = group.dataset("rho").unwrap();
+            let rhouds = group.dataset("rhou").unwrap();
+            let rhovds = group.dataset("rhov").unwrap();
+            let eds = group.dataset("e").unwrap();
+
+            let (rho, rhou, rhov, e) = fnow.components();
+            rhods.resize((tpos + 1, ny, nx)).unwrap();
+            rhods.write_slice(rho, ndarray::s![tpos, .., ..]).unwrap();
+
+            rhouds.resize((tpos + 1, ny, nx)).unwrap();
+            rhouds.write_slice(rhou, ndarray::s![tpos, .., ..]).unwrap();
+
+            rhovds.resize((tpos + 1, ny, nx)).unwrap();
+            rhovds.write_slice(rhov, ndarray::s![tpos, .., ..]).unwrap();
+
+            eds.resize((tpos + 1, ny, nx)).unwrap();
+            eds.write_slice(e, ndarray::s![tpos, .., ..]).unwrap();
+        }
+    }
 }
 
 pub struct DistributedSystem {
@@ -416,23 +548,31 @@ pub struct DistributedSystem {
     send: Vec<Sender<MsgFromHost>>,
     /// All threads should be joined to mark the end of the computation
     sys: Vec<std::thread::JoinHandle<()>>,
+    output: hdf5::File,
 }
 
 impl DistributedSystem {
     pub fn advance(&mut self, ntime: u64) {
         for tid in &self.send {
-            tid.send(MsgFromHost::Advance(ntime));
+            tid.send(MsgFromHost::Advance(ntime)).unwrap();
         }
     }
-    pub fn output(&self) {
-        todo!()
+    pub fn output(&self, ntime: u64) {
+        for tid in &self.send {
+            tid.send(MsgFromHost::Output(ntime)).unwrap();
+        }
+        let tds = self.output.dataset("t").unwrap();
+        let tpos = tds.size();
+        tds.resize((tpos + 1,)).unwrap();
+        tds.write_slice(&[ntime], ndarray::s![tpos..tpos + 1])
+            .unwrap();
     }
 }
 
 impl Drop for DistributedSystem {
     fn drop(&mut self) {
         for tid in &self.send {
-            tid.send(MsgFromHost::Stop);
+            tid.send(MsgFromHost::Stop).unwrap();
         }
         let handles = std::mem::take(&mut self.sys);
         for tid in handles {
@@ -443,7 +583,8 @@ impl Drop for DistributedSystem {
 
 enum MsgFromHost {
     Advance(u64),
-    MaxDt(Float),
+    DtRequest,
+    DtSet(Float),
     Output(u64),
     Stop,
 }
@@ -480,12 +621,12 @@ struct DistributedSystemPart {
     t: Float,
     dt: Float,
 
-    name: String,
+    _name: String,
     id: usize,
     recv: Receiver<MsgFromHost>,
     send: Sender<(usize, MsgToHost)>,
 
-    output: hdf5::Dataset,
+    output: hdf5::Group,
 
     k: [Diff; 4],
     wb: WorkBuffers,
@@ -499,16 +640,42 @@ impl DistributedSystemPart {
     fn run(&mut self) {
         loop {
             match self.recv.recv().unwrap() {
-                MsgFromHost::MaxDt(dt) => self.dt = dt,
+                MsgFromHost::DtSet(dt) => self.dt = dt,
+                MsgFromHost::DtRequest => todo!(),
                 MsgFromHost::Advance(ntime) => self.advance(ntime),
-                MsgFromHost::Output(ntime) => todo!(),
+                MsgFromHost::Output(ntime) => self.output(ntime),
                 MsgFromHost::Stop => return,
             }
         }
     }
+
+    fn output(&mut self, _ntime: u64) {
+        let (ny, nx) = (self.current.ny(), self.current.nx());
+        let rhods = self.output.dataset("rho").unwrap();
+        let rhouds = self.output.dataset("rhou").unwrap();
+        let rhovds = self.output.dataset("rhov").unwrap();
+        let eds = self.output.dataset("e").unwrap();
+
+        let (rho, rhou, rhov, e) = self.current.components();
+        let tpos = rhods.size() / (ny * nx);
+        rhods.resize((tpos + 1, ny, nx)).unwrap();
+        rhods.write_slice(rho, ndarray::s![tpos, .., ..]).unwrap();
+
+        rhouds.resize((tpos + 1, ny, nx)).unwrap();
+        rhouds.write_slice(rhou, ndarray::s![tpos, .., ..]).unwrap();
+
+        rhovds.resize((tpos + 1, ny, nx)).unwrap();
+        rhovds.write_slice(rhov, ndarray::s![tpos, .., ..]).unwrap();
+
+        eds.resize((tpos + 1, ny, nx)).unwrap();
+        eds.write_slice(e, ndarray::s![tpos, .., ..]).unwrap();
+    }
+
     fn advance(&mut self, ntime: u64) {
         for ntime in 0..ntime {
-            self.send.send((self.id, MsgToHost::CurrentTimestep(ntime)));
+            self.send
+                .send((self.id, MsgToHost::CurrentTimestep(ntime)))
+                .unwrap();
             let metrics = &self.grid.1;
             let wb = &mut self.wb.0;
             let sbp = &self.sbp;

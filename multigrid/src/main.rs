@@ -1,13 +1,10 @@
 use argh::FromArgs;
 
-use euler::eval::Evaluator;
 use sbp::*;
 
-mod file;
+mod eval;
 mod input;
 mod parsing;
-use file::*;
-mod eval;
 mod system;
 
 #[derive(Debug, FromArgs)]
@@ -90,13 +87,14 @@ fn main() {
     );
     // System::new(grids, grid_connections, operators);
 
-    let sys = if opt.distribute {
+    let mut sys = if opt.distribute {
         basesystem.create_distributed()
     } else {
         basesystem.create()
     };
 
     let dt = sys.max_dt();
+    sys.set_dt(dt);
     let ntime = (integration_time / dt).round() as u64;
     let steps_between_outputs = if let Some(n) = opt.number_of_outputs {
         std::cmp::max(n / ntime, 1)
