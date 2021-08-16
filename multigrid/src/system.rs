@@ -48,6 +48,7 @@ impl BaseSystem {
             output,
         }
     }
+    #[allow(clippy::many_single_char_names)]
     pub fn create(self) -> System {
         let fnow = self
             .grids
@@ -134,7 +135,7 @@ impl BaseSystem {
                 }
             }
             */
-            parsing::InitialConditions::Vortex(vortexparams) => sys.vortex(0.0, &vortexparams),
+            parsing::InitialConditions::Vortex(vortexparams) => sys.vortex(0.0, vortexparams),
             parsing::InitialConditions::Expressions(expr) => {
                 let t = 0.0;
                 for (grid, field) in sys.grids.iter().zip(sys.fnow.iter_mut()) {
@@ -413,7 +414,7 @@ impl integrate::Integrable for SingleThreadedSystem {
 impl SingleThreadedSystem {
     pub fn vortex(&mut self, t: Float, vortex_params: &euler::VortexParameters) {
         for (f, g) in self.fnow.iter_mut().zip(&self.grids) {
-            f.vortex(g.x(), g.y(), t, &vortex_params);
+            f.vortex(g.x(), g.y(), t, vortex_params);
         }
     }
 

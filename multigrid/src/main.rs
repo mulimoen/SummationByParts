@@ -77,12 +77,12 @@ fn main() {
     } = config.into_runtime();
 
     let basesystem = system::BaseSystem::new(
-        names.clone(),
+        names,
         grids,
         0.0,
         operators,
         boundary_conditions,
-        initial_conditions.clone(),
+        initial_conditions,
         opt.output.clone(),
     );
     // System::new(grids, grid_connections, operators);

@@ -215,7 +215,7 @@ pub fn integrate<BTableau: ButcherTableau, F: Integrable, RHS>(
             }
         };
 
-        rhs(&mut k[i], &fut, simtime);
+        rhs(&mut k[i], fut, simtime);
     }
 }
 

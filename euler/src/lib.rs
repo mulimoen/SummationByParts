@@ -330,6 +330,7 @@ impl Field {
         let (rho, rhou, rhov, e) = self.components_mut();
         vortex_param.evaluate(time, x, y, rho, rhou, rhov, e)
     }
+    #[allow(clippy::erasing_op, clippy::identity_op)]
     fn iter(&self) -> impl ExactSizeIterator<Item = FieldValue> + '_ {
         let n = self.nx() * self.ny();
         let slice = self.0.as_slice().unwrap();

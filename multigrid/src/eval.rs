@@ -10,6 +10,7 @@ pub enum Evaluator {
 }
 
 impl<D: Dimension> euler::eval::Evaluator<D> for Evaluator {
+    #[allow(clippy::many_single_char_names)]
     fn evaluate(
         &self,
         t: Float,

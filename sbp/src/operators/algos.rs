@@ -281,6 +281,7 @@ pub(crate) fn diff_op_2d_fallback<const M: usize, const N: usize, const D: usize
 #[inline(always)]
 /// 2D diff when first axis is contiguous
 #[allow(unused)]
+#[allow(clippy::assign_op_pattern)]
 pub(crate) fn diff_op_2d_sliceable_y<const M: usize, const N: usize, const D: usize>(
     matrix: &BlockMatrix<Float, M, N, D>,
     optype: OperatorType,
