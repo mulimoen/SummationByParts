@@ -318,8 +318,6 @@ impl BaseSystem {
                             wb_ew: Array2::zeros((4, ny)),
                         };
 
-                        // init and send maxdt
-                        // receive maxdt
                         sys.run();
                     })
                     .unwrap(),
@@ -688,12 +686,57 @@ impl DistributedSystemPart {
         loop {
             match self.recv.recv().unwrap() {
                 MsgFromHost::DtSet(dt) => self.dt = dt,
-                MsgFromHost::DtRequest => todo!(),
+                MsgFromHost::DtRequest => {
+                    let dt = self.max_dt();
+                    self.send.send((self.id, MsgToHost::MaxDt(dt))).unwrap();
+                }
                 MsgFromHost::Advance(ntime) => self.advance(ntime),
                 MsgFromHost::Output(ntime) => self.output(ntime),
                 MsgFromHost::Stop => return,
             }
         }
+    }
+
+    fn max_dt(&self) -> Float {
+        let nx = self.current.nx();
+        let ny = self.current.ny();
+
+        let (rho, rhou, rhov, _e) = self.current.components();
+
+        let mut max_u: Float = 0.0;
+        let mut max_v: Float = 0.0;
+
+        for ((((((rho, rhou), rhov), detj_dxi_dx), detj_dxi_dy), detj_deta_dx), detj_deta_dy) in rho
+            .iter()
+            .zip(rhou.iter())
+            .zip(rhov.iter())
+            .zip(self.grid.1.detj_dxi_dx())
+            .zip(self.grid.1.detj_dxi_dy())
+            .zip(self.grid.1.detj_deta_dx())
+            .zip(self.grid.1.detj_deta_dy())
+        {
+            let u = rhou / rho;
+            let v = rhov / rho;
+
+            let uhat: Float = detj_dxi_dx * u + detj_dxi_dy * v;
+            let vhat: Float = detj_deta_dx * u + detj_deta_dy * v;
+
+            max_u = max_u.max(uhat.abs());
+            max_v = max_v.max(vhat.abs());
+        }
+
+        let dx = 1.0 / nx as Float;
+        let dy = 1.0 / ny as Float;
+
+        let c_dt = Float::max(max_u / dx, max_v / dy);
+
+        let c_max = if self.sbp.is_h2xi() || self.sbp.is_h2eta() {
+            0.5
+        } else {
+            1.0
+        };
+
+        c_max / c_dt
     }
 
     fn output(&mut self, _ntime: u64) {
