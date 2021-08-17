@@ -412,7 +412,7 @@ impl System {
                 for pb in pbs.into_iter() {
                     pb.finish_and_clear()
                 }
-                target.join_and_clear().unwrap();
+                target.clear().unwrap();
             }
         }
     }
