@@ -115,14 +115,11 @@ fn main() {
 
     let mut itime = 0;
     while itime < ntime {
-        sys.advance(steps_between_outputs);
+        let nexttime = (itime + steps_between_outputs).max(ntime);
+        sys.advance(nexttime - itime);
 
-        itime += steps_between_outputs;
+        itime = nexttime;
         sys.output(itime);
-    }
-    if itime != ntime {
-        sys.advance(ntime - itime);
-        sys.output(ntime);
     }
 
     if !opt.no_progressbar {
