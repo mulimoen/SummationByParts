@@ -250,11 +250,26 @@ impl BaseSystem {
 
             let output = self.output.clone();
 
+            let initial = self.initial_conditions.clone();
+
             tids.push(
                 builder
                     .spawn(move || {
                         let (ny, nx) = (grid.ny(), grid.nx());
-                        let current = Field::new(ny, nx);
+                        let mut current = Field::new(ny, nx);
+
+                        match &initial {
+                            parsing::InitialConditions::Vortex(vortexparams) => {
+                                current.vortex(grid.x(), grid.y(), time, vortexparams)
+                            }
+                            parsing::InitialConditions::Expressions(expr) => {
+                                // Evaluate the expressions on all variables
+                                let x = grid.x();
+                                let y = grid.y();
+                                let (rho, rhou, rhov, e) = current.components_mut();
+                                (*expr).evaluate(time, x, y, rho, rhou, rhov, e);
+                            }
+                        }
                         let fut = current.clone();
                         let k = [
                             Diff::zeros((ny, nx)),
