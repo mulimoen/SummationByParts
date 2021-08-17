@@ -85,7 +85,6 @@ fn main() {
         initial_conditions,
         opt.output.clone(),
     );
-    // System::new(grids, grid_connections, operators);
 
     let mut sys = if opt.distribute {
         basesystem.create_distributed()
@@ -103,11 +102,10 @@ fn main() {
     };
 
     sys.output(0);
-    //let output = File::create(&opt.output, sys.grids.as_slice(), names).unwrap();
-    //let mut output = OutputThread::new(output);
-    //output.add_timestep(0, &sys.fnow);
 
-    let progressbar = progressbar(opt.no_progressbar, ntime);
+    if !opt.no_progressbar {
+        sys.add_progressbar(ntime)
+    }
 
     let timer = if opt.timings {
         Some(std::time::Instant::now())
@@ -118,22 +116,18 @@ fn main() {
     let mut itime = 0;
     while itime < ntime {
         sys.advance(steps_between_outputs);
-        progressbar.inc(1);
 
         itime += steps_between_outputs;
         sys.output(itime);
     }
-
-    /*
-    for itime in 0..ntime {
-        if should_output(itime) {
-            output.add_timestep(itime, &sys.fnow);
-        }
-        progressbar.inc(1);
-        sys.advance(dt);
+    if itime != ntime {
+        sys.advance(ntime - itime);
+        sys.output(ntime);
     }
-    */
-    progressbar.finish_and_clear();
+
+    if !opt.no_progressbar {
+        sys.finish_progressbar();
+    }
 
     let mut outinfo = OutputInformation {
         filename: opt.output,
@@ -181,14 +175,10 @@ fn main() {
     }
 }
 
-fn progressbar(dummy: bool, ntime: u64) -> indicatif::ProgressBar {
-    if dummy {
-        indicatif::ProgressBar::hidden()
-    } else {
-        let progressbar = indicatif::ProgressBar::new(ntime);
-        progressbar.with_style(
-            indicatif::ProgressStyle::default_bar()
-                .template("{wide_bar:.cyan/blue} {pos}/{len} ({eta})"),
-        )
-    }
+fn progressbar(ntime: u64) -> indicatif::ProgressBar {
+    let progressbar = indicatif::ProgressBar::new(ntime);
+    progressbar.with_style(
+        indicatif::ProgressStyle::default_bar()
+            .template("{wide_bar:.cyan/blue} {pos}/{len} ({eta})"),
+    )
 }

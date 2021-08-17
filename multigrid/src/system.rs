@@ -125,6 +125,7 @@ impl BaseSystem {
             dt: Float::NAN,
             operators: self.operators,
             output: (self.output, outputs),
+            progressbar: None,
         };
         match &self.initial_conditions {
             /*
@@ -330,6 +331,7 @@ impl BaseSystem {
             recv: master_recv,
             send: communicators,
             output: self.output,
+            progressbar: None,
         })
     }
 }
@@ -383,6 +385,24 @@ impl System {
             Self::MultiThreaded(sys) => sys.output(ntime),
         }
     }
+    pub fn add_progressbar(&mut self, ntime: u64) {
+        match self {
+            Self::SingleThreaded(sys) => sys.progressbar = Some(super::progressbar(ntime)),
+            Self::MultiThreaded(sys) => sys.attach_progressbar(ntime),
+        }
+    }
+    pub fn finish_progressbar(&mut self) {
+        match self {
+            Self::SingleThreaded(sys) => sys.progressbar.take().unwrap().finish_and_clear(),
+            Self::MultiThreaded(sys) => {
+                let (target, pbs) = sys.progressbar.take().unwrap();
+                for pb in pbs.into_iter() {
+                    pb.finish_and_clear()
+                }
+                target.join_and_clear().unwrap();
+            }
+        }
+    }
 }
 
 pub struct SingleThreadedSystem {
@@ -398,6 +418,7 @@ pub struct SingleThreadedSystem {
     pub dt: Float,
     pub operators: Vec<Box<dyn SbpOperator2d>>,
     pub output: (hdf5::File, Vec<hdf5::Group>),
+    pub progressbar: Option<indicatif::ProgressBar>,
 }
 
 impl integrate::Integrable for SingleThreadedSystem {
@@ -420,7 +441,10 @@ impl SingleThreadedSystem {
 
     pub fn advance(&mut self, nsteps: u64) {
         for _ in 0..nsteps {
-            self.advance_single_step(self.dt)
+            self.advance_single_step(self.dt);
+            if let Some(pbar) = &self.progressbar {
+                pbar.inc(1)
+            }
         }
     }
 
@@ -550,12 +574,24 @@ pub struct DistributedSystem {
     /// All threads should be joined to mark the end of the computation
     sys: Vec<std::thread::JoinHandle<()>>,
     output: hdf5::File,
+    progressbar: Option<(indicatif::MultiProgress, Vec<indicatif::ProgressBar>)>,
 }
 
 impl DistributedSystem {
     pub fn advance(&mut self, ntime: u64) {
         for tid in &self.send {
             tid.send(MsgFromHost::Advance(ntime)).unwrap();
+        }
+        if let Some(pbar) = &self.progressbar {
+            let expected_messages = ntime * self.sys.len() as u64;
+            for _i in 0..expected_messages {
+                match self.recv.recv().unwrap() {
+                    (i, MsgToHost::CurrentTimestep(_)) => {
+                        pbar.1[i].inc(1);
+                    }
+                    _ => unreachable!(),
+                }
+            }
         }
     }
     pub fn output(&self, ntime: u64) {
@@ -567,6 +603,16 @@ impl DistributedSystem {
         tds.resize((tpos + 1,)).unwrap();
         tds.write_slice(&[ntime], ndarray::s![tpos..tpos + 1])
             .unwrap();
+    }
+    pub fn attach_progressbar(&mut self, ntime: u64) {
+        let target = indicatif::MultiProgress::new();
+        let mut progressbars = Vec::with_capacity(self.sys.len());
+        for _ in 0..self.sys.len() {
+            let pb = super::progressbar(ntime);
+            progressbars.push(target.add(pb));
+        }
+        target.set_move_cursor(true);
+        self.progressbar = Some((target, progressbars));
     }
 }
 
