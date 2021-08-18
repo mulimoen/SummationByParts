@@ -138,27 +138,9 @@ fn main() {
 
     //output.add_timestep(ntime, &sys.fnow);
 
-    /*
     if opt.error {
-        let time = ntime as Float * dt;
-        let mut e = 0.0;
-        for ((fmod, grid), op) in sys.fnow.iter().zip(&sys.grids).zip(&sys.operators) {
-            let mut fvort = fmod.clone();
-            match &initial_conditions {
-                parsing::InitialConditions::Vortex(vortexparams) => {
-                    fvort.vortex(grid.x(), grid.y(), time, &vortexparams);
-                }
-                parsing::InitialConditions::Expressions(expr) => {
-                    let (rho, rhou, rhov, e) = fvort.components_mut();
-                    expr.as_ref()
-                        .evaluate(time, grid.x(), grid.y(), rho, rhou, rhov, e)
-                }
-            }
-            e += fmod.h2_err(&fvort, &**op);
-        }
-        outinfo.error = Some(e);
+        outinfo.error = Some(sys.error())
     }
-    */
 
     if opt.output_json {
         println!("{}", json5::to_string(&outinfo).unwrap());

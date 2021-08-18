@@ -126,6 +126,7 @@ impl BaseSystem {
             operators: self.operators,
             output: (self.output, outputs),
             progressbar: None,
+            initial_conditions: self.initial_conditions.clone(),
         };
         match &self.initial_conditions {
             /*
@@ -250,7 +251,7 @@ impl BaseSystem {
 
             let output = self.output.clone();
 
-            let initial = self.initial_conditions.clone();
+            let initial_conditions = self.initial_conditions.clone();
 
             tids.push(
                 builder
@@ -258,7 +259,7 @@ impl BaseSystem {
                         let (ny, nx) = (grid.ny(), grid.nx());
                         let mut current = Field::new(ny, nx);
 
-                        match &initial {
+                        match &initial_conditions {
                             parsing::InitialConditions::Vortex(vortexparams) => {
                                 current.vortex(grid.x(), grid.y(), time, vortexparams)
                             }
@@ -321,6 +322,7 @@ impl BaseSystem {
                             sbp,
                             t: time,
                             dt: Float::NAN,
+                            initial_conditions,
 
                             _name: name,
                             id,
@@ -416,6 +418,24 @@ impl System {
             }
         }
     }
+    pub fn error(&self) -> Float {
+        match self {
+            Self::SingleThreaded(sys) => sys.error(),
+            Self::MultiThreaded(sys) => {
+                for sender in &sys.send {
+                    sender.send(MsgFromHost::Error).unwrap();
+                }
+                let mut e = 0.0;
+                for _ in 0..sys.sys.len() {
+                    e += match sys.recv.recv().unwrap() {
+                        (_, MsgToHost::Error(e)) => e,
+                        (_, m) => panic!("Unexpected message: {:?}", m),
+                    }
+                }
+                e
+            }
+        }
+    }
 }
 
 pub struct SingleThreadedSystem {
@@ -432,6 +452,7 @@ pub struct SingleThreadedSystem {
     pub operators: Vec<Box<dyn SbpOperator2d>>,
     pub output: (hdf5::File, Vec<hdf5::Group>),
     pub progressbar: Option<indicatif::ProgressBar>,
+    pub initial_conditions: parsing::InitialConditions,
 }
 
 impl integrate::Integrable for SingleThreadedSystem {
@@ -579,6 +600,25 @@ impl SingleThreadedSystem {
             eds.write_slice(e, ndarray::s![tpos, .., ..]).unwrap();
         }
     }
+
+    pub fn error(&self) -> Float {
+        let mut e = 0.0;
+        for ((fmod, grid), op) in self.fnow.iter().zip(&self.grids).zip(&self.operators) {
+            let mut fvort = fmod.clone();
+            match &self.initial_conditions {
+                parsing::InitialConditions::Vortex(vortexparams) => {
+                    fvort.vortex(grid.x(), grid.y(), self.time, &vortexparams);
+                }
+                parsing::InitialConditions::Expressions(expr) => {
+                    let (rho, rhou, rhov, e) = fvort.components_mut();
+                    expr.as_ref()
+                        .evaluate(self.time, grid.x(), grid.y(), rho, rhou, rhov, e)
+                }
+            }
+            e += fmod.h2_err(&fvort, &**op);
+        }
+        e
+    }
 }
 
 pub struct DistributedSystem {
@@ -641,17 +681,32 @@ impl Drop for DistributedSystem {
     }
 }
 
+/// Messages sent from the host to each compute thread
+#[derive(Debug)]
 enum MsgFromHost {
+    /// Advance n steps
     Advance(u64),
+    /// Compute the maximum dt allowed by this grid
     DtRequest,
+    /// Set dt
     DtSet(Float),
+    /// Output the current time to file
     Output(u64),
+    /// Stop all computing
     Stop,
+    /// Request the current error
+    Error,
 }
 
+/// Messages sent back to the host
+#[derive(Debug)]
 enum MsgToHost {
+    /// Maximum dt allowed by the current grid
     MaxDt(Float),
+    /// Timestep which we have currently computed
     CurrentTimestep(u64),
+    /// Error from the current grid
+    Error(Float),
 }
 
 // #[derive(Debug)]
@@ -687,6 +742,7 @@ struct DistributedSystemPart {
     send: Sender<(usize, MsgToHost)>,
 
     output: hdf5::Group,
+    initial_conditions: crate::parsing::InitialConditions,
 
     k: [Diff; 4],
     wb: WorkBuffers,
@@ -708,6 +764,10 @@ impl DistributedSystemPart {
                 MsgFromHost::Advance(ntime) => self.advance(ntime),
                 MsgFromHost::Output(ntime) => self.output(ntime),
                 MsgFromHost::Stop => return,
+                MsgFromHost::Error => self
+                    .send
+                    .send((self.id, MsgToHost::Error(self.error())))
+                    .unwrap(),
             }
         }
     }
@@ -1065,5 +1125,20 @@ impl DistributedSystemPart {
                 &mut self.k,
             )
         }
+    }
+
+    fn error(&self) -> Float {
+        let mut fvort = self.current.clone();
+        match &self.initial_conditions {
+            parsing::InitialConditions::Vortex(vortexparams) => {
+                fvort.vortex(self.grid.0.x(), self.grid.0.y(), self.t, &vortexparams);
+            }
+            parsing::InitialConditions::Expressions(expr) => {
+                let (rho, rhou, rhov, e) = fvort.components_mut();
+                expr.as_ref()
+                    .evaluate(self.t, self.grid.0.x(), self.grid.0.y(), rho, rhou, rhov, e)
+            }
+        }
+        self.current.h2_err(&fvort, &*self.sbp)
     }
 }
