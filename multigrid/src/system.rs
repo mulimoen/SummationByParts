@@ -1123,7 +1123,8 @@ impl DistributedSystemPart {
                 &mut self.t,
                 self.dt,
                 &mut self.k,
-            )
+            );
+            std::mem::swap(&mut self.current, &mut self.fut);
         }
     }
 
