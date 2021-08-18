@@ -108,6 +108,9 @@ fn main() {
     }
 
     let timer = if opt.timings {
+        if let system::System::MultiThreaded(sys) = &sys {
+            sys.synchronise()
+        }
         Some(std::time::Instant::now())
     } else {
         None
@@ -119,24 +122,29 @@ fn main() {
         sys.advance(nexttime - itime);
 
         itime = nexttime;
-        sys.output(itime);
+        if itime != ntime {
+            sys.output(itime);
+        }
     }
+
+    let timer = timer.map(|timer| {
+        if let system::System::MultiThreaded(sys) = &sys {
+            sys.synchronise();
+        }
+
+        timer.elapsed()
+    });
+    sys.output(ntime);
+
+    let mut outinfo = OutputInformation {
+        filename: opt.output,
+        time_elapsed: timer,
+        ..Default::default()
+    };
 
     if !opt.no_progressbar {
         sys.finish_progressbar();
     }
-
-    let mut outinfo = OutputInformation {
-        filename: opt.output,
-        ..Default::default()
-    };
-
-    if let Some(timer) = timer {
-        let duration = timer.elapsed();
-        outinfo.time_elapsed = Some(duration);
-    }
-
-    //output.add_timestep(ntime, &sys.fnow);
 
     if opt.error {
         outinfo.error = Some(sys.error())

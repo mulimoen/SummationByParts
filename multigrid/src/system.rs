@@ -415,6 +415,7 @@ impl System {
                 for tid in &sys.send {
                     tid.send(MsgFromHost::ProgressbarDrop).unwrap();
                 }
+                sys.synchronise();
                 let target = sys.progressbar.take().unwrap();
                 target.clear().unwrap();
             }
@@ -658,6 +659,17 @@ impl DistributedSystem {
         target.set_move_cursor(true);
         self.progressbar = Some(target);
     }
+    fn send_barrier(&self, barrier: &crossbeam_utils::sync::WaitGroup) {
+        for tid in &self.send {
+            tid.send(MsgFromHost::Barrier(barrier.clone())).unwrap()
+        }
+    }
+    pub fn synchronise(&self) {
+        // Syncronise before starting the timer
+        let barrier = crossbeam_utils::sync::WaitGroup::new();
+        self.send_barrier(&barrier);
+        barrier.wait();
+    }
 }
 
 impl Drop for DistributedSystem {
@@ -687,6 +699,8 @@ enum MsgFromHost {
     Stop,
     /// Request the current error
     Error,
+    /// A barrier that must be waited on
+    Barrier(crossbeam_utils::sync::WaitGroup),
     /// Progressbar to report progress
     Progressbar(indicatif::ProgressBar),
     /// Clear and remove the progressbar
@@ -760,6 +774,7 @@ impl DistributedSystemPart {
                 MsgFromHost::Output(ntime) => self.output(ntime),
                 MsgFromHost::Stop => return,
                 MsgFromHost::Error => self.send(MsgToHost::Error(self.error())).unwrap(),
+                MsgFromHost::Barrier(barrier) => barrier.wait(),
                 MsgFromHost::Progressbar(pbar) => self.progressbar = Some(pbar),
                 MsgFromHost::ProgressbarDrop => {
                     let pb = self.progressbar.take().unwrap();
