@@ -224,7 +224,7 @@ impl BaseSystem {
             .zip(push_channels)
             .enumerate()
         {
-            let builder = std::thread::Builder::new().name(format!("eulersolver: {}", name));
+            let builder = std::thread::Builder::new().name(format!("mg: {}", name));
 
             let boundary_conditions = bt.zip(chan).map(|(bt, chan)| match bt {
                 euler::BoundaryCharacteristic::This => DistributedBoundaryConditions::This,
