@@ -301,22 +301,18 @@ impl Field {
     pub fn west(&self) -> ArrayView2<Float> {
         self.slice(s![.., .., 0])
     }
-    #[allow(unused)]
-    fn north_mut(&mut self) -> ArrayViewMut2<Float> {
+    pub fn north_mut(&mut self) -> ArrayViewMut2<Float> {
         let ny = self.ny();
         self.slice_mut(s![.., ny - 1, ..])
     }
-    #[allow(unused)]
-    fn south_mut(&mut self) -> ArrayViewMut2<Float> {
+    pub fn south_mut(&mut self) -> ArrayViewMut2<Float> {
         self.slice_mut(s![.., 0, ..])
     }
-    #[allow(unused)]
-    fn east_mut(&mut self) -> ArrayViewMut2<Float> {
+    pub fn east_mut(&mut self) -> ArrayViewMut2<Float> {
         let nx = self.nx();
         self.slice_mut(s![.., .., nx - 1])
     }
-    #[allow(unused)]
-    fn west_mut(&mut self) -> ArrayViewMut2<Float> {
+    pub fn west_mut(&mut self) -> ArrayViewMut2<Float> {
         self.slice_mut(s![.., .., 0])
     }
 
@@ -463,18 +459,18 @@ impl Diff {
     pub fn zeros((ny, nx): (usize, usize)) -> Self {
         Self(Array3::zeros((4, ny, nx)))
     }
-    fn north_mut(&mut self) -> ArrayViewMut2<Float> {
+    pub fn north_mut(&mut self) -> ArrayViewMut2<Float> {
         let ny = self.shape()[1];
         self.0.slice_mut(s![.., ny - 1, ..])
     }
-    fn south_mut(&mut self) -> ArrayViewMut2<Float> {
+    pub fn south_mut(&mut self) -> ArrayViewMut2<Float> {
         self.0.slice_mut(s![.., 0, ..])
     }
-    fn east_mut(&mut self) -> ArrayViewMut2<Float> {
+    pub fn east_mut(&mut self) -> ArrayViewMut2<Float> {
         let nx = self.shape()[2];
         self.0.slice_mut(s![.., .., nx - 1])
     }
-    fn west_mut(&mut self) -> ArrayViewMut2<Float> {
+    pub fn west_mut(&mut self) -> ArrayViewMut2<Float> {
         self.0.slice_mut(s![.., .., 0])
     }
 }
@@ -1010,16 +1006,25 @@ pub fn SAT_characteristics(
     metrics: &Metrics,
     boundaries: &BoundaryTerms,
 ) {
-    SAT_north(op, k, y, metrics, boundaries.north);
-    SAT_south(op, k, y, metrics, boundaries.south);
-    SAT_east(op, k, y, metrics, boundaries.east);
-    SAT_west(op, k, y, metrics, boundaries.west);
+    SAT_north(op, k.north_mut(), y, metrics, boundaries.north);
+    SAT_south(op, k.south_mut(), y, metrics, boundaries.south);
+    SAT_east(op, k.east_mut(), y, metrics, boundaries.east);
+    SAT_west(op, k.west_mut(), y, metrics, boundaries.west);
 }
+
+pub const SAT_FUNCTIONS: Direction<
+    fn(&dyn SbpOperator2d, ArrayViewMut2<Float>, &Field, &Metrics, ArrayView2<Float>),
+> = Direction {
+    north: SAT_north,
+    south: SAT_south,
+    west: SAT_west,
+    east: SAT_east,
+};
 
 #[allow(non_snake_case)]
 pub fn SAT_north(
     op: &dyn SbpOperator2d,
-    k: &mut Diff,
+    k: ArrayViewMut2<Float>,
     y: &Field,
     metrics: &Metrics,
     boundary: ArrayView2<Float>,
@@ -1035,7 +1040,7 @@ pub fn SAT_north(
     let tau = 1.0;
     let slice = s![y.ny() - 1, ..];
     SAT_characteristic(
-        k.north_mut(),
+        k,
         y.north(),
         boundary,
         hi,
@@ -1050,7 +1055,7 @@ pub fn SAT_north(
 #[allow(non_snake_case)]
 pub fn SAT_south(
     op: &dyn SbpOperator2d,
-    k: &mut Diff,
+    k: ArrayViewMut2<Float>,
     y: &Field,
     metrics: &Metrics,
     boundary: ArrayView2<Float>,
@@ -1065,7 +1070,7 @@ pub fn SAT_south(
     let tau = -1.0;
     let slice = s![0, ..];
     SAT_characteristic(
-        k.south_mut(),
+        k,
         y.south(),
         boundary,
         hi,
@@ -1080,7 +1085,7 @@ pub fn SAT_south(
 #[allow(non_snake_case)]
 pub fn SAT_west(
     op: &dyn SbpOperator2d,
-    k: &mut Diff,
+    k: ArrayViewMut2<Float>,
     y: &Field,
     metrics: &Metrics,
     boundary: ArrayView2<Float>,
@@ -1096,7 +1101,7 @@ pub fn SAT_west(
     let tau = -1.0;
     let slice = s![.., 0];
     SAT_characteristic(
-        k.west_mut(),
+        k,
         y.west(),
         boundary,
         hi,
@@ -1111,7 +1116,7 @@ pub fn SAT_west(
 #[allow(non_snake_case)]
 pub fn SAT_east(
     op: &dyn SbpOperator2d,
-    k: &mut Diff,
+    k: ArrayViewMut2<Float>,
     y: &Field,
     metrics: &Metrics,
     boundary: ArrayView2<Float>,
@@ -1126,7 +1131,7 @@ pub fn SAT_east(
     let tau = 1.0;
     let slice = s![.., y.nx() - 1];
     SAT_characteristic(
-        k.east_mut(),
+        k,
         y.east(),
         boundary,
         hi,

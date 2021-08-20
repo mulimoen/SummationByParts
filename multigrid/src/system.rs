@@ -1,15 +1,17 @@
 use crate::parsing;
 use crate::utils::Direction;
 use core::ops::Deref;
-use crossbeam_channel::{Receiver, Select, Sender};
+use crossbeam_channel::{Receiver, Sender};
 use euler::{
     eval::{self, Evaluator},
     Diff, Field, VortexParameters, WorkBuffers,
 };
 use ndarray::Array2;
+use parking_lot::{Condvar, Mutex};
 use sbp::grid::{Grid, Metrics};
 use sbp::operators::{InterpolationOperator, SbpOperator2d};
 use sbp::*;
+use std::sync::Arc;
 
 pub struct BaseSystem {
     pub names: Vec<String>,
@@ -157,56 +159,37 @@ impl BaseSystem {
         let nthreads = self.grids.len();
 
         // Build up the boundary conditions
-        let mut push_channels: Vec<Direction<Option<Sender<Array2<Float>>>>> =
-            Vec::with_capacity(nthreads);
-        let mut pull_channels: Vec<Direction<Option<Receiver<Array2<Float>>>>> =
-            vec![Direction::default(); nthreads];
+        let mut pull = Vec::<Arc<Communicator>>::with_capacity(nthreads);
+        for wb in &self.boundary_conditions {
+            let data = wb.as_ref().map(|bc| {
+                if let euler::BoundaryCharacteristic::Grid(_)
+                | euler::BoundaryCharacteristic::Interpolate(_, _) = bc
+                {
+                    CommunicatorData::NotAvailable
+                } else {
+                    CommunicatorData::NotApplicable
+                }
+            });
+            pull.push(Arc::new(Communicator {
+                cvar: Condvar::new(),
+                data: Mutex::new(data),
+            }));
+        }
 
         // Build the set of communicators between boundaries
+        let mut push = Vec::<Direction<Option<Arc<Communicator>>>>::with_capacity(nthreads);
         for wb in &self.boundary_conditions {
-            let mut local_push = Direction::default();
-            if let euler::BoundaryCharacteristic::Grid(i)
-            | euler::BoundaryCharacteristic::Interpolate(i, _) = wb.north()
-            {
-                let (s, r) = crossbeam_channel::bounded(1);
-                pull_channels[*i]
-                    .south_mut()
-                    .replace(r)
-                    .and_then::<(), _>(|_| panic!("channel is already present"));
-                *local_push.north_mut() = Some(s);
-            }
-            if let euler::BoundaryCharacteristic::Grid(i)
-            | euler::BoundaryCharacteristic::Interpolate(i, _) = wb.south()
-            {
-                let (s, r) = crossbeam_channel::bounded(1);
-                pull_channels[*i]
-                    .north_mut()
-                    .replace(r)
-                    .and_then::<(), _>(|_| panic!("channel is already present"));
-                *local_push.south_mut() = Some(s);
-            }
-            if let euler::BoundaryCharacteristic::Grid(i)
-            | euler::BoundaryCharacteristic::Interpolate(i, _) = wb.east()
-            {
-                let (s, r) = crossbeam_channel::bounded(1);
-                pull_channels[*i]
-                    .west_mut()
-                    .replace(r)
-                    .and_then::<(), _>(|_| panic!("channel is already present"));
-                *local_push.east_mut() = Some(s);
-            }
-            if let euler::BoundaryCharacteristic::Grid(i)
-            | euler::BoundaryCharacteristic::Interpolate(i, _) = wb.west()
-            {
-                let (s, r) = crossbeam_channel::bounded(1);
-                pull_channels[*i]
-                    .east_mut()
-                    .replace(r)
-                    .and_then::<(), _>(|_| panic!("channel is already present"));
-                *local_push.west_mut() = Some(s);
-            }
+            let local_push = wb.as_ref().map(|bc| {
+                if let euler::BoundaryCharacteristic::Grid(i)
+                | euler::BoundaryCharacteristic::Interpolate(i, _) = bc
+                {
+                    Some(pull[*i].clone())
+                } else {
+                    None
+                }
+            });
 
-            push_channels.push(local_push);
+            push.push(local_push);
         }
 
         let (master_send, master_recv) = crossbeam_channel::unbounded();
@@ -214,25 +197,23 @@ impl BaseSystem {
         let mut tids = Vec::with_capacity(nthreads);
         let mut communicators = Vec::with_capacity(nthreads);
 
-        for (id, (((((name, grid), sbp), bt), chan), push)) in self
+        for (id, (((((name, grid), sbp), bt), pull), push)) in self
             .names
             .into_iter()
             .zip(self.grids.into_iter())
             .zip(self.operators.into_iter())
             .zip(self.boundary_conditions)
-            .zip(pull_channels)
-            .zip(push_channels)
+            .zip(pull)
+            .zip(push)
             .enumerate()
         {
             let builder = std::thread::Builder::new().name(format!("mg: {}", name));
 
-            let boundary_conditions = bt.zip(chan).map(|(bt, chan)| match bt {
+            let boundary_conditions = bt.map(|bt| match bt {
                 euler::BoundaryCharacteristic::This => DistributedBoundaryConditions::This,
-                euler::BoundaryCharacteristic::Grid(_) => {
-                    DistributedBoundaryConditions::Channel(chan.unwrap())
-                }
+                euler::BoundaryCharacteristic::Grid(_) => DistributedBoundaryConditions::Channel,
                 euler::BoundaryCharacteristic::Interpolate(_, int_op) => {
-                    DistributedBoundaryConditions::Interpolate(chan.unwrap(), int_op)
+                    DistributedBoundaryConditions::Interpolate(int_op)
                 }
                 euler::BoundaryCharacteristic::MultiGrid(_) => unimplemented!(),
                 euler::BoundaryCharacteristic::Vortex(vp) => {
@@ -319,6 +300,7 @@ impl BaseSystem {
                             grid: (grid, metrics),
                             output: g,
                             push,
+                            pull,
                             sbp,
                             t: time,
                             dt: Float::NAN,
@@ -331,8 +313,20 @@ impl BaseSystem {
                             send: master_send,
 
                             wb,
-                            wb_ns: Array2::zeros((4, nx)),
-                            wb_ew: Array2::zeros((4, ny)),
+                            workbuffer_edges: (
+                                Direction {
+                                    north: Array2::zeros((4, nx)),
+                                    south: Array2::zeros((4, nx)),
+                                    east: Array2::zeros((4, ny)),
+                                    west: Array2::zeros((4, ny)),
+                                },
+                                Direction {
+                                    north: Some(Array2::zeros((4, nx))),
+                                    south: Some(Array2::zeros((4, nx))),
+                                    east: Some(Array2::zeros((4, ny))),
+                                    west: Some(Array2::zeros((4, ny))),
+                                },
+                            ),
 
                             progressbar: None,
                         };
@@ -723,19 +717,34 @@ pub enum DistributedBoundaryConditions {
     Vortex(VortexParameters),
     Eval(std::sync::Arc<dyn eval::Evaluator<ndarray::Ix1>>),
 
-    Interpolate(Receiver<Array2<Float>>, Box<dyn InterpolationOperator>),
-    Channel(Receiver<Array2<Float>>),
+    Interpolate(Box<dyn InterpolationOperator>),
+    Channel,
 }
 
-type PushCommunicator = Option<Sender<Array2<Float>>>;
+enum CommunicatorData {
+    NotApplicable,
+    NotAvailable,
+    Some(Array2<Float>),
+}
+
+struct Communicator {
+    /// Waker for this grid, neighbours should have a reference
+    /// and notify when a boundary has been put
+    cvar: Condvar,
+    /// Internal data exchange, is None on missing data, inner type
+    /// can be set to None when grabbing the boundary
+    data: Mutex<Direction<CommunicatorData>>,
+}
 
 struct DistributedSystemPart {
     grid: (Grid, Metrics),
     sbp: Box<dyn SbpOperator2d + 'static>,
 
     boundary_conditions: Direction<DistributedBoundaryConditions>,
+    /// Channel pullers
+    pull: Arc<Communicator>,
     /// Subscribers to the boundaries of self
-    push: Direction<PushCommunicator>,
+    push: Direction<Option<Arc<Communicator>>>,
 
     current: Field,
     fut: Field,
@@ -753,10 +762,13 @@ struct DistributedSystemPart {
 
     k: [Diff; 4],
     wb: WorkBuffers,
-    /// Work buffer for north/south boundary
-    wb_ns: Array2<Float>,
-    /// Work buffer for east/west boundary
-    wb_ew: Array2<Float>,
+    /// Work buffer for boundaries
+    ///
+    // Option: This can be sent from the current thread to another,
+    // Will be replenished by arriving boundary conditions for
+    // zero-allocation in loop (no global locks).
+    // Should never be None on entry to loop
+    workbuffer_edges: (Direction<Array2<Float>>, Direction<Option<Array2<Float>>>),
 
     progressbar: Option<indicatif::ProgressBar>,
 }
@@ -857,25 +869,42 @@ impl DistributedSystemPart {
             let wb = &mut self.wb.0;
             let sbp = &self.sbp;
             let push = &self.push;
+            let pull = &self.pull;
             let boundary_conditions = &self.boundary_conditions;
             let grid = &self.grid.0;
-            let wb_ns = &mut self.wb_ns;
-            let wb_ew = &mut self.wb_ew;
+            let workbuffer_edges = &mut self.workbuffer_edges;
 
             let rhs = |k: &mut euler::Diff, y: &euler::Field, time: Float| {
-                // Send off the boundaries optimistically, in case some grid is ready
-                if let Some(s) = &push.north {
-                    s.send(y.north().to_owned()).unwrap()
-                }
-                if let Some(s) = &push.south {
-                    s.send(y.south().to_owned()).unwrap()
-                }
-                if let Some(s) = &push.east {
-                    s.send(y.east().to_owned()).unwrap()
-                }
-                if let Some(s) = &push.west {
-                    s.send(y.west().to_owned()).unwrap()
-                }
+                // Send off the boundaries eagerly, in case neighbouring grid is ready
+                push.as_ref()
+                    .zip(workbuffer_edges.1.as_mut())
+                    .zip(
+                        Direction::<fn(&mut Direction<CommunicatorData>) -> &mut CommunicatorData> {
+                            north: |x| x.south_mut(),
+                            south: |x| x.north_mut(),
+                            east: |x| x.west_mut(),
+                            west: |x| x.east_mut(),
+                        },
+                    )
+                    .zip(Direction {
+                        north: y.north(),
+                        south: y.south(),
+                        west: y.west(),
+                        east: y.east(),
+                    })
+                    .map(|(((push, wb), sel), this)| {
+                        if let Some(s) = push {
+                            let mut wb = wb.take().unwrap();
+                            wb.assign(&this);
+                            {
+                                let mut s = s.data.lock();
+                                let none =
+                                    std::mem::replace(sel(&mut s), CommunicatorData::Some(wb));
+                                assert!(matches!(none, CommunicatorData::NotAvailable));
+                            }
+                            s.cvar.notify_one();
+                        }
+                    });
 
                 // This computation does not depend on the boundaries
                 euler::RHS_no_SAT(sbp.deref(), k, y, metrics, wb);
@@ -883,249 +912,277 @@ impl DistributedSystemPart {
                 // Get boundaries, but be careful and maximise the amount of work which can be
                 // performed before we have all of them, whilst ensuring threads can sleep for as
                 // long as possible
-                let mut select = Select::new();
-                let mut selectable = 0;
-                let recv_north = match boundary_conditions.north() {
-                    DistributedBoundaryConditions::Channel(r)
-                    | DistributedBoundaryConditions::Interpolate(r, _) => {
-                        selectable += 1;
-                        Some(select.recv(r))
-                    }
-                    DistributedBoundaryConditions::This => {
-                        euler::SAT_north(sbp.deref(), k, y, metrics, y.south());
-                        None
-                    }
-                    DistributedBoundaryConditions::Vortex(vp) => {
-                        let mut fiter = wb_ns.outer_iter_mut();
-                        let (rho, rhou, rhov, e) = (
-                            fiter.next().unwrap(),
-                            fiter.next().unwrap(),
-                            fiter.next().unwrap(),
-                            fiter.next().unwrap(),
-                        );
-                        let (gx, gy) = grid.north();
-                        vp.evaluate(time, gx, gy, rho, rhou, rhov, e);
-
-                        euler::SAT_north(sbp.deref(), k, y, metrics, wb_ns.view());
-                        None
-                    }
-                    DistributedBoundaryConditions::Eval(eval) => {
-                        let mut fiter = wb_ns.outer_iter_mut();
-                        let (rho, rhou, rhov, e) = (
-                            fiter.next().unwrap(),
-                            fiter.next().unwrap(),
-                            fiter.next().unwrap(),
-                            fiter.next().unwrap(),
-                        );
-                        let (gx, gy) = grid.north();
-                        eval.evaluate(time, gx, gy, rho, rhou, rhov, e);
-                        euler::SAT_north(sbp.deref(), k, y, metrics, wb_ns.view());
-                        None
-                    }
-                };
-                let recv_south = match boundary_conditions.south() {
-                    DistributedBoundaryConditions::Channel(r)
-                    | DistributedBoundaryConditions::Interpolate(r, _) => {
-                        selectable += 1;
-                        Some(select.recv(r))
-                    }
-                    DistributedBoundaryConditions::This => {
-                        euler::SAT_south(sbp.deref(), k, y, metrics, y.north());
-                        None
-                    }
-                    DistributedBoundaryConditions::Vortex(vp) => {
-                        let mut fiter = wb_ns.outer_iter_mut();
-                        let (rho, rhou, rhov, e) = (
-                            fiter.next().unwrap(),
-                            fiter.next().unwrap(),
-                            fiter.next().unwrap(),
-                            fiter.next().unwrap(),
-                        );
-                        let (gx, gy) = grid.south();
-                        vp.evaluate(time, gx, gy, rho, rhou, rhov, e);
-
-                        euler::SAT_south(sbp.deref(), k, y, metrics, wb_ns.view());
-                        None
-                    }
-                    DistributedBoundaryConditions::Eval(eval) => {
-                        let mut fiter = wb_ns.outer_iter_mut();
-                        let (rho, rhou, rhov, e) = (
-                            fiter.next().unwrap(),
-                            fiter.next().unwrap(),
-                            fiter.next().unwrap(),
-                            fiter.next().unwrap(),
-                        );
-                        let (gx, gy) = grid.south();
-                        eval.evaluate(time, gx, gy, rho, rhou, rhov, e);
-                        euler::SAT_south(sbp.deref(), k, y, metrics, wb_ns.view());
-                        None
-                    }
-                };
-                let recv_east = match boundary_conditions.east() {
-                    DistributedBoundaryConditions::Channel(r)
-                    | DistributedBoundaryConditions::Interpolate(r, _) => {
-                        selectable += 1;
-                        Some(select.recv(r))
-                    }
-                    DistributedBoundaryConditions::This => {
-                        euler::SAT_east(sbp.deref(), k, y, metrics, y.west());
-                        None
-                    }
-                    DistributedBoundaryConditions::Vortex(vp) => {
-                        let mut fiter = wb_ew.outer_iter_mut();
-                        let (rho, rhou, rhov, e) = (
-                            fiter.next().unwrap(),
-                            fiter.next().unwrap(),
-                            fiter.next().unwrap(),
-                            fiter.next().unwrap(),
-                        );
-                        let (gx, gy) = grid.east();
-                        vp.evaluate(time, gx, gy, rho, rhou, rhov, e);
-
-                        euler::SAT_east(sbp.deref(), k, y, metrics, wb_ew.view());
-                        None
-                    }
-                    DistributedBoundaryConditions::Eval(eval) => {
-                        let mut fiter = wb_ew.outer_iter_mut();
-                        let (rho, rhou, rhov, e) = (
-                            fiter.next().unwrap(),
-                            fiter.next().unwrap(),
-                            fiter.next().unwrap(),
-                            fiter.next().unwrap(),
-                        );
-                        let (gx, gy) = grid.east();
-                        eval.evaluate(time, gx, gy, rho, rhou, rhov, e);
-                        euler::SAT_east(sbp.deref(), k, y, metrics, wb_ew.view());
-                        None
-                    }
-                };
-                let recv_west = match boundary_conditions.west() {
-                    DistributedBoundaryConditions::Channel(r)
-                    | DistributedBoundaryConditions::Interpolate(r, _) => {
-                        selectable += 1;
-                        Some(select.recv(r))
-                    }
-                    DistributedBoundaryConditions::This => {
-                        euler::SAT_west(sbp.deref(), k, y, metrics, y.east());
-                        None
-                    }
-                    DistributedBoundaryConditions::Vortex(vp) => {
-                        let mut fiter = wb_ew.outer_iter_mut();
-                        let (rho, rhou, rhov, e) = (
-                            fiter.next().unwrap(),
-                            fiter.next().unwrap(),
-                            fiter.next().unwrap(),
-                            fiter.next().unwrap(),
-                        );
-                        let (gx, gy) = grid.west();
-                        vp.evaluate(time, gx, gy, rho, rhou, rhov, e);
-
-                        euler::SAT_west(sbp.deref(), k, y, metrics, wb_ew.view());
-                        None
-                    }
-                    DistributedBoundaryConditions::Eval(eval) => {
-                        let mut fiter = wb_ew.outer_iter_mut();
-                        let (rho, rhou, rhov, e) = (
-                            fiter.next().unwrap(),
-                            fiter.next().unwrap(),
-                            fiter.next().unwrap(),
-                            fiter.next().unwrap(),
-                        );
-                        let (gx, gy) = grid.west();
-                        eval.evaluate(time, gx, gy, rho, rhou, rhov, e);
-                        euler::SAT_west(sbp.deref(), k, y, metrics, wb_ew.view());
-                        None
-                    }
-                };
-
-                // Get an item off each channel, waiting minimally before processing that boundary.
-                // The waiting ensures other grids can be processed by the core in case of
-                // oversubscription (in case of a more grids than core scenario)
-                // This minimises the amount of time waiting on boundary conditions
-                while selectable != 0 {
-                    let s = select.select();
-                    let sindex = s.index();
-                    match Some(sindex) {
-                        x if x == recv_north => match boundary_conditions.north() {
-                            DistributedBoundaryConditions::Channel(r) => {
-                                let r = s.recv(r).unwrap();
-                                euler::SAT_north(sbp.deref(), k, y, metrics, r.view());
+                let computed = boundary_conditions
+                    .as_ref()
+                    .zip(euler::SAT_FUNCTIONS)
+                    .zip(workbuffer_edges.0.as_mut())
+                    .zip(workbuffer_edges.1.as_mut())
+                    .zip(Direction {
+                        north: y.south(),
+                        south: y.north(),
+                        east: y.west(),
+                        west: y.east(),
+                    })
+                    .zip(Direction {
+                        north: grid.north(),
+                        south: grid.south(),
+                        east: grid.east(),
+                        west: grid.west(),
+                    })
+                    .map(|(((((bc, sat), wb0), wb1), self_edge), grid)| {
+                        wb0.fill(0.0);
+                        match bc {
+                            DistributedBoundaryConditions::Channel
+                            | DistributedBoundaryConditions::Interpolate(_) => false,
+                            DistributedBoundaryConditions::This => {
+                                sat(sbp.deref(), wb0.view_mut(), y, metrics, self_edge);
+                                true
                             }
-                            DistributedBoundaryConditions::Interpolate(r, int_op) => {
-                                let r = s.recv(r).unwrap();
-                                let is_fine2coarse = r.shape()[1] > wb_ns.shape()[1];
-                                for (mut to, from) in wb_ns.outer_iter_mut().zip(r.outer_iter()) {
-                                    if is_fine2coarse {
-                                        int_op.fine2coarse(from.view(), to.view_mut());
-                                    } else {
-                                        int_op.coarse2fine(from.view(), to.view_mut());
+                            DistributedBoundaryConditions::Vortex(vp) => {
+                                let wb1 = wb1.as_mut().unwrap();
+                                let mut fiter = wb1.outer_iter_mut();
+                                let (rho, rhou, rhov, e) = (
+                                    fiter.next().unwrap(),
+                                    fiter.next().unwrap(),
+                                    fiter.next().unwrap(),
+                                    fiter.next().unwrap(),
+                                );
+                                let (gx, gy) = grid;
+                                vp.evaluate(time, gx, gy, rho, rhou, rhov, e);
+
+                                sat(sbp.deref(), wb0.view_mut(), y, metrics, wb1.view());
+                                true
+                            }
+                            DistributedBoundaryConditions::Eval(eval) => {
+                                let wb1 = wb1.as_mut().unwrap();
+                                let mut fiter = wb1.outer_iter_mut();
+                                let (rho, rhou, rhov, e) = (
+                                    fiter.next().unwrap(),
+                                    fiter.next().unwrap(),
+                                    fiter.next().unwrap(),
+                                    fiter.next().unwrap(),
+                                );
+                                let (gx, gy) = grid;
+                                eval.evaluate(time, gx, gy, rho, rhou, rhov, e);
+                                sat(sbp.deref(), wb0.view_mut(), y, metrics, wb1.view());
+                                true
+                            }
+                        }
+                    });
+
+                if computed.north {
+                    k.north_mut().scaled_add(1.0, &workbuffer_edges.0.north());
+                }
+                if computed.south {
+                    k.south_mut().scaled_add(1.0, &workbuffer_edges.0.south());
+                }
+                if computed.east {
+                    k.east_mut().scaled_add(1.0, &workbuffer_edges.0.east());
+                }
+                if computed.west {
+                    k.west_mut().scaled_add(1.0, &workbuffer_edges.0.west());
+                }
+
+                let mut boundaries_remaining = computed.map(|b| !b);
+
+                {
+                    let mut data = pull.data.lock();
+                    'check_boundaries: loop {
+                        if boundaries_remaining.north {
+                            if let CommunicatorData::Some(boundary) = std::mem::replace(
+                                &mut (*data).north,
+                                CommunicatorData::NotAvailable,
+                            ) {
+                                lock_api::MutexGuard::unlocked(&mut data, || {
+                                    let wb0 = workbuffer_edges.0.north_mut();
+                                    let wb1 = workbuffer_edges.1.north.insert(boundary);
+                                    match boundary_conditions.north() {
+                                        DistributedBoundaryConditions::Channel => {
+                                            std::mem::swap(wb0, wb1);
+                                        }
+                                        DistributedBoundaryConditions::Interpolate(int_op) => {
+                                            let is_fine2coarse = wb1.shape()[1] > wb0.shape()[2];
+                                            for (to, from) in
+                                                wb0.outer_iter_mut().zip(wb1.outer_iter())
+                                            {
+                                                if is_fine2coarse {
+                                                    int_op.fine2coarse(from, to);
+                                                } else {
+                                                    int_op.coarse2fine(from, to);
+                                                }
+                                            }
+                                            // Reshape edge buffer to correct size
+                                            let wb = workbuffer_edges.1.north.take().unwrap();
+                                            let mut vec = wb.into_raw_vec();
+                                            vec.resize(wb0.len(), 0.0);
+                                            let wb =
+                                                Array2::from_shape_vec(wb0.raw_dim(), vec).unwrap();
+                                            workbuffer_edges.1.north = Some(wb);
+                                        }
+                                        _ => unreachable!(),
                                     }
+                                    euler::SAT_north(
+                                        sbp.deref(),
+                                        k.north_mut(),
+                                        y,
+                                        metrics,
+                                        wb0.view(),
+                                    );
+                                    boundaries_remaining.north = false;
+                                });
+                                continue 'check_boundaries;
+                            }
+
+                            if boundaries_remaining.south {
+                                if let CommunicatorData::Some(boundary) = std::mem::replace(
+                                    &mut (*data).south,
+                                    CommunicatorData::NotAvailable,
+                                ) {
+                                    lock_api::MutexGuard::unlocked(&mut data, || {
+                                        let wb0 = workbuffer_edges.0.south_mut();
+                                        let wb1 = workbuffer_edges.1.south.insert(boundary);
+                                        match boundary_conditions.south() {
+                                            DistributedBoundaryConditions::Channel => {
+                                                std::mem::swap(wb0, wb1);
+                                            }
+                                            DistributedBoundaryConditions::Interpolate(int_op) => {
+                                                let is_fine2coarse =
+                                                    wb1.shape()[1] > wb0.shape()[2];
+                                                for (to, from) in
+                                                    wb0.outer_iter_mut().zip(wb1.outer_iter())
+                                                {
+                                                    if is_fine2coarse {
+                                                        int_op.fine2coarse(from, to);
+                                                    } else {
+                                                        int_op.coarse2fine(from, to);
+                                                    }
+                                                }
+                                                // Reshape edge buffer to correct size
+                                                let wb = workbuffer_edges.1.south.take().unwrap();
+                                                let mut vec = wb.into_raw_vec();
+                                                vec.resize(wb0.len(), 0.0);
+                                                let wb = Array2::from_shape_vec(wb0.raw_dim(), vec)
+                                                    .unwrap();
+                                                workbuffer_edges.1.south = Some(wb);
+                                            }
+                                            _ => unreachable!(),
+                                        }
+                                        euler::SAT_south(
+                                            sbp.deref(),
+                                            k.south_mut(),
+                                            y,
+                                            metrics,
+                                            wb0.view(),
+                                        );
+                                        boundaries_remaining.south = false;
+                                    });
+                                    continue 'check_boundaries;
                                 }
-                                euler::SAT_north(sbp.deref(), k, y, metrics, wb_ns.view());
                             }
-                            _ => unreachable!(),
-                        },
-                        x if x == recv_south => match boundary_conditions.south() {
-                            DistributedBoundaryConditions::Channel(r) => {
-                                let r = s.recv(r).unwrap();
-                                euler::SAT_south(sbp.deref(), k, y, metrics, r.view());
-                            }
-                            DistributedBoundaryConditions::Interpolate(r, int_op) => {
-                                let r = s.recv(r).unwrap();
-                                let is_fine2coarse = r.shape()[1] > wb_ns.shape()[1];
-                                for (mut to, from) in wb_ns.outer_iter_mut().zip(r.outer_iter()) {
-                                    if is_fine2coarse {
-                                        int_op.fine2coarse(from.view(), to.view_mut());
-                                    } else {
-                                        int_op.coarse2fine(from.view(), to.view_mut());
-                                    }
+
+                            if boundaries_remaining.east {
+                                if let CommunicatorData::Some(boundary) = std::mem::replace(
+                                    &mut (*data).east,
+                                    CommunicatorData::NotAvailable,
+                                ) {
+                                    lock_api::MutexGuard::unlocked(&mut data, || {
+                                        let wb0 = workbuffer_edges.0.east_mut();
+                                        let wb1 = workbuffer_edges.1.east.insert(boundary);
+                                        match boundary_conditions.east() {
+                                            DistributedBoundaryConditions::Channel => {
+                                                std::mem::swap(wb0, wb1);
+                                            }
+                                            DistributedBoundaryConditions::Interpolate(int_op) => {
+                                                let is_fine2coarse =
+                                                    wb1.shape()[1] > wb0.shape()[2];
+                                                for (to, from) in
+                                                    wb0.outer_iter_mut().zip(wb1.outer_iter())
+                                                {
+                                                    if is_fine2coarse {
+                                                        int_op.fine2coarse(from, to);
+                                                    } else {
+                                                        int_op.coarse2fine(from, to);
+                                                    }
+                                                }
+                                                // Reshape edge buffer to correct size
+                                                let wb = workbuffer_edges.1.east.take().unwrap();
+                                                let mut vec = wb.into_raw_vec();
+                                                vec.resize(wb0.len(), 0.0);
+                                                let wb = Array2::from_shape_vec(wb0.raw_dim(), vec)
+                                                    .unwrap();
+                                                workbuffer_edges.1.east = Some(wb);
+                                            }
+                                            _ => unreachable!(),
+                                        }
+                                        euler::SAT_east(
+                                            sbp.deref(),
+                                            k.east_mut(),
+                                            y,
+                                            metrics,
+                                            wb0.view(),
+                                        );
+                                        boundaries_remaining.east = false;
+                                    });
+                                    continue 'check_boundaries;
                                 }
-                                euler::SAT_south(sbp.deref(), k, y, metrics, wb_ns.view());
                             }
-                            _ => unreachable!(),
-                        },
-                        x if x == recv_west => match boundary_conditions.west() {
-                            DistributedBoundaryConditions::Channel(r) => {
-                                let r = s.recv(r).unwrap();
-                                euler::SAT_west(sbp.deref(), k, y, metrics, r.view());
-                            }
-                            DistributedBoundaryConditions::Interpolate(r, int_op) => {
-                                let r = s.recv(r).unwrap();
-                                let is_fine2coarse = r.shape()[1] > wb_ew.shape()[1];
-                                for (mut to, from) in wb_ew.outer_iter_mut().zip(r.outer_iter()) {
-                                    if is_fine2coarse {
-                                        int_op.fine2coarse(from.view(), to.view_mut());
-                                    } else {
-                                        int_op.coarse2fine(from.view(), to.view_mut());
-                                    }
+
+                            if boundaries_remaining.west {
+                                if let CommunicatorData::Some(boundary) = std::mem::replace(
+                                    &mut (*data).west,
+                                    CommunicatorData::NotAvailable,
+                                ) {
+                                    lock_api::MutexGuard::unlocked(&mut data, || {
+                                        let wb0 = workbuffer_edges.0.west_mut();
+                                        let wb1 = workbuffer_edges.1.west.insert(boundary);
+                                        match boundary_conditions.west() {
+                                            DistributedBoundaryConditions::Channel => {
+                                                std::mem::swap(wb0, wb1);
+                                            }
+                                            DistributedBoundaryConditions::Interpolate(int_op) => {
+                                                let is_fine2coarse =
+                                                    wb1.shape()[1] > wb0.shape()[2];
+                                                for (to, from) in
+                                                    wb0.outer_iter_mut().zip(wb1.outer_iter())
+                                                {
+                                                    if is_fine2coarse {
+                                                        int_op.fine2coarse(from, to);
+                                                    } else {
+                                                        int_op.coarse2fine(from, to);
+                                                    }
+                                                }
+                                                // Reshape edge buffer to correct size
+                                                let wb = workbuffer_edges.1.west.take().unwrap();
+                                                let mut vec = wb.into_raw_vec();
+                                                vec.resize(wb0.len(), 0.0);
+                                                let wb = Array2::from_shape_vec(wb0.raw_dim(), vec)
+                                                    .unwrap();
+                                                workbuffer_edges.1.west = Some(wb);
+                                            }
+                                            _ => unreachable!(),
+                                        }
+                                        euler::SAT_west(
+                                            sbp.deref(),
+                                            k.west_mut(),
+                                            y,
+                                            metrics,
+                                            wb0.view(),
+                                        );
+                                        boundaries_remaining.west = false;
+                                    });
+                                    continue 'check_boundaries;
                                 }
-                                euler::SAT_west(sbp.deref(), k, y, metrics, wb_ew.view());
                             }
-                            _ => unreachable!(),
-                        },
-                        x if x == recv_east => match boundary_conditions.east() {
-                            DistributedBoundaryConditions::Channel(r) => {
-                                let r = s.recv(r).unwrap();
-                                euler::SAT_east(sbp.deref(), k, y, metrics, r.view());
-                            }
-                            DistributedBoundaryConditions::Interpolate(r, int_op) => {
-                                let r = s.recv(r).unwrap();
-                                let is_fine2coarse = r.shape()[1] > wb_ew.shape()[1];
-                                for (mut to, from) in wb_ew.outer_iter_mut().zip(r.outer_iter()) {
-                                    if is_fine2coarse {
-                                        int_op.fine2coarse(from.view(), to.view_mut());
-                                    } else {
-                                        int_op.coarse2fine(from.view(), to.view_mut());
-                                    }
-                                }
-                                euler::SAT_east(sbp.deref(), k, y, metrics, wb_ew.view());
-                            }
-                            _ => unreachable!(),
-                        },
-                        _ => unreachable!(),
+                        }
+                        if !boundaries_remaining.any() {
+                            break 'check_boundaries;
+                        }
+                        println!("{:?}", boundaries_remaining);
+                        // We have no available boundaries yet, can wait until
+                        // notified by other threads. Early continues
+                        // ensures the boundary has not been notified earlier
+                        pull.cvar.wait(&mut data);
                     }
-                    select.remove(sindex);
-                    selectable -= 1;
                 }
             };
             integrate::integrate::<integrate::Rk4, Field, _>(
