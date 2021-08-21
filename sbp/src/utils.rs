@@ -63,6 +63,18 @@ impl<T> Direction<T> {
             west: self.east,
         }
     }
+
+    pub fn splat(t: T) -> Self
+    where
+        T: Copy,
+    {
+        Self {
+            north: t,
+            south: t,
+            east: t,
+            west: t,
+        }
+    }
 }
 
 impl<T> Direction<Option<T>> {
