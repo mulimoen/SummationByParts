@@ -12,7 +12,7 @@ serde = { version = "1.0.115", optional = true, default-features = false, featur
 num-traits = "0.2.14"
 float = { path = "../utils/float" }
 constmatrix = { path = "../utils/constmatrix" }
-core_simd = { git = "https://github.com/rust-lang/stdsimd" }
+core_simd = { git = "https://github.com/rust-lang/portable-simd" }
 
 [features]
 # Use f32 as precision, default is f64

@@ -393,7 +393,6 @@ pub(crate) fn diff_op_2d_sliceable_y_simd<const M: usize, const N: usize, const 
     };
     let idx = 1.0 / dx;
 
-    use core_simd::Vector;
     #[cfg(not(feature = "f32"))]
     type SimdT = core_simd::f64x8;
     #[cfg(feature = "f32")]
