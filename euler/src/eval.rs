@@ -5,6 +5,7 @@ use super::GAMMA;
 use ndarray::{azip, ArrayView, ArrayViewMut, Dimension};
 
 pub trait Evaluator<D: Dimension>: Send + Sync {
+    #[allow(clippy::too_many_arguments)]
     fn evaluate(
         &self,
         t: Float,
@@ -55,6 +56,7 @@ pub trait EvaluatorPressure<D: Dimension>: Send + Sync {
         rho: ArrayView<Float, D>,
         out: ArrayViewMut<Float, D>,
     );
+    #[allow(clippy::too_many_arguments)]
     fn p(
         &self,
         t: Float,
@@ -70,6 +72,7 @@ pub trait EvaluatorPressure<D: Dimension>: Send + Sync {
 impl<'a, D: Dimension, BP: EvaluatorPressure<D>> Evaluator<D>
     for EvaluatorPressureWrapper<'a, D, BP>
 {
+    #[allow(clippy::many_single_char_names)]
     fn evaluate(
         &self,
         t: Float,

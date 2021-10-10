@@ -53,6 +53,28 @@ impl<T> Direction<T> {
             east: (self.east, other.east),
         }
     }
+
+    /// Flips all direction through origo
+    pub fn opposite(self) -> Self {
+        Self {
+            north: self.south,
+            south: self.north,
+            east: self.west,
+            west: self.east,
+        }
+    }
+
+    pub fn splat(t: T) -> Self
+    where
+        T: Copy,
+    {
+        Self {
+            north: t,
+            south: t,
+            east: t,
+            west: t,
+        }
+    }
 }
 
 impl<T> Direction<Option<T>> {
@@ -93,6 +115,15 @@ impl<T> Direction<T> {
     }
     pub fn west_mut(&mut self) -> &mut T {
         &mut self.west
+    }
+}
+
+impl Direction<bool> {
+    pub fn all(&self) -> bool {
+        self.north && self.south && self.east && self.west
+    }
+    pub fn any(&self) -> bool {
+        self.north || self.south || self.east || self.west
     }
 }
 

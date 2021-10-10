@@ -79,6 +79,7 @@ pub struct EvaluatorConservation {
 }
 
 impl<D: Dimension> euler::eval::Evaluator<D> for Evaluator {
+    #[allow(clippy::many_single_char_names)]
     fn evaluate(
         &self,
         t: Float,
@@ -267,6 +268,7 @@ impl<D: Dimension> euler::eval::EvaluatorPressure<D> for EvaluatorPressure {
         })
     }
 
+    #[allow(clippy::many_single_char_names)]
     fn p(
         &self,
         t: Float,

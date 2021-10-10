@@ -301,22 +301,18 @@ impl Field {
     pub fn west(&self) -> ArrayView2<Float> {
         self.slice(s![.., .., 0])
     }
-    #[allow(unused)]
-    fn north_mut(&mut self) -> ArrayViewMut2<Float> {
+    pub fn north_mut(&mut self) -> ArrayViewMut2<Float> {
         let ny = self.ny();
         self.slice_mut(s![.., ny - 1, ..])
     }
-    #[allow(unused)]
-    fn south_mut(&mut self) -> ArrayViewMut2<Float> {
+    pub fn south_mut(&mut self) -> ArrayViewMut2<Float> {
         self.slice_mut(s![.., 0, ..])
     }
-    #[allow(unused)]
-    fn east_mut(&mut self) -> ArrayViewMut2<Float> {
+    pub fn east_mut(&mut self) -> ArrayViewMut2<Float> {
         let nx = self.nx();
         self.slice_mut(s![.., .., nx - 1])
     }
-    #[allow(unused)]
-    fn west_mut(&mut self) -> ArrayViewMut2<Float> {
+    pub fn west_mut(&mut self) -> ArrayViewMut2<Float> {
         self.slice_mut(s![.., .., 0])
     }
 
@@ -330,6 +326,7 @@ impl Field {
         let (rho, rhou, rhov, e) = self.components_mut();
         vortex_param.evaluate(time, x, y, rho, rhou, rhov, e)
     }
+    #[allow(clippy::erasing_op, clippy::identity_op)]
     fn iter(&self) -> impl ExactSizeIterator<Item = FieldValue> + '_ {
         let n = self.nx() * self.ny();
         let slice = self.0.as_slice().unwrap();
@@ -462,18 +459,18 @@ impl Diff {
     pub fn zeros((ny, nx): (usize, usize)) -> Self {
         Self(Array3::zeros((4, ny, nx)))
     }
-    fn north_mut(&mut self) -> ArrayViewMut2<Float> {
+    pub fn north_mut(&mut self) -> ArrayViewMut2<Float> {
         let ny = self.shape()[1];
         self.0.slice_mut(s![.., ny - 1, ..])
     }
-    fn south_mut(&mut self) -> ArrayViewMut2<Float> {
+    pub fn south_mut(&mut self) -> ArrayViewMut2<Float> {
         self.0.slice_mut(s![.., 0, ..])
     }
-    fn east_mut(&mut self) -> ArrayViewMut2<Float> {
+    pub fn east_mut(&mut self) -> ArrayViewMut2<Float> {
         let nx = self.shape()[2];
         self.0.slice_mut(s![.., .., nx - 1])
     }
-    fn west_mut(&mut self) -> ArrayViewMut2<Float> {
+    pub fn west_mut(&mut self) -> ArrayViewMut2<Float> {
         self.0.slice_mut(s![.., .., 0])
     }
 }
@@ -515,6 +512,59 @@ pub fn RHS_trad(
     });
 
     SAT_characteristics(op, k, y, metrics, boundaries);
+}
+
+#[allow(non_snake_case)]
+pub fn RHS_no_SAT(
+    op: &dyn SbpOperator2d,
+    k: &mut Diff,
+    y: &Field,
+    metrics: &Metrics,
+    tmp: &mut (Field, Field, Field, Field, Field, Field),
+) {
+    let ehat = &mut tmp.0;
+    let fhat = &mut tmp.1;
+    fluxes((ehat, fhat), y, metrics, &mut tmp.2);
+    let dE = &mut tmp.2;
+    let dF = &mut tmp.3;
+
+    op.diffxi(ehat.rho(), dE.rho_mut());
+    op.diffxi(ehat.rhou(), dE.rhou_mut());
+    op.diffxi(ehat.rhov(), dE.rhov_mut());
+    op.diffxi(ehat.e(), dE.e_mut());
+
+    op.diffeta(fhat.rho(), dF.rho_mut());
+    op.diffeta(fhat.rhou(), dF.rhou_mut());
+    op.diffeta(fhat.rhov(), dF.rhov_mut());
+    op.diffeta(fhat.e(), dF.e_mut());
+
+    if let Some(diss_op) = op.upwind() {
+        let ad_xi = &mut tmp.4;
+        let ad_eta = &mut tmp.5;
+        upwind_dissipation(
+            &*diss_op,
+            (ad_xi, ad_eta),
+            y,
+            metrics,
+            (&mut tmp.0, &mut tmp.1),
+        );
+
+        azip!((out in &mut k.0,
+                        eflux in &dE.0,
+                        fflux in &dF.0,
+                        ad_xi in &ad_xi.0,
+                        ad_eta in &ad_eta.0,
+                        detj in &metrics.detj().broadcast((4, y.ny(), y.nx())).unwrap()) {
+            *out = (-eflux - fflux + ad_xi + ad_eta)/detj
+        });
+    } else {
+        azip!((out in &mut k.0,
+                        eflux in &dE.0,
+                        fflux in &dF.0,
+                        detj in &metrics.detj().broadcast((4, y.ny(), y.nx())).unwrap()) {
+            *out = (-eflux - fflux )/detj
+        });
+    }
 }
 
 #[allow(non_snake_case)]
@@ -949,104 +999,148 @@ fn vortexify(
 
 #[allow(non_snake_case)]
 /// Boundary conditions (SAT)
-fn SAT_characteristics(
+pub fn SAT_characteristics(
     op: &dyn SbpOperator2d,
     k: &mut Diff,
     y: &Field,
     metrics: &Metrics,
     boundaries: &BoundaryTerms,
 ) {
+    SAT_north(op, k.north_mut(), y, metrics, boundaries.north);
+    SAT_south(op, k.south_mut(), y, metrics, boundaries.south);
+    SAT_east(op, k.east_mut(), y, metrics, boundaries.east);
+    SAT_west(op, k.west_mut(), y, metrics, boundaries.west);
+}
+
+pub const SAT_FUNCTIONS: Direction<
+    fn(&dyn SbpOperator2d, ArrayViewMut2<Float>, &Field, &Metrics, ArrayView2<Float>),
+> = Direction {
+    north: SAT_north,
+    south: SAT_south,
+    west: SAT_west,
+    east: SAT_east,
+};
+
+#[allow(non_snake_case)]
+pub fn SAT_north(
+    op: &dyn SbpOperator2d,
+    k: ArrayViewMut2<Float>,
+    y: &Field,
+    metrics: &Metrics,
+    boundary: ArrayView2<Float>,
+) {
     let ny = y.ny();
+
+    let hi = if op.is_h2eta() {
+        (ny - 2) as Float / op.heta()[0]
+    } else {
+        (ny - 1) as Float / op.heta()[0]
+    };
+    let sign = -1.0;
+    let tau = 1.0;
+    let slice = s![y.ny() - 1, ..];
+    SAT_characteristic(
+        k,
+        y.north(),
+        boundary,
+        hi,
+        sign,
+        tau,
+        metrics.detj().slice(slice),
+        metrics.detj_deta_dx().slice(slice),
+        metrics.detj_deta_dy().slice(slice),
+    );
+}
+
+#[allow(non_snake_case)]
+pub fn SAT_south(
+    op: &dyn SbpOperator2d,
+    k: ArrayViewMut2<Float>,
+    y: &Field,
+    metrics: &Metrics,
+    boundary: ArrayView2<Float>,
+) {
+    let ny = y.ny();
+    let hi = if op.is_h2eta() {
+        (ny - 2) as Float / op.heta()[0]
+    } else {
+        (ny - 1) as Float / op.heta()[0]
+    };
+    let sign = 1.0;
+    let tau = -1.0;
+    let slice = s![0, ..];
+    SAT_characteristic(
+        k,
+        y.south(),
+        boundary,
+        hi,
+        sign,
+        tau,
+        metrics.detj().slice(slice),
+        metrics.detj_deta_dx().slice(slice),
+        metrics.detj_deta_dy().slice(slice),
+    );
+}
+
+#[allow(non_snake_case)]
+pub fn SAT_west(
+    op: &dyn SbpOperator2d,
+    k: ArrayViewMut2<Float>,
+    y: &Field,
+    metrics: &Metrics,
+    boundary: ArrayView2<Float>,
+) {
     let nx = y.nx();
 
-    // North boundary
-    {
-        let hi = if op.is_h2eta() {
-            (ny - 2) as Float / op.heta()[0]
-        } else {
-            (ny - 1) as Float / op.heta()[0]
-        };
-        let sign = -1.0;
-        let tau = 1.0;
-        let slice = s![y.ny() - 1, ..];
-        SAT_characteristic(
-            k.north_mut(),
-            y.north(),
-            boundaries.north,
-            hi,
-            sign,
-            tau,
-            metrics.detj().slice(slice),
-            metrics.detj_deta_dx().slice(slice),
-            metrics.detj_deta_dy().slice(slice),
-        );
-    }
-    // South boundary
-    {
-        let hi = if op.is_h2eta() {
-            (ny - 2) as Float / op.heta()[0]
-        } else {
-            (ny - 1) as Float / op.heta()[0]
-        };
-        let sign = 1.0;
-        let tau = -1.0;
-        let slice = s![0, ..];
-        SAT_characteristic(
-            k.south_mut(),
-            y.south(),
-            boundaries.south,
-            hi,
-            sign,
-            tau,
-            metrics.detj().slice(slice),
-            metrics.detj_deta_dx().slice(slice),
-            metrics.detj_deta_dy().slice(slice),
-        );
-    }
-    // West Boundary
-    {
-        let hi = if op.is_h2xi() {
-            (nx - 2) as Float / op.hxi()[0]
-        } else {
-            (nx - 1) as Float / op.hxi()[0]
-        };
-        let sign = 1.0;
-        let tau = -1.0;
-        let slice = s![.., 0];
-        SAT_characteristic(
-            k.west_mut(),
-            y.west(),
-            boundaries.west,
-            hi,
-            sign,
-            tau,
-            metrics.detj().slice(slice),
-            metrics.detj_dxi_dx().slice(slice),
-            metrics.detj_dxi_dy().slice(slice),
-        );
-    }
-    // East Boundary
-    {
-        let hi = if op.is_h2xi() {
-            (nx - 2) as Float / op.hxi()[0]
-        } else {
-            (nx - 1) as Float / op.hxi()[0]
-        };
-        let sign = -1.0;
-        let tau = 1.0;
-        let slice = s![.., y.nx() - 1];
-        SAT_characteristic(
-            k.east_mut(),
-            y.east(),
-            boundaries.east,
-            hi,
-            sign,
-            tau,
-            metrics.detj().slice(slice),
-            metrics.detj_dxi_dx().slice(slice),
-            metrics.detj_dxi_dy().slice(slice),
-        );
-    }
+    let hi = if op.is_h2xi() {
+        (nx - 2) as Float / op.hxi()[0]
+    } else {
+        (nx - 1) as Float / op.hxi()[0]
+    };
+    let sign = 1.0;
+    let tau = -1.0;
+    let slice = s![.., 0];
+    SAT_characteristic(
+        k,
+        y.west(),
+        boundary,
+        hi,
+        sign,
+        tau,
+        metrics.detj().slice(slice),
+        metrics.detj_dxi_dx().slice(slice),
+        metrics.detj_dxi_dy().slice(slice),
+    );
+}
+
+#[allow(non_snake_case)]
+pub fn SAT_east(
+    op: &dyn SbpOperator2d,
+    k: ArrayViewMut2<Float>,
+    y: &Field,
+    metrics: &Metrics,
+    boundary: ArrayView2<Float>,
+) {
+    let nx = y.nx();
+    let hi = if op.is_h2xi() {
+        (nx - 2) as Float / op.hxi()[0]
+    } else {
+        (nx - 1) as Float / op.hxi()[0]
+    };
+    let sign = -1.0;
+    let tau = 1.0;
+    let slice = s![.., y.nx() - 1];
+    SAT_characteristic(
+        k,
+        y.east(),
+        boundary,
+        hi,
+        sign,
+        tau,
+        metrics.detj().slice(slice),
+        metrics.detj_dxi_dx().slice(slice),
+        metrics.detj_dxi_dy().slice(slice),
+    );
 }
 
 #[allow(non_snake_case)]
