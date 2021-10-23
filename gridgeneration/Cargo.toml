@@ -5,7 +5,7 @@ authors = ["Magnus Ulimoen <magnus@ulimoen.dev>"]
 edition = "2018"
 
 [dependencies]
-ndarray = { version = "0.14.0", default-features = false }
+ndarray = { version = "0.15.0", default-features = false }
 plotters = { version = "0.3.0", default-features = false, features = ["svg_backend", "line_series", "point_series"] }
 sbp = { path = "../sbp" }
 json5 = { version = "0.2.8", optional = true }

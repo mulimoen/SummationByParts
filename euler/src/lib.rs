@@ -227,14 +227,14 @@ impl Field {
 
     pub(crate) fn slice<Do: Dimension>(
         &self,
-        info: &ndarray::SliceInfo<[ndarray::SliceOrIndex; 3], Do>,
+        info: ndarray::SliceInfo<[ndarray::SliceInfoElem; 3], ndarray::Ix3, Do>,
     ) -> ArrayView<Float, Do> {
         self.0.slice(info)
     }
 
     pub(crate) fn slice_mut<Do: Dimension>(
         &mut self,
-        info: &ndarray::SliceInfo<[ndarray::SliceOrIndex; 3], Do>,
+        info: ndarray::SliceInfo<[ndarray::SliceInfoElem; 3], ndarray::Ix3, Do>,
     ) -> ArrayViewMut<Float, Do> {
         self.0.slice_mut(info)
     }

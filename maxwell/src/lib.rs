@@ -44,14 +44,14 @@ impl Field {
 
     pub(crate) fn slice<Do: Dimension>(
         &self,
-        info: &ndarray::SliceInfo<[ndarray::SliceOrIndex; 3], Do>,
+        info: ndarray::SliceInfo<[ndarray::SliceInfoElem; 3], ndarray::Ix3, Do>,
     ) -> ArrayView<Float, Do> {
         self.0.slice(info)
     }
 
     pub(crate) fn slice_mut<Do: Dimension>(
         &mut self,
-        info: &ndarray::SliceInfo<[ndarray::SliceOrIndex; 3], Do>,
+        info: ndarray::SliceInfo<[ndarray::SliceInfoElem; 3], ndarray::Ix3, Do>,
     ) -> ArrayViewMut<Float, Do> {
         self.0.slice_mut(info)
     }
@@ -519,10 +519,10 @@ fn SAT_characteristics<SBP: SbpOperator2d>(
         };
         for ((((mut k, v), g), &kx), &ky) in k
             .slice_mut(s![.., .., nx - 1])
-            .gencolumns_mut()
+            .columns_mut()
             .into_iter()
-            .zip(y.slice(s![.., .., nx - 1]).gencolumns())
-            .zip(g.gencolumns())
+            .zip(y.slice(s![.., .., nx - 1]).columns())
+            .zip(g.columns())
             .zip(metrics.detj_dxi_dx().slice(s![.., nx - 1]))
             .zip(metrics.detj_dxi_dy().slice(s![.., nx - 1]))
         {
@@ -557,10 +557,10 @@ fn SAT_characteristics<SBP: SbpOperator2d>(
         };
         for ((((mut k, v), g), &kx), &ky) in k
             .slice_mut(s![.., .., 0])
-            .gencolumns_mut()
+            .columns_mut()
             .into_iter()
-            .zip(y.slice(s![.., .., 0]).gencolumns())
-            .zip(g.gencolumns())
+            .zip(y.slice(s![.., .., 0]).columns())
+            .zip(g.columns())
             .zip(metrics.detj_dxi_dx().slice(s![.., 0]))
             .zip(metrics.detj_dxi_dy().slice(s![.., 0]))
         {
@@ -600,10 +600,10 @@ fn SAT_characteristics<SBP: SbpOperator2d>(
         };
         for ((((mut k, v), g), &kx), &ky) in k
             .slice_mut(s![.., ny - 1, ..])
-            .gencolumns_mut()
+            .columns_mut()
             .into_iter()
-            .zip(y.slice(s![.., ny - 1, ..]).gencolumns())
-            .zip(g.gencolumns())
+            .zip(y.slice(s![.., ny - 1, ..]).columns())
+            .zip(g.columns())
             .zip(metrics.detj_deta_dx().slice(s![ny - 1, ..]))
             .zip(metrics.detj_deta_dy().slice(s![ny - 1, ..]))
         {
@@ -637,10 +637,10 @@ fn SAT_characteristics<SBP: SbpOperator2d>(
         };
         for ((((mut k, v), g), &kx), &ky) in k
             .slice_mut(s![.., 0, ..])
-            .gencolumns_mut()
+            .columns_mut()
             .into_iter()
-            .zip(y.slice(s![.., 0, ..]).gencolumns())
-            .zip(g.gencolumns())
+            .zip(y.slice(s![.., 0, ..]).columns())
+            .zip(g.columns())
             .zip(metrics.detj_deta_dx().slice(s![0, ..]))
             .zip(metrics.detj_deta_dy().slice(s![0, ..]))
         {

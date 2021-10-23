@@ -11,9 +11,6 @@ struct Field(Array1<Float>);
 impl integrate::Integrable for Field {
     type State = Array1<Float>;
     type Diff = Array1<Float>;
-    fn assign(s: &mut Self::State, o: &Self::State) {
-        s.assign(o)
-    }
     fn scaled_add(s: &mut Self::State, o: &Self::Diff, scale: Float) {
         s.scaled_add(scale, o)
     }

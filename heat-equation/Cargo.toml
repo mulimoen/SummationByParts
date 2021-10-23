@@ -7,7 +7,7 @@ edition = "2018"
 
 [dependencies]
 sbp = { path = "../sbp", features = ["sparse"] }
-ndarray = "0.14.0"
+ndarray = "0.15.0"
 plotters = { version = "0.3.0", default-features = false, features = ["bitmap_gif", "bitmap_backend", "line_series"] }
 sprs = { version = "0.10.0", default-features = false }
 integrate = { path = "../utils/integrate" }

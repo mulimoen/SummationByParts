@@ -5,7 +5,7 @@ authors = ["Magnus Ulimoen <magnus@ulimoen.dev>"]
 edition = "2018"
 
 [dependencies]
-ndarray = "0.14.0"
+ndarray = "0.15.0"
 sbp = { path = "../sbp" }
 log = "0.4.8"
 integrate = { path = "../utils/integrate" }

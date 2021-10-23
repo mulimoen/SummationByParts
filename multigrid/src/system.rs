@@ -37,9 +37,9 @@ impl BaseSystem {
         let output = hdf5::File::create(output).unwrap();
         output
             .new_dataset::<u64>()
-            .resizable(true)
+            .shape((0..,))
             .chunk((1,))
-            .create("t", (0,))
+            .create("t")
             .unwrap();
         Self {
             names,
@@ -92,8 +92,9 @@ impl BaseSystem {
             let add_dim = |name| {
                 g.new_dataset::<Float>()
                     .chunk((grid.ny(), grid.nx()))
-                    .gzip(9)
-                    .create(name, (grid.ny(), grid.nx()))
+                    .deflate(9)
+                    .shape((grid.ny(), grid.nx()))
+                    .create(name)
             };
             let xds = add_dim("x").unwrap();
             xds.write(grid.x()).unwrap();
@@ -102,11 +103,11 @@ impl BaseSystem {
 
             let add_var = |name| {
                 g.new_dataset::<Float>()
-                    .gzip(3)
-                    .shuffle(true)
+                    .shuffle()
+                    .deflate(3)
                     .chunk((1, grid.ny(), grid.nx()))
-                    .resizable(true)
-                    .create(name, (0, grid.ny(), grid.nx()))
+                    .shape((0.., grid.ny(), grid.nx()))
+                    .create(name)
             };
             add_var("rho").unwrap();
             add_var("rhou").unwrap();
@@ -261,8 +262,9 @@ impl BaseSystem {
                             let add_dim = |name| {
                                 g.new_dataset::<Float>()
                                     .chunk((grid.ny(), grid.nx()))
-                                    .gzip(9)
-                                    .create(name, (grid.ny(), grid.nx()))
+                                    .deflate(9)
+                                    .shape((grid.ny(), grid.nx()))
+                                    .create(name)
                             };
                             let xds = add_dim("x").unwrap();
                             xds.write(grid.x()).unwrap();
@@ -271,11 +273,11 @@ impl BaseSystem {
 
                             let add_var = |name| {
                                 g.new_dataset::<Float>()
-                                    .gzip(3)
-                                    .shuffle(true)
+                                    .shuffle()
+                                    .deflate(3)
                                     .chunk((1, grid.ny(), grid.nx()))
-                                    .resizable(true)
-                                    .create(name, (0, grid.ny(), grid.nx()))
+                                    .shape((0.., grid.ny(), grid.nx()))
+                                    .create(name)
                             };
                             add_var("rho").unwrap();
                             add_var("rhou").unwrap();
