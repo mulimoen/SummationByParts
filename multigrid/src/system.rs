@@ -592,8 +592,7 @@ impl SingleThreadedSystem {
         let tds = self.output.0.dataset("t").unwrap();
         let tpos = tds.size();
         tds.resize((tpos + 1,)).unwrap();
-        tds.write_slice(&[ntime], ndarray::s![tpos..tpos + 1])
-            .unwrap();
+        tds.write_slice(&[ntime], tpos..tpos + 1).unwrap();
         for (group, fnow) in self.output.1.iter().zip(&self.fnow) {
             let (ny, nx) = (fnow.ny(), fnow.nx());
             let rhods = group.dataset("rho").unwrap();
@@ -603,16 +602,16 @@ impl SingleThreadedSystem {
 
             let (rho, rhou, rhov, e) = fnow.components();
             rhods.resize((tpos + 1, ny, nx)).unwrap();
-            rhods.write_slice(rho, ndarray::s![tpos, .., ..]).unwrap();
+            rhods.write_slice(rho, (tpos, .., ..)).unwrap();
 
             rhouds.resize((tpos + 1, ny, nx)).unwrap();
-            rhouds.write_slice(rhou, ndarray::s![tpos, .., ..]).unwrap();
+            rhouds.write_slice(rhou, (tpos, .., ..)).unwrap();
 
             rhovds.resize((tpos + 1, ny, nx)).unwrap();
-            rhovds.write_slice(rhov, ndarray::s![tpos, .., ..]).unwrap();
+            rhovds.write_slice(rhov, (tpos, .., ..)).unwrap();
 
             eds.resize((tpos + 1, ny, nx)).unwrap();
-            eds.write_slice(e, ndarray::s![tpos, .., ..]).unwrap();
+            eds.write_slice(e, (tpos, .., ..)).unwrap();
         }
     }
 
@@ -658,8 +657,7 @@ impl DistributedSystem {
         let tds = self.output.dataset("t").unwrap();
         let tpos = tds.size();
         tds.resize((tpos + 1,)).unwrap();
-        tds.write_slice(&[ntime], ndarray::s![tpos..tpos + 1])
-            .unwrap();
+        tds.write_slice(&[ntime], tpos..tpos + 1).unwrap();
     }
     pub fn attach_progressbar(&mut self, ntime: u64) {
         let target = indicatif::MultiProgress::new();
@@ -859,16 +857,16 @@ impl DistributedSystemPart {
         let (rho, rhou, rhov, e) = self.current.components();
         let tpos = rhods.size() / (ny * nx);
         rhods.resize((tpos + 1, ny, nx)).unwrap();
-        rhods.write_slice(rho, ndarray::s![tpos, .., ..]).unwrap();
+        rhods.write_slice(rho, (tpos, .., ..)).unwrap();
 
         rhouds.resize((tpos + 1, ny, nx)).unwrap();
-        rhouds.write_slice(rhou, ndarray::s![tpos, .., ..]).unwrap();
+        rhouds.write_slice(rhou, (tpos, .., ..)).unwrap();
 
         rhovds.resize((tpos + 1, ny, nx)).unwrap();
-        rhovds.write_slice(rhov, ndarray::s![tpos, .., ..]).unwrap();
+        rhovds.write_slice(rhov, (tpos, .., ..)).unwrap();
 
         eds.resize((tpos + 1, ny, nx)).unwrap();
-        eds.write_slice(e, ndarray::s![tpos, .., ..]).unwrap();
+        eds.write_slice(e, (tpos, .., ..)).unwrap();
     }
 
     fn advance(&mut self, ntime: u64) {
