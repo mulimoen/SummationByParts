@@ -53,7 +53,6 @@ impl InterpolationOperator for Interpolation9h2 {
     fn fine2coarse(&self, fine: ArrayView1<Float>, coarse: ArrayViewMut1<Float>) {
         assert_eq!(fine.len(), 2 * (coarse.len() - 1));
         use ndarray::prelude::*;
-        use std::iter::FromIterator;
         let block = Array::from_iter(Self::F2C_BLOCK.iter().flatten().copied())
             .into_shape((Self::F2C_BLOCK.len(), Self::F2C_BLOCK[0].len()))
             .unwrap();
@@ -65,7 +64,6 @@ impl InterpolationOperator for Interpolation9h2 {
     fn coarse2fine(&self, coarse: ArrayView1<Float>, fine: ArrayViewMut1<Float>) {
         assert_eq!(fine.len(), 2 * (coarse.len() - 1));
         use ndarray::prelude::*;
-        use std::iter::FromIterator;
         let block = Array::from_iter(Self::C2F_BLOCK.iter().flatten().copied())
             .into_shape((Self::C2F_BLOCK.len(), Self::C2F_BLOCK[0].len()))
             .unwrap();
