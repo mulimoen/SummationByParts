@@ -14,7 +14,7 @@ impl Clone for Field {
         Self(self.0.clone())
     }
     fn clone_from(&mut self, source: &Self) {
-        self.0.clone_from(&source.0)
+        self.0.clone_from(&source.0);
     }
 }
 
@@ -130,9 +130,7 @@ impl System {
                 let eta = now.eta();
                 for j in 0..ny {
                     for i in 0..nx {
-                        if eta[(j, i)] <= 0.0 {
-                            panic!("{} {}", j, i);
-                        }
+                        assert!(eta[(j, i)] > 0.0, "eta: {} at ({},{})", eta[(j, i)], i, j);
                     }
                 }
             }
@@ -148,13 +146,13 @@ impl System {
             next_eta.scaled_add(-1.0, &temp_dx);
 
             azip!((dest in &mut temp, eta in now.eta(), etau in now.etau()) {
-                *dest = etau.powi(2)/eta + G*eta.powi(2)/2.0
+                *dest = etau.powi(2)/eta + G*eta.powi(2)/2.0;
             });
             op.diffxi(temp.view(), temp_dx.view_mut());
             next_etau.scaled_add(-1.0, &temp_dx);
 
             azip!((dest in &mut temp, eta in now.eta(), etau in now.etau(), etav in now.etav()) {
-                *dest = etau*etav/eta
+                *dest = etau*etav/eta;
             });
             op.diffxi(temp.view(), temp_dx.view_mut());
             next_etav.scaled_add(-1.0, &temp_dx);
@@ -174,7 +172,7 @@ impl System {
             next_etau.scaled_add(-1.0, &temp_dy);
 
             azip!((dest in &mut temp, eta in now.eta(), etav in now.etav()) {
-                *dest = etav.powi(2)/eta + G*eta.powi(2)/2.0
+                *dest = etav.powi(2)/eta + G*eta.powi(2)/2.0;
             });
             op.diffeta(temp.view(), temp_dy.view_mut());
             next_etav.scaled_add(-1.0, &temp_dy);
@@ -184,7 +182,7 @@ impl System {
                 if let Some(op) = op.upwind() {
                     let mut temp_dx = temp_dy;
                     azip!((dest in &mut temp, eta in now.eta(), etau in now.etau()) {
-                        *dest = -(eta.powf(3.0/2.0)*G.sqrt() + etau.abs())/eta
+                        *dest = -(eta.powf(3.0/2.0)*G.sqrt() + etau.abs())/eta;
                     });
                     op.dissxi(temp.view(), temp_dx.view_mut());
                     azip!((dest in &mut next_eta, eta in now.eta(), diss in &temp_dx) {
@@ -199,7 +197,7 @@ impl System {
 
                     let mut temp_dy = temp_dx;
                     azip!((dest in &mut temp, eta in now.eta(), etav in now.etav()) {
-                        *dest = -(eta.powf(3.0/2.0)*G.sqrt() + etav.abs())/eta
+                        *dest = -(eta.powf(3.0/2.0)*G.sqrt() + etav.abs())/eta;
                     });
                     op.disseta(temp.view(), temp_dy.view_mut());
                     azip!((dest in &mut next_eta, eta in now.eta(), diss in &temp_dy) {
@@ -259,10 +257,8 @@ impl System {
                     .zip(other.axis_iter(Axis(1)))
                 {
                     let tau = match dir {
-                        Direction::North => 1.0,
-                        Direction::South => -1.0,
-                        Direction::East => 1.0,
-                        Direction::West => -1.0,
+                        Direction::North | Direction::East => 1.0,
+                        Direction::South | Direction::West => -1.0,
                     };
                     let hinv = match dir {
                         Direction::North | Direction::South => {
@@ -316,7 +312,7 @@ impl System {
             &mut self.k[..],
         );
 
-        std::mem::swap(&mut self.fnow, &mut self.fnext)
+        std::mem::swap(&mut self.fnow, &mut self.fnext);
     }
 }
 

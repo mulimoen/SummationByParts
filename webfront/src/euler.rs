@@ -21,28 +21,28 @@ impl EulerUniverse {
     }
 
     pub fn init(&mut self, x0: f32, y0: f32) {
-        self.0.init_with_vortex(x0, y0)
+        self.0.init_with_vortex(x0, y0);
     }
 
     pub fn advance(&mut self, dt: f32) {
-        self.0.advance(dt)
+        self.0.advance(dt);
     }
 
     pub fn advance_upwind(&mut self, dt: f32) {
-        self.0.advance_upwind(dt)
+        self.0.advance_upwind(dt);
     }
 
     pub fn get_rho_ptr(&self) -> *const u8 {
-        self.0.field().rho().as_ptr() as *const u8
+        self.0.field().rho().as_ptr().cast()
     }
     pub fn get_rhou_ptr(&self) -> *const u8 {
-        self.0.field().rhou().as_ptr() as *const u8
+        self.0.field().rhou().as_ptr().cast()
     }
     pub fn get_rhov_ptr(&self) -> *const u8 {
-        self.0.field().rhov().as_ptr() as *const u8
+        self.0.field().rhov().as_ptr().cast()
     }
     pub fn get_e_ptr(&self) -> *const u8 {
-        self.0.field().e().as_ptr() as *const u8
+        self.0.field().e().as_ptr().cast()
     }
 }
 

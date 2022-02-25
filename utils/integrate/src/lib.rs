@@ -161,7 +161,7 @@ pub trait Integrable {
 
 #[allow(clippy::too_many_arguments)]
 /// Integrates using the [`ButcherTableau`] specified. `rhs` should be the result
-/// of the right hand side of $u_t = rhs$
+/// of the right hand side of `$u_t = rhs$`
 ///
 /// rhs takes the old state and the current time, and outputs the state difference
 /// in the first parameter
@@ -170,6 +170,9 @@ pub trait Integrable {
 /// ```rust,ignore
 /// integrate::<Rk4, System, _>(...)
 /// ```
+///
+/// # Panics
+/// `k` must have enough elements for the given tableau
 pub fn integrate<BTableau: ButcherTableau, F: Integrable, RHS>(
     mut rhs: RHS,
     prev: &F::State,
@@ -183,11 +186,10 @@ pub fn integrate<BTableau: ButcherTableau, F: Integrable, RHS>(
     assert!(k.len() >= BTableau::S);
 
     for i in 0.. {
-        let simtime;
-        match i {
+        let simtime = match i {
             0 => {
                 fut.clone_from(prev);
-                simtime = *time;
+                *time
             }
             i if i < BTableau::S => {
                 fut.clone_from(prev);
@@ -197,7 +199,7 @@ pub fn integrate<BTableau: ButcherTableau, F: Integrable, RHS>(
                     }
                     F::scaled_add(fut, k, a * dt);
                 }
-                simtime = *time + dt * BTableau::C[i - 1];
+                *time + dt * BTableau::C[i - 1]
             }
             _ if i == BTableau::S => {
                 fut.clone_from(prev);
@@ -224,6 +226,9 @@ pub fn integrate<BTableau: ButcherTableau, F: Integrable, RHS>(
 ///
 /// This produces two results, the most accurate result in `fut`, and the less accurate
 /// result in `fut2`. This can be used for convergence testing and adaptive timesteps.
+///
+/// # Panics
+/// `k` must have enough elements for the given tableau
 pub fn integrate_embedded_rk<BTableau: EmbeddedButcherTableau, F: Integrable, RHS>(
     rhs: RHS,
     prev: &F::State,

@@ -203,7 +203,7 @@ impl Clone for Field {
 pub struct Diff(pub(crate) Array3<Float>);
 
 impl integrate::Integrable for Field {
-    type State = Field;
+    type State = Self;
     type Diff = Diff;
 
     fn scaled_add(s: &mut Self::State, o: &Self::Diff, scale: Float) {

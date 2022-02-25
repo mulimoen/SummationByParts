@@ -18,27 +18,27 @@ impl MaxwellUniverse {
     }
 
     pub fn advance(&mut self, dt: f32) {
-        self.0.advance(dt)
+        self.0.advance(dt);
     }
 
     pub fn advance_upwind(&mut self, dt: f32) {
-        self.0.advance_upwind(dt)
+        self.0.advance_upwind(dt);
     }
 
     #[cfg(feature = "sparse")]
     pub fn advance_with_matrix(&mut self, dt: f32) {
-        self.0.advance_sparse(dt)
+        self.0.advance_sparse(dt);
     }
 
     pub fn get_ex_ptr(&self) -> *const u8 {
-        self.0.field().ex().as_ptr() as *const u8
+        self.0.field().ex().as_ptr().cast()
     }
 
     pub fn get_ey_ptr(&self) -> *const u8 {
-        self.0.field().ey().as_ptr() as *const u8
+        self.0.field().ey().as_ptr().cast()
     }
 
     pub fn get_hz_ptr(&self) -> *const u8 {
-        self.0.field().hz().as_ptr() as *const u8
+        self.0.field().hz().as_ptr().cast()
     }
 }

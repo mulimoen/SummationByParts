@@ -1,5 +1,6 @@
 #![no_std]
 #![feature(const_fn_floating_point_arithmetic)]
+#![allow(clippy::inline_always)]
 
 use float::Float;
 use num_traits::identities::Zero;
@@ -28,7 +29,7 @@ impl<T: Copy + Zero + PartialEq, const M: usize, const N: usize> Zero for Matrix
         }
     }
     fn is_zero(&self) -> bool {
-        self.iter().all(|x| x.is_zero())
+        self.iter().all(Zero::is_zero)
     }
 }
 
@@ -96,17 +97,17 @@ impl<T, const M: usize, const N: usize> Matrix<T, M, N> {
 
 impl<T, const N: usize> ColVector<T, N> {
     #[inline(always)]
-    pub fn map_to_col(slice: &[T; N]) -> &ColVector<T, N> {
+    pub const fn map_to_col(slice: &[T; N]) -> &Self {
         unsafe { &*(slice.as_ptr().cast()) }
     }
     #[inline(always)]
-    pub fn map_to_col_mut(slice: &mut [T; N]) -> &mut ColVector<T, N> {
+    pub fn map_to_col_mut(slice: &mut [T; N]) -> &mut Self {
         unsafe { &mut *(slice.as_mut_ptr().cast()) }
     }
 }
 
 impl<T, const N: usize> RowVector<T, N> {
-    pub fn map_to_row(slice: &[T; N]) -> &Self {
+    pub const fn map_to_row(slice: &[T; N]) -> &Self {
         unsafe { &*(slice.as_ptr().cast()) }
     }
     pub fn map_to_row_mut(slice: &mut [T; N]) -> &mut Self {
@@ -191,17 +192,17 @@ where
 {
     #[inline(always)]
     fn mul_assign(&mut self, other: T) {
-        self.iter_mut().for_each(|x| *x *= other)
+        self.iter_mut().for_each(|x| *x *= other);
     }
 }
 
-impl<T, const N: usize, const M: usize> core::ops::Add<Matrix<T, M, N>> for Matrix<T, M, N>
+impl<T, const N: usize, const M: usize> core::ops::Add<Self> for Matrix<T, M, N>
 where
     T: Copy + Zero + core::ops::Add<Output = T> + PartialEq,
 {
     type Output = Self;
     fn add(self, lhs: Self) -> Self::Output {
-        let mut out = Matrix::zero();
+        let mut out = Self::zero();
         for i in 0..M {
             for j in 0..N {
                 out[(i, j)] = self[(i, j)] + lhs[(i, j)];
@@ -299,6 +300,7 @@ mod approx {
 }
 
 impl<const M: usize, const N: usize> Matrix<Float, M, N> {
+    #[must_use]
     pub const fn flip_ud(&self) -> Self {
         let mut m = Self::new([[0.0; N]; M]);
         let mut i = 0;
@@ -309,6 +311,7 @@ impl<const M: usize, const N: usize> Matrix<Float, M, N> {
         m
     }
 
+    #[must_use]
     pub const fn flip_lr(&self) -> Self {
         let mut m = Self::new([[0.0; N]; M]);
         let mut i = 0;
@@ -324,6 +327,7 @@ impl<const M: usize, const N: usize> Matrix<Float, M, N> {
     }
 
     /// Flip all sign bits
+    #[must_use]
     pub const fn flip_sign(&self) -> Self {
         let mut m = Self::new([[0.0; N]; M]);
         let mut i = 0;
@@ -339,6 +343,7 @@ impl<const M: usize, const N: usize> Matrix<Float, M, N> {
     }
 
     /// Zero extends if larger than self
+    #[must_use]
     pub const fn resize<const M2: usize, const N2: usize>(&self) -> Matrix<Float, M2, N2> {
         let mut m = Matrix::new([[0.0; N2]; M2]);
 

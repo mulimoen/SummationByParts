@@ -621,7 +621,7 @@ impl SingleThreadedSystem {
             let mut fvort = fmod.clone();
             match &self.initial_conditions {
                 parsing::InitialConditions::Vortex(vortexparams) => {
-                    fvort.vortex(grid.x(), grid.y(), self.time, &vortexparams);
+                    fvort.vortex(grid.x(), grid.y(), self.time, vortexparams);
                 }
                 parsing::InitialConditions::Expressions(expr) => {
                     let (rho, rhou, rhov, e) = fvort.components_mut();
@@ -1179,7 +1179,7 @@ impl DistributedSystemPart {
         let mut fvort = self.current.clone();
         match &self.initial_conditions {
             parsing::InitialConditions::Vortex(vortexparams) => {
-                fvort.vortex(self.grid.0.x(), self.grid.0.y(), self.t, &vortexparams);
+                fvort.vortex(self.grid.0.x(), self.grid.0.y(), self.t, vortexparams);
             }
             parsing::InitialConditions::Expressions(expr) => {
                 let (rho, rhou, rhov, e) = fvort.components_mut();

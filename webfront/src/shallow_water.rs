@@ -38,18 +38,18 @@ impl ShallowWaterUniverse {
     }
 
     pub fn advance(&mut self) {
-        self.0.advance()
+        self.0.advance();
     }
 
     pub fn get_eta_ptr(&self) -> *const u8 {
-        self.0.eta().as_ptr() as *const u8
+        self.0.eta().as_ptr().cast()
     }
 
     pub fn get_etau_ptr(&self) -> *const u8 {
-        self.0.etau().as_ptr() as *const u8
+        self.0.etau().as_ptr().cast()
     }
 
     pub fn get_etav_ptr(&self) -> *const u8 {
-        self.0.etav().as_ptr() as *const u8
+        self.0.etav().as_ptr().cast()
     }
 }

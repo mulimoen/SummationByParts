@@ -55,6 +55,7 @@ impl<T> Direction<T> {
     }
 
     /// Flips all direction through origo
+    #[must_use]
     pub fn opposite(self) -> Self {
         Self {
             north: self.south,
@@ -92,25 +93,25 @@ impl<T> Direction<Option<T>> {
 
 /// Methods for borrowing
 impl<T> Direction<T> {
-    pub fn north(&self) -> &T {
+    pub const fn north(&self) -> &T {
         &self.north
     }
     pub fn north_mut(&mut self) -> &mut T {
         &mut self.north
     }
-    pub fn south(&self) -> &T {
+    pub const fn south(&self) -> &T {
         &self.south
     }
     pub fn south_mut(&mut self) -> &mut T {
         &mut self.south
     }
-    pub fn east(&self) -> &T {
+    pub const fn east(&self) -> &T {
         &self.east
     }
     pub fn east_mut(&mut self) -> &mut T {
         &mut self.east
     }
-    pub fn west(&self) -> &T {
+    pub const fn west(&self) -> &T {
         &self.west
     }
     pub fn west_mut(&mut self) -> &mut T {
@@ -119,10 +120,10 @@ impl<T> Direction<T> {
 }
 
 impl Direction<bool> {
-    pub fn all(&self) -> bool {
+    pub const fn all(&self) -> bool {
         self.north && self.south && self.east && self.west
     }
-    pub fn any(&self) -> bool {
+    pub const fn any(&self) -> bool {
         self.north || self.south || self.east || self.west
     }
 }
