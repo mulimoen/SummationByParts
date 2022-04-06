@@ -1,0 +1,18 @@
+[project]
+name = "plotter"
+version = "0.0.1"
+dependencies = [
+    "matplotlib",
+    "numpy",
+    "h5py",
+]
+
+[project.scripts]
+eulerplot = "plotter.plotter:main"
+
+[tool.setuptools]
+packages = ["plotter"]
+
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"

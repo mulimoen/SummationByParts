@@ -267,7 +267,7 @@ def read_from_file(filename):
     return grids, file["t"]
 
 
-if __name__ == "__main__":
+def main():
     parser = ArgumentParser(description="Plot a solution from the eulersolver")
     parser.add_argument("filename", metavar="filename", type=str)
     parser.add_argument("-s", help="Save figure", action="store_true", dest="save")
@@ -295,3 +295,7 @@ if __name__ == "__main__":
             plot_pressure_slider(grids, t)
         else:
             plot_pressure(grids, args.save, args.output)
+
+
+if __name__ == "__main__":
+    main()
