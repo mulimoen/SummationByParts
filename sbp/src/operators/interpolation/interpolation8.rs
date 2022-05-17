@@ -58,7 +58,7 @@ impl InterpolationOperator for Interpolation8 {
         let diag = Array::from_iter(Self::F2C_DIAG.iter().flatten().copied())
             .into_shape((Self::F2C_DIAG.len(), Self::F2C_DIAG[0].len()))
             .unwrap();
-        super::interpolate(fine, coarse, block.view(), diag.view(), (0, 2))
+        super::interpolate(fine, coarse, block.view(), diag.view(), (0, 2));
     }
     fn coarse2fine(&self, coarse: ArrayView1<Float>, fine: ArrayViewMut1<Float>) {
         assert_eq!(fine.len(), 2 * coarse.len() - 1);
@@ -69,7 +69,7 @@ impl InterpolationOperator for Interpolation8 {
         let diag = Array::from_iter(Self::C2F_DIAG.iter().flatten().copied())
             .into_shape((Self::C2F_DIAG.len(), Self::C2F_DIAG[0].len()))
             .unwrap();
-        super::interpolate(coarse, fine, block.view(), diag.view(), (8, 1))
+        super::interpolate(coarse, fine, block.view(), diag.view(), (8, 1));
     }
 }
 

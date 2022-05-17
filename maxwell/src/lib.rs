@@ -15,13 +15,13 @@ impl Clone for Field {
         Self(self.0.clone())
     }
     fn clone_from(&mut self, source: &Self) {
-        self.0.clone_from(&source.0)
+        self.0.clone_from(&source.0);
     }
 }
 
 impl integrate::Integrable for Field {
-    type State = Field;
-    type Diff = Field;
+    type State = Self;
+    type Diff = Self;
 
     fn scaled_add(s: &mut Self::State, o: &Self::Diff, scale: Float) {
         s.0.scaled_add(scale, &o.0);
@@ -153,12 +153,12 @@ impl<SBP: SbpOperator2d> System<SBP> {
         let rhs_adaptor = move |fut: &mut Field, prev: &Field, _time: Float| {
             RHS(op, fut, prev, grid, metrics, wb);
         };
-        let mut _time = 0.0;
+        let mut time = 0.0;
         integrate::integrate::<integrate::Rk4, Field, _>(
             rhs_adaptor,
             &self.sys.0,
             &mut self.sys.1,
-            &mut _time,
+            &mut time,
             dt,
             &mut self.wb.k,
         );
@@ -213,12 +213,12 @@ impl<UO: SbpOperator2d + UpwindOperator2d> System<UO> {
         let rhs_adaptor = move |fut: &mut Field, prev: &Field, _time: Float| {
             RHS_upwind(op, fut, prev, grid, metrics, wb);
         };
-        let mut _time = 0.0;
+        let mut time = 0.0;
         integrate::integrate::<integrate::Rk4, Field, _>(
             rhs_adaptor,
             &self.sys.0,
             &mut self.sys.1,
-            &mut _time,
+            &mut time,
             dt,
             &mut self.wb.k,
         );
@@ -487,11 +487,8 @@ fn SAT_characteristics<SBP: SbpOperator2d>(
     metrics: &Metrics,
     boundaries: &BoundaryTerms,
 ) {
-    let ny = y.ny();
-    let nx = y.nx();
-
     fn positive_flux(kx: Float, ky: Float) -> [[Float; 3]; 3] {
-        let r = (kx * kx + ky * ky).sqrt();
+        let r = Float::hypot(kx, ky);
         [
             [ky * ky / r / 2.0, ky / 2.0, -kx * ky / r / 2.0],
             [ky / 2.0, r / 2.0, -kx / 2.0],
@@ -499,13 +496,16 @@ fn SAT_characteristics<SBP: SbpOperator2d>(
         ]
     }
     fn negative_flux(kx: Float, ky: Float) -> [[Float; 3]; 3] {
-        let r = (kx * kx + ky * ky).sqrt();
+        let r = Float::hypot(kx, ky);
         [
             [-ky * ky / r / 2.0, ky / 2.0, kx * ky / r / 2.0],
             [ky / 2.0, -r / 2.0, -kx / 2.0],
             [kx * ky / r / 2.0, -kx / 2.0, -kx * kx / r / 2.0],
         ]
     }
+
+    let ny = y.ny();
+    let nx = y.nx();
 
     {
         let g = match boundaries.east {

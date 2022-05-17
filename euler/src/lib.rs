@@ -60,7 +60,7 @@ impl<SBP: SbpOperator2d> System<SBP> {
         let metrics = &self.grid.1;
         let rhs_trad = |k: &mut Diff, y: &Field, _time: Float| {
             let boundaries = boundary_extractor(y, grid, &bc);
-            RHS_trad(op, k, y, metrics, &boundaries, wb)
+            RHS_trad(op, k, y, metrics, &boundaries, wb);
         };
         integrate::integrate::<integrate::Rk4, Field, _>(
             rhs_trad,
@@ -98,7 +98,7 @@ impl<SBP: SbpOperator2d> System<SBP> {
 
         self.sys
             .0
-            .vortex(self.grid.0.x(), self.grid.0.y(), 0.0, &vortex_parameters)
+            .vortex(self.grid.0.x(), self.grid.0.y(), 0.0, &vortex_parameters);
     }
 
     pub fn field(&self) -> &Field {
@@ -134,7 +134,7 @@ impl<UO: UpwindOperator2d + SbpOperator2d> System<UO> {
         let rhs_upwind = |k: &mut Diff, y: &Field, _time: Float| {
             let (grid, metrics) = grid;
             let boundaries = boundary_extractor(y, grid, &bc);
-            RHS_upwind(op, k, y, metrics, &boundaries, wb)
+            RHS_upwind(op, k, y, metrics, &boundaries, wb);
         };
         integrate::integrate::<integrate::Rk4, Field, _>(
             rhs_upwind,
@@ -159,7 +159,7 @@ impl<UO: UpwindOperator2d + SbpOperator2d> System<UO> {
         let mut rhs_upwind = |k: &mut Diff, y: &Field, _time: Float| {
             let (grid, metrics) = grid;
             let boundaries = boundary_extractor(y, grid, &bc);
-            RHS_upwind(op, k, y, metrics, &boundaries, wb)
+            RHS_upwind(op, k, y, metrics, &boundaries, wb);
         };
         let mut time = 0.0;
         let mut sys2 = self.sys.0.clone();
@@ -194,7 +194,7 @@ impl Clone for Field {
         Self(self.0.clone())
     }
     fn clone_from(&mut self, source: &Self) {
-        self.0.clone_from(&source.0)
+        self.0.clone_from(&source.0);
     }
 }
 
@@ -324,7 +324,7 @@ impl Field {
         vortex_param: &VortexParameters,
     ) {
         let (rho, rhou, rhov, e) = self.components_mut();
-        vortex_param.evaluate(time, x, y, rho, rhou, rhov, e)
+        vortex_param.evaluate(time, x, y, rho, rhou, rhov, e);
     }
     #[allow(clippy::erasing_op, clippy::identity_op)]
     fn iter(&self) -> impl ExactSizeIterator<Item = FieldValue> + '_ {
@@ -508,7 +508,7 @@ pub fn RHS_trad(
                     eflux in &dE.0,
                     fflux in &dF.0,
                     detj in &metrics.detj().broadcast((4, y.ny(), y.nx())).unwrap()) {
-        *out = (-eflux - fflux)/detj
+        *out = (-eflux - fflux)/detj;
     });
 
     SAT_characteristics(op, k, y, metrics, boundaries);
@@ -555,14 +555,14 @@ pub fn RHS_no_SAT(
                         ad_xi in &ad_xi.0,
                         ad_eta in &ad_eta.0,
                         detj in &metrics.detj().broadcast((4, y.ny(), y.nx())).unwrap()) {
-            *out = (-eflux - fflux + ad_xi + ad_eta)/detj
+            *out = (-eflux - fflux + ad_xi + ad_eta)/detj;
         });
     } else {
         azip!((out in &mut k.0,
                         eflux in &dE.0,
                         fflux in &dF.0,
                         detj in &metrics.detj().broadcast((4, y.ny(), y.nx())).unwrap()) {
-            *out = (-eflux - fflux )/detj
+            *out = (-eflux - fflux )/detj;
         });
     }
 }
@@ -609,7 +609,7 @@ pub fn RHS_upwind(
                     ad_xi in &ad_xi.0,
                     ad_eta in &ad_eta.0,
                     detj in &metrics.detj().broadcast((4, y.ny(), y.nx())).unwrap()) {
-        *out = (-eflux - fflux + ad_xi + ad_eta)/detj
+        *out = (-eflux - fflux + ad_xi + ad_eta)/detj;
     });
 
     SAT_characteristics(op, k, y, metrics, boundaries);
@@ -687,7 +687,7 @@ fn fluxes(k: (&mut Field, &mut Field), y: &Field, metrics: &Metrics, wb: &mut Fi
 
     let mut p = wb.rho_mut();
     azip!((p in &mut p, &rho in &rho, &rhou in &rhou, &rhov in &rhov, &e in &e) {
-        *p = pressure(gamma, rho, rhou, rhov, e)
+        *p = pressure(gamma, rho, rhou, rhov, e);
     });
 
     let (mut c0, c1, mut c2, c3) = k.0.components_mut();
@@ -730,7 +730,7 @@ fn fluxes(k: (&mut Field, &mut Field), y: &Field, metrics: &Metrics, wb: &mut Fi
             let fflux = *ff;
             *ef = j_dxi_dx * eflux + j_dxi_dy * fflux;
             *ff = j_deta_dx * eflux + j_deta_dy * fflux;
-        })
+        });
     }
 }
 
@@ -835,12 +835,12 @@ fn boundary_extract<'a>(
                 to.slice_mut(s![.., i..i + n])
                     .assign(&seldir(&fields[g]).slice(s![.., start..end]));
                 remaining -= 1;
-                if remaining != 0 {
-                    to.slice_mut(s![.., i]).iter_mut().for_each(|x| *x /= 2.0);
-                    i += n - 1;
-                } else {
+                if remaining == 0 {
                     i += n;
                     assert_eq!(i, to.len_of(Axis(1)));
+                } else {
+                    to.slice_mut(s![.., i]).iter_mut().for_each(|x| *x /= 2.0);
+                    i += n - 1;
                 }
             }
             to.view()
@@ -880,7 +880,7 @@ pub fn boundary_extracts<'a>(
             &bt.north,
             field,
             grid.north(),
-            |f| f.south(),
+            Field::south,
             eb.north.as_mut(),
             time,
         ),
@@ -889,7 +889,7 @@ pub fn boundary_extracts<'a>(
             &bt.south,
             field,
             grid.south(),
-            |f| f.north(),
+            Field::north,
             eb.south.as_mut(),
             time,
         ),
@@ -898,7 +898,7 @@ pub fn boundary_extracts<'a>(
             &bt.east,
             field,
             grid.east(),
-            |f| f.west(),
+            Field::west,
             eb.east.as_mut(),
             time,
         ),
@@ -907,7 +907,7 @@ pub fn boundary_extracts<'a>(
             &bt.west,
             field,
             grid.west(),
-            |f| f.east(),
+            Field::east,
             eb.west.as_mut(),
             time,
         ),
@@ -994,7 +994,7 @@ fn vortexify(
         fiter.next().unwrap(),
     );
     let (y, x) = yx;
-    vparams.evaluate(time, x, y, rho, rhou, rhov, e)
+    vparams.evaluate(time, x, y, rho, rhou, rhov, e);
 }
 
 #[allow(non_snake_case)]

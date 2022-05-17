@@ -79,7 +79,7 @@ impl InterpolationOperator for Interpolation4 {
             ndarray::arr2(Self::F2C_BLOCK).view(),
             ndarray::arr2(Self::F2C_DIAG).view(),
             (3, 2),
-        )
+        );
     }
     fn coarse2fine(&self, coarse: ArrayView1<Float>, fine: ArrayViewMut1<Float>) {
         assert_eq!(fine.len(), 2 * coarse.len() - 1);
@@ -89,7 +89,7 @@ impl InterpolationOperator for Interpolation4 {
             ndarray::arr2(Self::C2F_BLOCK).view(),
             ndarray::arr2(Self::C2F_DIAG).view(),
             (4, 1),
-        )
+        );
     }
 }
 

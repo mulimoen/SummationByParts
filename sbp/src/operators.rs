@@ -56,11 +56,11 @@ pub trait SbpOperator2d: Send + Sync {
     fn diffxi(&self, prev: ArrayView2<Float>, mut fut: ArrayViewMut2<Float>) {
         assert_eq!(prev.shape(), fut.shape());
         for (p, f) in prev.outer_iter().zip(fut.outer_iter_mut()) {
-            self.op_xi().diff(p, f)
+            self.op_xi().diff(p, f);
         }
     }
     fn diffeta(&self, prev: ArrayView2<Float>, fut: ArrayViewMut2<Float>) {
-        self.diffxi(prev.reversed_axes(), fut.reversed_axes())
+        self.diffxi(prev.reversed_axes(), fut.reversed_axes());
     }
 
     fn hxi(&self) -> &'static [Float] {
@@ -91,12 +91,12 @@ pub trait UpwindOperator2d: Send + Sync {
     fn dissxi(&self, prev: ArrayView2<Float>, mut fut: ArrayViewMut2<Float>) {
         assert_eq!(prev.shape(), fut.shape());
         for (p, f) in prev.outer_iter().zip(fut.outer_iter_mut()) {
-            UpwindOperator2d::op_xi(self).diss(p, f)
+            UpwindOperator2d::op_xi(self).diss(p, f);
         }
     }
     // Assuming operator is symmetrical x/y
     fn disseta(&self, prev: ArrayView2<Float>, fut: ArrayViewMut2<Float>) {
-        self.dissxi(prev.reversed_axes(), fut.reversed_axes())
+        self.dissxi(prev.reversed_axes(), fut.reversed_axes());
     }
 
     fn op_xi(&self) -> &dyn UpwindOperator1d;
@@ -114,10 +114,10 @@ pub trait InterpolationOperator: Send + Sync {
 
 impl SbpOperator2d for (Box<dyn SbpOperator2d>, Box<dyn SbpOperator2d>) {
     fn diffxi(&self, prev: ArrayView2<Float>, fut: ArrayViewMut2<Float>) {
-        self.1.diffxi(prev, fut)
+        self.1.diffxi(prev, fut);
     }
     fn diffeta(&self, prev: ArrayView2<Float>, fut: ArrayViewMut2<Float>) {
-        self.0.diffeta(prev, fut)
+        self.0.diffeta(prev, fut);
     }
 
     fn op_xi(&self) -> &dyn SbpOperator1d {
@@ -136,10 +136,10 @@ impl SbpOperator2d for (Box<dyn SbpOperator2d>, Box<dyn SbpOperator2d>) {
 
 impl UpwindOperator2d for (Box<dyn UpwindOperator2d>, Box<dyn UpwindOperator2d>) {
     fn dissxi(&self, prev: ArrayView2<Float>, fut: ArrayViewMut2<Float>) {
-        self.1.dissxi(prev, fut)
+        self.1.dissxi(prev, fut);
     }
     fn disseta(&self, prev: ArrayView2<Float>, fut: ArrayViewMut2<Float>) {
-        self.0.disseta(prev, fut)
+        self.0.disseta(prev, fut);
     }
     fn op_xi(&self) -> &dyn UpwindOperator1d {
         self.1.op_xi()

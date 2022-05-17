@@ -59,7 +59,7 @@ impl Upwind9 {
 
 impl SbpOperator1d for Upwind9 {
     fn diff(&self, prev: ArrayView1<Float>, fut: ArrayViewMut1<Float>) {
-        super::diff_op_1d(&Self::DIFF, super::OperatorType::Normal, prev, fut)
+        super::diff_op_1d(&Self::DIFF, super::OperatorType::Normal, prev, fut);
     }
 
     fn h(&self) -> &'static [Float] {
@@ -84,7 +84,7 @@ impl SbpOperator2d for Upwind9 {
     fn diffxi(&self, prev: ArrayView2<Float>, fut: ArrayViewMut2<Float>) {
         assert_eq!(prev.shape(), fut.shape());
 
-        super::diff_op_2d(&Self::DIFF, OperatorType::Normal, prev, fut)
+        super::diff_op_2d(&Self::DIFF, OperatorType::Normal, prev, fut);
     }
     fn op_xi(&self) -> &dyn SbpOperator1d {
         &Self
@@ -96,7 +96,7 @@ impl SbpOperator2d for Upwind9 {
 
 impl UpwindOperator1d for Upwind9 {
     fn diss(&self, prev: ArrayView1<Float>, fut: ArrayViewMut1<Float>) {
-        super::diff_op_1d(&Self::DISS, super::OperatorType::Normal, prev, fut)
+        super::diff_op_1d(&Self::DISS, super::OperatorType::Normal, prev, fut);
     }
 
     fn as_sbp(&self) -> &dyn SbpOperator1d {
@@ -112,7 +112,7 @@ impl UpwindOperator1d for Upwind9 {
 impl UpwindOperator2d for Upwind9 {
     fn dissxi(&self, prev: ArrayView2<Float>, fut: ArrayViewMut2<Float>) {
         assert_eq!(prev.shape(), fut.shape());
-        super::diff_op_2d(&Self::DISS, OperatorType::Normal, prev, fut)
+        super::diff_op_2d(&Self::DISS, OperatorType::Normal, prev, fut);
     }
     fn op_xi(&self) -> &dyn UpwindOperator1d {
         &Self

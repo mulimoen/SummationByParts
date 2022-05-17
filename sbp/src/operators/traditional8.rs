@@ -36,7 +36,7 @@ impl SBP8 {
 
 impl SbpOperator1d for SBP8 {
     fn diff(&self, prev: ArrayView1<Float>, fut: ArrayViewMut1<Float>) {
-        super::diff_op_1d(&Self::DIFF, super::OperatorType::Normal, prev, fut)
+        super::diff_op_1d(&Self::DIFF, super::OperatorType::Normal, prev, fut);
     }
 
     fn h(&self) -> &'static [Float] {
@@ -56,7 +56,7 @@ impl SbpOperator1d for SBP8 {
 impl SbpOperator2d for SBP8 {
     fn diffxi(&self, prev: ArrayView2<Float>, fut: ArrayViewMut2<Float>) {
         assert_eq!(prev.shape(), fut.shape());
-        super::diff_op_2d(&Self::DIFF, OperatorType::Normal, prev, fut)
+        super::diff_op_2d(&Self::DIFF, OperatorType::Normal, prev, fut);
     }
     fn op_xi(&self) -> &dyn SbpOperator1d {
         &Self

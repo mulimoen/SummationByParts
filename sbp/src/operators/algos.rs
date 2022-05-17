@@ -111,7 +111,7 @@ pub(crate) fn diff_op_1d_slice<const M: usize, const N: usize, const D: usize>(
         a: &Matrix<Float, M, N>,
         b: &ColVector<Float, N>,
     ) {
-        c.matmul_float_into(a, b)
+        c.matmul_float_into(a, b);
     }
 
     assert_eq!(prev.len(), fut.len());
@@ -198,9 +198,9 @@ pub(crate) fn diff_op_1d<const M: usize, const N: usize, const D: usize>(
     assert!(nx >= 2 * M);
 
     if let Some((prev, fut)) = prev.as_slice().zip(fut.as_slice_mut()) {
-        diff_op_1d_slice(matrix, optype, prev, fut)
+        diff_op_1d_slice(matrix, optype, prev, fut);
     } else {
-        diff_op_1d_fallback(matrix, optype, prev, fut)
+        diff_op_1d_fallback(matrix, optype, prev, fut);
     }
 }
 
@@ -258,7 +258,7 @@ pub(crate) fn diff_op_2d_fallback<const M: usize, const N: usize, const D: usize
             if d.is_zero() {
                 continue;
             }
-            fut.scaled_add(idx * d, &id)
+            fut.scaled_add(idx * d, &id);
         }
     }
 
@@ -529,7 +529,7 @@ pub(crate) fn diff_op_2d_sliceable<const M: usize, const N: usize, const D: usiz
     for (prev, mut fut) in prev.outer_iter().zip(fut.outer_iter_mut()) {
         let prev = &prev.as_slice().unwrap()[..nx];
         let fut = &mut fut.as_slice_mut().unwrap()[..nx];
-        diff_op_1d_slice(matrix, optype, prev, fut)
+        diff_op_1d_slice(matrix, optype, prev, fut);
     }
 }
 
@@ -547,7 +547,7 @@ pub(crate) fn diff_op_2d<const M: usize, const N: usize, const D: usize>(
         ([1, _], [1, _])
             if prev.as_slice_memory_order().is_some() && fut.as_slice_memory_order().is_some() =>
         {
-            diff_op_2d_sliceable_y_simd(matrix, optype, prev, fut)
+            diff_op_2d_sliceable_y_simd(matrix, optype, prev, fut);
         }
         _ => diff_op_2d_fallback(matrix, optype, prev, fut),
     }

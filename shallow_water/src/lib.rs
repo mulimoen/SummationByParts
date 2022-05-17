@@ -19,8 +19,8 @@ impl Clone for Field {
 }
 
 impl integrate::Integrable for Field {
-    type State = Field;
-    type Diff = Field;
+    type State = Self;
+    type Diff = Self;
 
     fn scaled_add(s: &mut Self::State, o: &Self::Diff, scale: Float) {
         s.0.scaled_add(scale, &o.0);
