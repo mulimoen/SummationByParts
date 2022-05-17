@@ -17,8 +17,8 @@ core_simd = { git = "https://github.com/rust-lang/portable-simd" }
 [features]
 # Use f32 as precision, default is f64
 f32 = ["float/f32"]
-sparse = ["sprs"]
-serde1 = ["serde", "ndarray/serde"]
+sparse = ["dep:sprs"]
+serde1 = ["dep:serde", "ndarray/serde"]
 
 [dev-dependencies]
 iai = "0.1.1"

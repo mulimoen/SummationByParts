@@ -5,7 +5,7 @@ authors = ["Magnus Ulimoen <magnus@ulimoen.dev>"]
 edition = "2018"
 
 [features]
-sparse = ["sbp/sparse", "sprs"]
+sparse = ["sbp/sparse", "dep:sprs"]
 
 [dependencies]
 ndarray = "0.15.0"

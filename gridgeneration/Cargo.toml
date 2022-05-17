@@ -11,4 +11,4 @@ sbp = { path = "../sbp" }
 json5 = { version = "0.2.8", optional = true }
 
 [features]
-serde = ["sbp/serde1", "json5"]
+serde = ["sbp/serde1", "dep:json5"]
