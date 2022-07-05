@@ -2,6 +2,7 @@ use super::*;
 use ndarray::s;
 use num_traits::Zero;
 use std::convert::TryInto;
+use std_float::StdFloat;
 
 pub(crate) use constmatrix::{ColVector, Matrix, RowVector};
 
@@ -442,7 +443,7 @@ pub(crate) fn diff_op_2d_sliceable_y_simd<const M: usize, const N: usize, const 
                 for (iprev, &bl) in bl.iter().enumerate() {
                     f = index_to_simd(iprev).mul_add(SimdT::splat(bl), f);
                 }
-                f *= idx;
+                f *= SimdT::splat(idx);
                 fut.clone_from_slice(f.as_array());
             }
             for (j, fut) in (simdified..ny).zip(fut.into_remainder()) {
@@ -494,7 +495,7 @@ pub(crate) fn diff_op_2d_sliceable_y_simd<const M: usize, const N: usize, const 
                     let offset = ifut - half_diag_width + id;
                     f = index_to_simd(offset).mul_add(SimdT::splat(d), f);
                 }
-                f *= idx;
+                f *= SimdT::splat(idx);
                 fut.clone_from_slice(f.as_array());
             }
             for (j, fut) in (simdified..ny).zip(fut.into_remainder()) {
