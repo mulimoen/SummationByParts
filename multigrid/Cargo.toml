@@ -2,7 +2,7 @@
 name = "multigrid"
 version = "0.1.0"
 authors = ["Magnus Ulimoen <magnus@ulimoen.dev>"]
-edition = "2018"
+edition = "2021"
 
 
 [dependencies]
@@ -11,7 +11,7 @@ euler = { path = "../euler", features = ["serde1"] }
 hdf5 = "0.8.1"
 integrate = { path = "../utils/integrate" }
 rayon = "1.3.0"
-indicatif = "0.17.0-beta.1"
+indicatif = "0.17.0-rc.11"
 ndarray = { version = "0.15.0", features = ["serde"] }
 serde = { version = "1.0.115", features = ["derive"] }
 json5 = "0.3.0"

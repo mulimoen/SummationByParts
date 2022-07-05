@@ -4,12 +4,12 @@ use crate::Float;
 mod jacobi;
 #[cfg(feature = "sparse")]
 pub use jacobi::*;
-#[cfg(feature = "serde")]
+#[cfg(feature = "serde1")]
 use serde::{Deserialize, Serialize};
 #[cfg(feature = "sparse")]
 pub use sprs::kronecker_product;
 
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde1", derive(Serialize, Deserialize))]
 #[derive(Copy, Clone, Debug, Default)]
 /// struct to hold output for four directions
 pub struct Direction<T> {

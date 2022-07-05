@@ -166,6 +166,7 @@ fn progressbar(ntime: u64) -> indicatif::ProgressBar {
     let progressbar = indicatif::ProgressBar::new(ntime);
     progressbar.with_style(
         indicatif::ProgressStyle::default_bar()
-            .template("{wide_bar:.cyan/blue} {pos}/{len} ({eta})"),
+            .template("{wide_bar:.cyan/blue} {pos}/{len} ({eta})")
+            .unwrap(),
     )
 }

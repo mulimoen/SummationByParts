@@ -2,7 +2,7 @@
 name = "shallow-water"
 version = "0.1.0"
 authors = ["Magnus Ulimoen <magnus@ulimoen.dev>"]
-edition = "2018"
+edition = "2021"
 
 [dependencies]
 ndarray = "0.15.0"
