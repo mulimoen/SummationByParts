@@ -5,10 +5,10 @@ authors = ["Magnus Ulimoen <magnus@ulimoen.dev>"]
 edition = "2021"
 
 [dependencies]
-ndarray = { version = "0.15.0", default-features = false }
-plotters = { version = "0.3.0", default-features = false, features = ["svg_backend", "line_series", "point_series"] }
+ndarray = { version = "0.15.4", default-features = false }
+plotters = { version = "0.3.1", default-features = false, features = ["svg_backend", "line_series", "point_series"] }
 sbp = { path = "../sbp" }
-json5 = { version = "0.2.8", optional = true }
+json5 = { version = "0.4.1", optional = true }
 
 [features]
 serde = ["sbp/serde1", "dep:json5"]

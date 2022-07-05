@@ -6,4 +6,4 @@ edition = "2021"
 
 [dependencies]
 float = { path = "../float" }
-num-traits = "0.2.14"
+num-traits = "0.2.15"

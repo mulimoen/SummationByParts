@@ -2,7 +2,7 @@ use super::*;
 use ndarray::s;
 use num_traits::Zero;
 use std::convert::TryInto;
-use std_float::StdFloat;
+use std::simd::StdFloat;
 
 pub(crate) use constmatrix::{ColVector, Matrix, RowVector};
 
@@ -395,9 +395,9 @@ pub(crate) fn diff_op_2d_sliceable_y_simd<const M: usize, const N: usize, const 
     let idx = 1.0 / dx;
 
     #[cfg(not(feature = "f32"))]
-    type SimdT = core_simd::f64x8;
+    type SimdT = std::simd::f64x8;
     #[cfg(feature = "f32")]
-    type SimdT = core_simd::f32x16;
+    type SimdT = std::simd::f32x16;
 
     // How many elements that can be simdified
     let simdified = SimdT::LANES * (ny / SimdT::LANES);
