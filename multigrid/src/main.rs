@@ -56,13 +56,13 @@ fn main() {
     let config: input::Configuration = match json5::from_str(&filecontents) {
         Ok(config) => config,
         Err(e) => {
-            eprintln!("Configuration could not be read: {}", e);
+            eprintln!("Configuration could not be read: {e}");
             if let json5::Error::Message {
                 location: Some(location),
                 ..
             } = e
             {
-                eprintln!("\t{:?}", location);
+                eprintln!("\t{location:?}");
             }
             return;
         }
@@ -157,7 +157,7 @@ fn main() {
             println!("Time elapsed: {} seconds", duration.as_secs_f64());
         }
         if let Some(error) = outinfo.error {
-            println!("Total error: {:e}", error);
+            println!("Total error: {error:e}");
         }
     }
 }

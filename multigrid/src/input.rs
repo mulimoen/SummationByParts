@@ -117,10 +117,10 @@ pub enum InterpolationOperator {
     NineH2,
 }
 
-impl Into<Box<dyn sbp::operators::InterpolationOperator>> for InterpolationOperator {
-    fn into(self) -> Box<dyn sbp::operators::InterpolationOperator> {
+impl From<InterpolationOperator> for Box<dyn sbp::operators::InterpolationOperator> {
+    fn from(val: InterpolationOperator) -> Self {
         use sbp::operators::{Interpolation4, Interpolation8, Interpolation9, Interpolation9h2};
-        match self {
+        match val {
             InterpolationOperator::Four => Box::new(Interpolation4),
             InterpolationOperator::Eight => Box::new(Interpolation8),
             InterpolationOperator::Nine => Box::new(Interpolation9),

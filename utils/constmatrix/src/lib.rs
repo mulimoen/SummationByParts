@@ -258,7 +258,7 @@ mod approx {
         fn default_epsilon() -> Self::Epsilon {
             T::default_epsilon()
         }
-        fn abs_diff_eq(&self, other: &Self, epsilon: Self::Epsilon) -> bool {
+        fn abs_diff_eq(&self, other: &Self, _epsilon: Self::Epsilon) -> bool {
             self.iter()
                 .zip(other.iter())
                 .all(|(r, l)| r.abs_diff_eq(l, T::default_epsilon()))

@@ -200,7 +200,7 @@ impl BaseSystem {
             .zip(push)
             .enumerate()
         {
-            let builder = std::thread::Builder::new().name(format!("mg: {}", name));
+            let builder = std::thread::Builder::new().name(format!("mg: {name}"));
 
             let boundary_conditions = bt.map(|bt| match bt {
                 euler::BoundaryCharacteristic::This => DistributedBoundaryConditions::This,
@@ -444,7 +444,7 @@ impl System {
                 for _ in 0..sys.sys.len() {
                     e += match sys.recv.recv().unwrap() {
                         (_, MsgToHost::Error(e)) => e,
-                        (_, m) => panic!("Unexpected message: {:?}", m),
+                        (_, m) => panic!("Unexpected message: {m:?}"),
                     }
                 }
                 e

@@ -748,11 +748,11 @@ impl std::fmt::Debug for BoundaryCharacteristic {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::This => write!(f, "This"),
-            Self::Grid(g) => write!(f, "Grid({})", g),
-            Self::Vortex(vp) => write!(f, "{:?}", vp),
+            Self::Grid(g) => write!(f, "Grid({g})"),
+            Self::Vortex(vp) => write!(f, "{vp:?}"),
             Self::Eval(_) => write!(f, "Eval"),
             Self::Interpolate(_, _) => write!(f, "Interpolate"),
-            Self::MultiGrid(m) => write!(f, "Multigrid: {:?}", m),
+            Self::MultiGrid(m) => write!(f, "Multigrid: {m:?}"),
         }
     }
 }

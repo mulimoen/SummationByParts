@@ -139,12 +139,12 @@ impl input::Configuration {
                 let xi = operators.xi.unwrap_or_else(|| {
                     default_operators
                         .xi
-                        .unwrap_or_else(|| panic!("No xi operator found for grid: {}", name))
+                        .unwrap_or_else(|| panic!("No xi operator found for grid: {name}"))
                 });
                 let eta = operators.eta.unwrap_or_else(|| {
                     default_operators
                         .eta
-                        .unwrap_or_else(|| panic!("No eta operator found for grid: {}", name))
+                        .unwrap_or_else(|| panic!("No eta operator found for grid: {name}"))
                 });
 
                 use input::Operator as op;
@@ -183,9 +183,8 @@ impl input::Configuration {
                             BoundaryConditions::Expressions(expr) => {
                                 euler::BoundaryCharacteristic::Eval(expr.clone() )
                             }
-                            _ => panic!(
-                                "Boundary conditions are not available, but needed for grid {}",
-                                name
+                            BoundaryConditions::NotNeeded => panic!(
+                                "Boundary conditions are not available, but needed for grid {name}"
                             ),
                         },
                         Some(BoundaryType::This) => euler::BoundaryCharacteristic::This,
@@ -193,7 +192,7 @@ impl input::Configuration {
                             if let BoundaryConditions::Vortex(vortex) = &boundary_conditions {
                                 vortex.clone()
                             } else {
-                                panic!("Wanted vortex boundary conditions not found, needed for grid {}", name)
+                                panic!("Wanted vortex boundary conditions not found, needed for grid {name}")
                             },
                         ),
                         Some(BoundaryType::Neighbour(name)) => {
