@@ -9,10 +9,6 @@ pub use crate::maxwell::MaxwellUniverse;
 mod shallow_water;
 pub use crate::shallow_water::ShallowWaterUniverse;
 
-#[cfg(feature = "wee_alloc")]
-#[global_allocator]
-static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
-
 #[wasm_bindgen]
 pub fn set_panic_hook() {
     console_error_panic_hook::set_once();
